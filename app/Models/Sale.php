@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 
 class Sale extends Model
 {
+    use HasStore;
+
     protected $connection = 'mysql';
     protected $table = 'sales';
     protected $fillable = [
+        'store_id',
         'ref_sale_id',
         'invoice_number',
         'sale_date',

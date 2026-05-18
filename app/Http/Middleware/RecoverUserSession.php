@@ -22,7 +22,7 @@ class RecoverUserSession
         }
 
         // Lewati rute SSO & auth
-        if ($request->is('sso/*') || $request->is('login') || $request->is('logout')) {
+        if ($request->is('sso/*') || $request->is('login') || $request->is('logout') || $request->is('select-store') || $request->is('select-store/*')) {
             return $next($request);
         }
 
@@ -31,7 +31,6 @@ class RecoverUserSession
             if ($role) {
                 $request->session()->put([
                     'selected_role' => $role->role_id,
-                    'divisi_kerja'  => Auth::user()->id_divisi,
                 ]);
             }
             // Jangan logout/redirect di middleware global; biar controller/halaman yang handle.

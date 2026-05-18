@@ -62,19 +62,24 @@
                                     <th class="text-center" width="8%">Jumlah Order</th>
                                     <th class="text-center" width="8%">Sudah Diterima</th>
                                     <th class="text-center" width="8%">Belum Diterima</th>
-                                    <th class="text-center" width="15%">Qty Terima</th>
+                                    <th class="text-center" width="8%">Qty Terima</th>
                                 </tr>
                                 @foreach ($po->items as $item)
                                     <tr>
-                                        <td>{{ $item->variant->product->nama_produk }} - {{ $item->variant->sku }}</td>
-                                        <td class="text-end">{{ round($item->qty_order) }}</td>
-                                        <td class="text-end">{{ round($item->qty_received) }}</td>
-                                        <td class="text-end">{{ round($item->qty_order - $item->qty_received) }}</td>
-                                        <td>
+                                        <td class="align-middle">{{ $item->variant->product->nama_produk }}<br>
+                                            <small>SKU: {{ $item->variant->sku }}</small>
+                                        </td>
+                                        <td class="text-end align-middle">{{ round($item->qty_order) }}</td>
+                                        <td class="text-end align-middle">{{ round($item->qty_received) }}</td>
+                                        <td class="text-end align-middle">
+                                            {{ round($item->qty_order - $item->qty_received) }}</td>
+                                        <td class="align-middle">
                                             <input type="hidden" name="items[{{ $loop->index }}][purchase_item_id]"
                                                 value="{{ $item->id }}">
                                             <input type="number" name="items[{{ $loop->index }}][qty_received]"
-                                                class="form-control" max="{{ $item->qty_order - $item->qty_received }}">
+                                                class="form-control form-control-sm"
+                                                max="{{ $item->qty_order - $item->qty_received }}"
+                                                value="{{ $item->qty_order - $item->qty_received }}">
                                         </td>
                                     </tr>
                                 @endforeach
@@ -141,13 +146,14 @@
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-danger btn-sm">
                                                 <i class="bi bi-trash"></i>
-                                            </button>    
+                                            </button>
                                         </form>
-                                         
-                                            <a href="{{ route('gr.downloadBarcodes', $gr->id) }}" class="btn btn-success btn-sm" title="Download Barcode">
-                                                <i class="fa-solid fa-barcode"></i>
-                                            </a>
-                                        
+
+                                        <a href="{{ route('gr.downloadBarcodes', $gr->id) }}"
+                                            class="btn btn-success btn-sm" title="Download Barcode">
+                                            <i class="fa-solid fa-barcode"></i>
+                                        </a>
+
                                     </td>
                                 </tr>
                             @empty

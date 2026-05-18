@@ -45,6 +45,7 @@ class GoodsReceiptController extends Controller
             }
 
             $receipt = GoodsReceipt::create([
+                'store_id' => session('store_id'),
                 'purchase_order_id' => $po->id,
                 'receipt_number' => $this->generateReceiptNumber(),
                 'receipt_date' => $request->receipt_date,
@@ -76,7 +77,7 @@ class GoodsReceiptController extends Controller
                 StockService::receiveFromPurchase(
                     $poItem->product_variant_id,
                     $poItem->id,
-                    'warehouse',
+                    'store',
                     $request->receipt_date,
                     $item['qty_received'],
                     $poItem->price,
@@ -92,38 +93,40 @@ class GoodsReceiptController extends Controller
 
             \Log::info(
                 'Fully received: ' . ($fullyReceived ? 'yes' : 'no') .
-                ' Jumlah Receipt Item: ' . $po->items->sum('qty_received') .
-                ' Jumlah Order Item: ' . $po->items->sum('qty_order')
+                    ' Jumlah Receipt Item: ' . $po->items->sum('qty_received') .
+                    ' Jumlah Order Item: ' . $po->items->sum('qty_order')
             );
 
             $po->update([
                 'status' => $fullyReceived ? 'RECEIVED' : 'PARTIAL_RECEIVED'
             ]);
 
-            // Jurnal pengakuan barang diterima
-            $journalService = new JournalEntryService();
-            $voucher = $journalService->create(
-                [
-                    'tanggal' => $request->receipt_date,
-                    'uraian' => 'Penerimaan Barang PO #' . $po->po_number,
-                    'jns_trx' => 10,
-                    'ref_tagihan' => $receipt->id,
-                    'divisi' => 8,
-                ],
-                [
+            if (config('app.jurnal_transaksi')) {
+                // Jurnal pengakuan barang diterima
+                $journalService = new JournalEntryService();
+                $voucher = $journalService->create(
                     [
-                        'kode_akun' => '11.04.14', // Persediaan Koperasi - Gudang
-                        'amount' => $receipt->items->sum(fn($item) => $item->qty_received * $item->purchaseOrderItem->price),
-                        'type' => 'debet',
+                        'tanggal' => $request->receipt_date,
+                        'uraian' => 'Penerimaan Barang PO #' . $po->po_number,
+                        'jns_trx' => 10,
+                        'ref_tagihan' => $receipt->id,
+                        'divisi' => 8,
                     ],
                     [
-                        'kode_akun' => '11.04.16', // Persediaan Koperasi Dalam Perjalanan
-                        'amount' => $receipt->items->sum(fn($item) => $item->qty_received * $item->purchaseOrderItem->price),
-                        'type' => 'kredit',
-                    ],
-                ]
-            );
-            $receipt->update(['nojurnal' => $voucher->id]);
+                        [
+                            'kode_akun' => '11.04.14', // Persediaan Koperasi - Gudang
+                            'amount' => $receipt->items->sum(fn($item) => $item->qty_received * $item->purchaseOrderItem->price),
+                            'type' => 'debet',
+                        ],
+                        [
+                            'kode_akun' => '11.04.16', // Persediaan Koperasi Dalam Perjalanan
+                            'amount' => $receipt->items->sum(fn($item) => $item->qty_received * $item->purchaseOrderItem->price),
+                            'type' => 'kredit',
+                        ],
+                    ]
+                );
+                $receipt->update(['nojurnal' => $voucher->id]);
+            }
         });
 
         return back()->with('success', 'Barang berhasil diterima');
@@ -138,7 +141,7 @@ class GoodsReceiptController extends Controller
                 return back()->with(
                     'error',
                     StockService::rollbackBlockReason($gr)
-                    ?? 'Goods Receipt tidak dapat dihapus'
+                        ?? 'Goods Receipt tidak dapat dihapus'
                 );
             }
             DB::transaction(function () use ($gr) {
@@ -160,7 +163,7 @@ class GoodsReceiptController extends Controller
                 }
 
                 // 3️⃣ Hapus jurnal
-                if ($gr->nojurnal) {
+                if ($gr->nojurnal && config('app.jurnal_transaksi')) {
                     DB::connection('financedb')
                         ->table('jurnal')
                         ->where('ref', $gr->nojurnal)

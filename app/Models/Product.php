@@ -2,21 +2,29 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
     use SoftDeletes;
+    use HasStore;
 
     protected $connection = 'mysql';
     protected $table = 'products';
 
     protected $fillable = [
+        'store_id',
         'kode_produk',
         'nama_produk',
         'deskripsi',
     ];
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     public function variants()
     {

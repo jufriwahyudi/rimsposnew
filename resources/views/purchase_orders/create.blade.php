@@ -72,18 +72,7 @@
                                 <select name="vendor_id" class="form-control" required>
                                     <option value="">-- Pilih Vendor --</option>
                                     @foreach ($vendors as $vendor)
-                                        <option value="{{ $vendor->Id }}">{{ $vendor->nama }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label>Divisi</label>
-                                <select name="divisi_id" class="form-control" required>
-                                    <option value="0">-- Semua Divisi --</option>
-                                    @foreach ($divisis as $divisi)
-                                        <option value="{{ $divisi->Id }}">{{ $divisi->nama }}</option>
+                                        <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
                                     @endforeach
                                 </select>
                             </div>

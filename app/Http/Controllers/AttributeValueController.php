@@ -10,12 +10,14 @@ class AttributeValueController extends Controller
 {
     public function index(Request $request)
     {
-        $attributes = Attribute::orderBy('nama')->get();
+        $storeId = session('store_id');
+        $attributes = Attribute::where('store_id', $storeId)->orderBy('nama')->get();
         $attributeId = $request->attribute_id;
 
-        $values = AttributeValue::when($attributeId, function ($q) use ($attributeId) {
-            $q->where('attribute_id', $attributeId);
-        })->orderByDesc('id')->get();
+        $values = AttributeValue::where('store_id', $storeId)
+            ->when($attributeId, function ($q) use ($attributeId) {
+                $q->where('attribute_id', $attributeId);
+            })->orderByDesc('id')->get();
 
         return view('pengaturan.attributes.nilai', compact(
             'attributes',
@@ -26,6 +28,7 @@ class AttributeValueController extends Controller
 
     public function store(Request $request)
     {
+        $storeId = session('store_id');
         $request->validate([
             'attribute_id' => 'required|exists:attributes,id',
             'kode' => 'required|string|max:50',
@@ -34,6 +37,7 @@ class AttributeValueController extends Controller
 
         AttributeValue::create([
             'attribute_id' => $request->attribute_id,
+            'store_id'     => $storeId,
             'kode' => strtoupper($request->kode),
             'nama' => $request->nama,
         ]);

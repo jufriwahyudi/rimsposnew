@@ -14,6 +14,8 @@ return [
     */
 
     'name' => env('APP_NAME', 'Laravel'),
+    'tagline' => env('APP_TAGLINE', 'Your Application Tagline Here'),
+    'jurnal_transaksi' => env('APP_JURNAL_TRANSAKSI', false),
 
     /*
     |--------------------------------------------------------------------------

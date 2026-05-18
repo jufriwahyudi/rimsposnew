@@ -11,8 +11,8 @@
                 style="background: url('{{ asset('assets/images/bg-themes/bg03.jpeg') }}') no-repeat center; background-size: cover;">
                 <div class="text-center px-5 pt-2">
                     <!-- <h1 class="fw-bold text-muted mb-3" style="text-shadow: 0 4px 12px rgba(0,0,0,.45);">
-                        {{ config('app.name') }}
-                    </h1> -->
+                                                    {{ config('app.name') }}
+                                                </h1> -->
                     <p class="text-muted text-center fw-bold fs-4 mb-0 mt-4" style="text-shadow: 0 4px 12px rgba(0,0,0,.45);">
                         Kelola Inventori dan Penjualan<br>Mudah dan Terintegrasi
                     </p>
@@ -31,14 +31,14 @@
                         <div class="ms-3">
                             <h4 class="mb-0 fw-bold">{{ config('app.name') }}</h4>
                             <small class="text-muted">
-                                Al-Azhar Management of Inventory & Retail Application
+                                {{ config('app.tagline') }}
                             </small>
                         </div>
                     </div>
 
                     {{-- Description --}}
                     <p class="text-center text-muted mb-4">
-                        Satu sistem terintegrasi untuk stok, pembelian, dan penjualan sekolah
+                        Masuk untuk mengelola inventori dan penjualan Anda dengan mudah dan terintegrasi.
                     </p>
 
                     {{-- Error --}}
@@ -55,16 +55,11 @@
 
                             <a href="{{ route('dashboard') }}" class="text-decoration-none">
                                 <div class="d-flex align-items-center gap-3 border p-3 rounded-4">
-                                    @if (Auth::user()->pegawai && Auth::user()->pegawai->foto && Auth::user()->pegawai->foto !== '-')
-                                        <img src="{{ Storage::disk('s3')->temporaryUrl(Auth::user()->pegawai->foto, now()->addMinutes(60)) }}"
-                                            width="48" height="48" class="rounded-circle" alt="">
-                                    @else
-                                        <img src="{{ asset('assets/images/avatars/11.png') }}" width="48" height="48"
-                                            class="rounded-circle" alt="">
-                                    @endif
+                                    <img src="{{ asset('assets/images/avatars/11.png') }}" width="48" height="48"
+                                        class="rounded-circle" alt="">
                                     <div class="flex-grow-1">
                                         <h6 class="mb-0">{{ Auth::user()->name }}</h6>
-                                        <small class="text-muted">{{ Auth::user()->nik }}</small>
+                                        <small class="text-muted">{{ Auth::user()->email }}</small>
                                     </div>
                                 </div>
                             </a>
@@ -73,17 +68,54 @@
                         <div class="text-center text-muted my-3 small">atau</div>
                     @endauth
 
-                    {{-- SSO Button --}}
-                    <a href="{{ route('sso.login') }}{{ auth()->check() ? '?prompt=login' : '' }}"
-                        class="btn btn-grd-primary text-white fw-bold py-2 w-100 d-flex align-items-center justify-content-center gap-2">
-                        <img src="{{ asset('assets/images/apps/alazca_favicon.png') }}" width="20" alt="">
-                        Masuk dengan CASANDRA
-                    </a>
+                    {{-- Login Form --}}
+                    <form method="POST" action="{{ route('login') }}">
+                        @csrf
 
-                    {{-- Footer --}}
-                    <div class="text-center text-muted small mt-4">
-                        SSO terintegrasi dengan sistem pusat Al-Azhar
-                    </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label fw-semibold">Email</label>
+                            <input type="email" id="email" name="email"
+                                class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}"
+                                placeholder="Masukkan email" autofocus>
+                            @error('email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="password" class="form-label fw-semibold">Password</label>
+                            <div class="input-group">
+                                <input type="password" id="password" name="password"
+                                    class="form-control @error('password') is-invalid @enderror"
+                                    placeholder="Masukkan password">
+                                <button type="button" class="btn btn-outline-secondary" onclick="togglePassword()"
+                                    tabindex="-1">
+                                    <i id="eye-icon" class="fa fa-eye"></i>
+                                </button>
+                                @error('password')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-grd-primary text-white fw-bold py-2 w-100">
+                            Masuk
+                        </button>
+                    </form>
+
+                    <script>
+                        function togglePassword() {
+                            const input = document.getElementById('password');
+                            const icon = document.getElementById('eye-icon');
+                            if (input.type === 'password') {
+                                input.type = 'text';
+                                icon.classList.replace('fa-eye', 'fa-eye-slash');
+                            } else {
+                                input.type = 'password';
+                                icon.classList.replace('fa-eye-slash', 'fa-eye');
+                            }
+                        }
+                    </script>
 
                 </div>
             </div>

@@ -12,24 +12,44 @@ use App\Models\VariantAttribute;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Milon\Barcode\DNS1D;
-use Illuminate\Support\Str;
+use Yajra\DataTables\Facades\DataTables;
 
 class ProdukController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $products = Product::withCount('variants')
-            ->withStockWarehouse()
-            ->withStockStore()
-            ->orderBy('nama_produk')
-            ->paginate(10);
-        // dd($products);
+        return view('produk.index');
+    }
 
-        return view('produk.index', compact('products'));
+    public function datatables(Request $request)
+    {
+        $query = Product::query()
+            ->select('products.*')
+            ->withCount('variants')
+            ->withStockWarehouse()
+            ->withStockStore();
+
+        return DataTables::of($query)
+            ->addColumn('aksi', function ($p) {
+                $edit   = route('produk.edit', $p);
+                $detail = route('produk.show', $p);
+                return '<a href="' . $edit . '" class="btn btn-sm btn-warning me-1">Edit</a>'
+                    . '<a href="' . $detail . '" class="btn btn-sm btn-info">Detail</a>';
+            })
+            ->filterColumn('nama_produk', function ($q, $keyword) {
+                $q->where(function ($q) use ($keyword) {
+                    $q->where('nama_produk', 'like', "%$keyword%")
+                        ->orWhere('kode_produk', 'like', "%$keyword%");
+                });
+            })
+            ->rawColumns(['aksi'])
+            ->make(true);
     }
     public function create()
     {
-        $attributes = Attribute::with('values')
+        $storeId = session('store_id');
+        $attributes = Attribute::where('store_id', $storeId)
+            ->with('values')
             ->orderBy('urutan')
             ->get();
         return view('produk.create', compact('attributes'));
@@ -46,6 +66,7 @@ class ProdukController extends Controller
 
                 // 1️⃣ Simpan produk
                 $product = Product::create([
+                    'store_id'    => session('store_id'),
                     'kode_produk' => strtoupper($request->kode),
                     'nama_produk' => $request->nama,
                     'deskripsi' => $request->deskripsi,
@@ -258,7 +279,8 @@ class ProdukController extends Controller
         });
 
         // 🔹 Attribute master (untuk modal)
-        $attributes = Attribute::with('values')
+        $attributes = Attribute::where('store_id', session('store_id'))
+            ->with('values')
             ->orderBy('urutan')
             ->get();
 
@@ -573,6 +595,7 @@ class ProdukController extends Controller
 
         $variants = ProductVariant::with(['product', 'barcodeActive'])
             ->where('is_active', 'Y')
+            ->whereHas('product', fn($p) => $p->where('store_id', session('store_id')))
             ->where(function ($query) use ($keywords) {
                 foreach ($keywords as $word) {
                     $query->where(function ($sub) use ($word) {
@@ -641,7 +664,7 @@ class ProdukController extends Controller
     {
         try {
             // non aktifkan semua barcode variant
-             ProductVariantBarcode::where('product_variant_id', $barcode->product_variant_id)
+            ProductVariantBarcode::where('product_variant_id', $barcode->product_variant_id)
                 ->update(['is_active' => 'N']);
             $newStatus = $barcode->is_active === 'Y' ? 'N' : 'Y';
             $barcode->update(['is_active' => $newStatus]);

@@ -87,7 +87,7 @@ class SettingAppController extends Controller
         $id = Crypt::decryptString($id);
         $selectedRole = $id;
 
-        $data['role'] = RoleMaster::with(['menus', 'users.pengguna.pegawai'])->find($id);
+        $data['role'] = RoleMaster::with(['menus', 'users.pengguna'])->find($id);
         $data['menus'] = \App\Models\MenuList::select('menu_list.*', \DB::raw('IF(menuby_role.id IS NULL, 0, 1) as has_access'))
             ->leftJoin('menuby_role', function ($join) use ($selectedRole) {
                 $join->on('menu_list.id', '=', 'menuby_role.menu_id')->where('menuby_role.role_id', '=', $selectedRole);
@@ -233,11 +233,11 @@ class SettingAppController extends Controller
         $search = $request->search;
 
         if ($search == '') {
-            $users = User::with(['divisi', 'pegawai.jabatan'])->orderby('name', 'asc')->limit(5)->get();
+            $users = User::orderby('name', 'asc')->limit(5)->get();
         } else {
-            $users = User::with(['divisi', 'pegawai.jabatan'])->orderby('name', 'asc')
+            $users = User::orderby('name', 'asc')
                 ->where('name', 'like', '%' . $search . '%')
-                ->orWhere('nik', 'like', '%' . $search . '%')
+                ->orWhere('email', 'like', '%' . $search . '%')
                 ->limit(5)->get();
         }
         // dd($users);
@@ -246,7 +246,7 @@ class SettingAppController extends Controller
         foreach ($users as $user) {
             $response[] = [
                 'id' => $user->id,
-                'text' => $user->nik . " - " . $user->name . " - " . optional($user->divisi)->nama . " - " . optional(optional($user->pegawai)->jabatan)->nama
+                'text' => $user->name . ' (' . $user->email . ')',
             ];
         }
 

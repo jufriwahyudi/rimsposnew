@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureStoreSelected;
 use App\Http\Middleware\InjectUserDataToView;
 use App\Http\Middleware\RecoverUserSession;
 use App\Http\Middleware\RoleType;
@@ -18,7 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'recoverSession' => RecoverUserSession::class,
             'injectUserData' => InjectUserDataToView::class,
-            'role.type' => RoleType::class,
+            'role.type'      => RoleType::class,
+            'store.selected' => EnsureStoreSelected::class,
         ]);
 
         // Tambahkan recover ke group web (SETELAH StartSession dkk)

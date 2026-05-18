@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 
 class GoodsReceipt extends Model
 {
+    use HasStore;
     protected $connection = 'mysql';
     protected $table = 'goods_receipts';
     protected $fillable = [
+        'store_id',
         'purchase_order_id',
         'receipt_number',
         'receipt_date',
@@ -23,6 +26,10 @@ class GoodsReceipt extends Model
 
     /* ================== RELATIONSHIP ================== */
 
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
     public function purchaseOrder()
     {
         return $this->belongsTo(PurchaseOrder::class);

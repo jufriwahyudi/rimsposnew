@@ -2,19 +2,21 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PurchaseOrder extends Model
 {
     use SoftDeletes;
+    use HasStore;
 
     protected $connection = 'mysql';
     protected $table = 'purchase_orders';
     protected $fillable = [
+        'store_id',
         'po_number',
         'vendor_id',
-        'divisi_id',
         'notes',
         'request_date',
         'expected_date',
@@ -37,13 +39,13 @@ class PurchaseOrder extends Model
     ];
     /* ================== RELATIONSHIPS ================== */
 
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
     public function vendor()
     {
-        return $this->belongsTo(Vendor::class, 'vendor_id', 'Id');
-    }
-    public function divisi()
-    {
-        return $this->belongsTo(DivisiFinance::class, 'divisi_id', 'Id');
+        return $this->belongsTo(Vendor::class, 'vendor_id');
     }
     public function items()
     {

@@ -21,7 +21,9 @@ use App\Http\Controllers\StockOpnamePeriodController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\MasterSeragamController;
+use App\Http\Controllers\ManageUserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\StoreSelectionController;
 use App\Services\JournalFromCashTransactionService;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -72,11 +74,26 @@ Route::get('/sso/login', [SSOController::class, 'redirectToSSO'])->name('sso.log
 Route::get('/sso/callback', [SSOController::class, 'handleSSOCallback']);
 Route::get('/sso/bypass/{id}', [SSOController::class, 'bypassSSO']);
 
-Route::middleware(['auth', 'injectUserData'])->group(function () {
+// Pilih toko setelah login (butuh auth, tapi sebelum store.selected)
+Route::middleware(['auth'])->group(function () {
+    Route::get('/select-store', [StoreSelectionController::class, 'index'])->name('select-store.index');
+    Route::post('/select-store/choose', [StoreSelectionController::class, 'choose'])->name('select-store.choose');
+});
+
+Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function () {
     Route::get('/home', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/stock-out', [DashboardController::class, 'stockOut'])->name('dashboard.stockout');
     // Menu Management
     Route::resource('menu', MenuListController::class);
+    // Manage User
+    Route::controller(ManageUserController::class)->prefix('manage-users')->name('manage-users.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{user}/edit', 'edit')->name('edit');
+        Route::put('/{user}', 'update')->name('update');
+        Route::delete('/{user}', 'destroy')->name('destroy');
+    });
+
     // Role Management
     Route::controller(SettingAppController::class)->group(function () {
         Route::get('/role', 'index')->name('role.index');
@@ -103,6 +120,7 @@ Route::middleware(['auth', 'injectUserData'])->group(function () {
         Route::put('/{attributeValue}', [AttributeValueController::class, 'update'])->name('attribute-nilai.update');
         Route::delete('/{attributeValue}', [AttributeValueController::class, 'destroy'])->name('attribute-nilai.destroy');
     });
+    Route::get('/produk/datatables', [ProdukController::class, 'datatables'])->name('produk.datatables');
     Route::resource('produk', ProdukController::class);
     Route::get('produk/{product}/variants/{variant}', [ProdukController::class, 'showVariantDetail'])->name('produk.variants.detail');
     Route::delete('produk/variants/{variant}', [ProdukController::class, 'destroyVariant'])->name('produk.variants.destroy');

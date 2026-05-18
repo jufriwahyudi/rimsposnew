@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 
 class Attribute extends Model
 {
+    use HasStore;
+
     protected $connection = 'mysql';
     protected $table = 'attributes';
 
-    protected $fillable = ['kode', 'nama', 'urutan'];
+    protected $fillable = ['store_id', 'kode', 'nama', 'urutan'];
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     public function values()
     {

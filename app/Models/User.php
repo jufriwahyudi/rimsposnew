@@ -19,10 +19,6 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
-        'nik',
-        'id_divisi',
-        'id_pegawai',
-        'id_user_finance',
         'email',
         'password',
     ];
@@ -54,12 +50,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(RoleUser::class);
     }
-    public function pegawai()
+
+    public function stores()
     {
-        return $this->belongsTo(Pegawai::class, 'id_pegawai', 'id');
-    }
-    public function divisi()
-    {
-        return $this->belongsTo(DivisiFinance::class, 'id_divisi', 'Id');
+        return $this->belongsToMany(Store::class, 'store_user')
+            ->withTimestamps();
     }
 }

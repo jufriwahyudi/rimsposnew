@@ -41,7 +41,6 @@
                             <th>Tanggal PO</th>
                             <th>PO</th>
                             <th>Vendor</th>
-                            <th>Divisi</th>
                             <th class="text-center" width="10%">Subtotal</th>
                             <th class="text-center" width="10%">Pajak</th>
                             <th class="text-center" width="10%">Diskon</th>
@@ -54,8 +53,7 @@
                                 <td>{{ $index + 1 }}</td>
                                 <td>{{ date('d-m-Y', strtotime($po->request_date)) }}</td>
                                 <td>{{ $po->po_number }}</td>
-                                <td>{{ $po->vendor->nama }}</td>
-                                <td>{{ $po->divisi_id == 0 ? 'Semua Divisi' : $po->divisi->nama }}</td>
+                                <td>{{ $po->vendor->nama_vendor }}</td>
                                 <td class="text-end">{{ number_format($po->subtotal) }}</td>
                                 <td class="text-end">{{ number_format($po->tax_total) }}</td>
                                 <td class="text-end">{{ number_format($po->discount_total) }}</td>

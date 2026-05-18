@@ -9,18 +9,21 @@ class AttributeController extends Controller
 {
     public function index()
     {
-        $attributes = Attribute::orderBy('nama')->get();
+        $storeId = session('store_id');
+        $attributes = Attribute::where('store_id', $storeId)->orderBy('nama')->get();
         return view('pengaturan.attributes.index', compact('attributes'));
     }
 
     public function store(Request $request)
     {
+        $storeId = session('store_id');
         $request->validate([
             'kode' => 'required|alpha_dash|unique:attributes,kode',
             'nama' => 'required|string|max:100',
         ]);
 
         Attribute::create([
+            'store_id' => $storeId,
             'kode' => strtolower($request->kode),
             'nama' => $request->nama,
         ]);

@@ -1,5 +1,5 @@
 @extends('layouts.main.main')
-@section('title', 'Manajemen Menu')
+@section('title', 'Manajemen Produk')
 
 @section('breadcrumb')
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
@@ -27,51 +27,93 @@
                             <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
                         </div>
                     </div>
-                    <a href="{{ route('produk.create') }}" class="btn btn-success btn-sm mb-3"><i class="bi bi-plus"></i>
-                        Tambah Produk</a>
+                    <a href="{{ route('produk.create') }}" class="btn btn-success btn-sm mb-3">
+                        <i class="bi bi-plus"></i> Tambah Produk
+                    </a>
                 </div>
                 <div class="card-body">
                     @if (session('success'))
                         <div class="alert alert-success">{{ session('success') }}</div>
                     @endif
 
-                    <table class="table table-bordered">
+                    <table id="tbl-produk" class="table table-bordered w-100">
                         <thead>
                             <tr>
                                 <th>Kode</th>
-                                <th>Nama</th>
-                                <th width="10%" class="text-center">Varian</th>
-                                <th width="10%" class="text-center">Stok Gudang</th>
-                                <th width="10%" class="text-center">Stok Toko</th>
-                                <th width="12%" class="text-center">Aksi</th>
+                                <th>Nama Produk</th>
+                                <th class="text-center" width="8%">Varian</th>
+                                <th class="text-center" width="10%">Stok Gudang</th>
+                                <th class="text-center" width="10%">Stok Toko</th>
+                                <th class="text-center" width="12%">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @foreach ($products as $p)
-                                <tr>
-                                    <td>{{ $p->kode_produk }}</td>
-                                    <td>{{ $p->nama_produk }}</td>
-                                    <td class="text-end">{{ $p->variants_count }}</td>
-                                    <td class="text-end">{{ $p->stock_warehouse ?? 0 }}</td>
-                                    <td class="text-end">{{ $p->stock_store ?? 0 }}</td>
-                                    <td class="text-center">
-                                        <a href="{{ route('produk.edit', $p) }}" class="btn btn-sm btn-warning">
-                                            Edit
-                                        </a>
-
-                                        <a href="{{ route('produk.show', $p) }}" class="btn btn-sm btn-info">
-                                            Detail
-                                        </a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
                     </table>
-
-                    {!! $products->withQueryString()->links('pagination::bootstrap-5') !!}
                 </div>
             </div>
         </div>
     </div>
-
 @endsection
+
+@push('scripts')
+    <script>
+        $(function() {
+            $('#tbl-produk').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: '{{ route('produk.datatables') }}',
+                columns: [{
+                        data: 'kode_produk',
+                        name: 'kode_produk'
+                    },
+                    {
+                        data: 'nama_produk',
+                        name: 'nama_produk'
+                    },
+                    {
+                        data: 'variants_count',
+                        name: 'variants_count',
+                        searchable: false,
+                        className: 'text-end'
+                    },
+                    {
+                        data: 'stock_warehouse',
+                        name: 'stock_warehouse',
+                        searchable: false,
+                        className: 'text-end',
+                        render: d => d ?? 0
+                    },
+                    {
+                        data: 'stock_store',
+                        name: 'stock_store',
+                        searchable: false,
+                        className: 'text-end',
+                        render: d => d ?? 0
+                    },
+                    {
+                        data: 'aksi',
+                        name: 'aksi',
+                        orderable: false,
+                        searchable: false,
+                        className: 'text-center'
+                    },
+                ],
+                order: [
+                    [1, 'asc']
+                ],
+                language: {
+                    search: 'Cari:',
+                    lengthMenu: 'Tampilkan _MENU_ data',
+                    info: 'Menampilkan _START_ – _END_ dari _TOTAL_ produk',
+                    infoEmpty: 'Tidak ada data',
+                    infoFiltered: '(difilter dari _MAX_ total)',
+                    zeroRecords: 'Produk tidak ditemukan',
+                    paginate: {
+                        previous: '&laquo;',
+                        next: '&raquo;'
+                    },
+                    processing: '<div class="spinner-border spinner-border-sm text-primary"></div> Memuat...',
+                },
+            });
+        });
+    </script>
+@endpush

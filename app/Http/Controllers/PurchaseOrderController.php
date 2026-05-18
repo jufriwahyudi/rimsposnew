@@ -17,7 +17,7 @@ class PurchaseOrderController extends Controller
 {
     public function index()
     {
-        $pos = PurchaseOrder::with(['vendor', 'divisi'])
+        $pos = PurchaseOrder::with(['vendor'])
             ->latest()
             ->get();
         // dd(json_encode($pos, JSON_PRETTY_PRINT));
@@ -29,10 +29,11 @@ class PurchaseOrderController extends Controller
         $products = Product::with([
             'variants.variantAttributes.attribute'
         ])->get();
+        // lihat sql yang terbentuk
+        // dd($products->toSql(), $products->getBindings());
         $attributeValues = AttributeValue::pluck('nama', 'id');
         return view('purchase_orders.create', [
-            'vendors' => Vendor::where('stts', '1')->get(),
-            'divisis' => \App\Models\DivisiFinance::where('school', 'Y')->get(),
+            'vendors' => Vendor::get(),
             'products' => $products,
             'attributeValues' => $attributeValues,
         ]);
@@ -43,8 +44,7 @@ class PurchaseOrderController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'vendor_id' => 'required|exists:financedb.master_supplier,Id',
-            'divisi_id' => 'required',
+            'vendor_id' => 'required|exists:vendors,id',
             'notes' => 'nullable|string',
             'request_date' => 'required|date',
             'expected_date' => 'required|date',
@@ -59,9 +59,9 @@ class PurchaseOrderController extends Controller
         DB::transaction(function () use ($request) {
 
             $po = PurchaseOrder::create([
+                'store_id' => session('store_id'),
                 'po_number'    => $this->generatePoNumber(),
                 'vendor_id'  => $request->vendor_id,
-                'divisi_id'  => $request->divisi_id,
                 'notes'      => $request->notes,
                 'request_date' => $request->request_date,
                 'expected_date' => $request->expected_date,
@@ -90,7 +90,13 @@ class PurchaseOrderController extends Controller
                 'tax_total' => $request->tax_total ?? 0,
                 'discount_total' => $request->discount_total ?? 0,
                 'grand_total' => ($total - ($request->discount_total ?? 0)) + ($request->tax_total ?? 0),
+                'status' => 'APPROVED',
+                'approved_by' => auth()->id(),
+                'approved_at' => now(),
             ]);
+
+            // 🔴 NANTI: buat jurnal hutang (AP)
+            // AccountingService::createPurchaseAP($po);
         });
 
         return redirect()->route('po.index')->with('success', 'PO berhasil dibuat');

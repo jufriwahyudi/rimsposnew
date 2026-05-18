@@ -16,49 +16,51 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        // User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        User::factory()->create([
+            'name' => 'Test User',
+            'email' => 'yudi.math@gmail.com',
+            'password' => bcrypt('Rims1nsecure'),
+        ]);
 
-        $attribute = [
-            'ukuran' => [
-                'S' => 'Small',
-                'M' => 'Medium',
-                'L' => 'Large',
-                'XL' => 'Extra Large',
-            ],
-            'warna' => [
-                'MERAH' => 'Merah',
-                'BIRU'  => 'Biru',
-                'HIJAU' => 'Hijau',
-                'KUNING' => 'Kuning',
-            ],
-            'gender' => [
-                'LK'    => 'Laki-Laki',
-                'PR'    => 'Perempuan',
-                'US'    => 'Unisex',
-            ],
-            'divisi' => [
-                'TK'    => 'Taman Kanak-Kanak',
-                'SD'    => 'Sekolah Dasar',
-                'SMP'   => 'Sekolah Menengah Pertama',
-            ],
-        ];
-        foreach ($attribute as $attrName => $values) {
-            $attr = \App\Models\Attribute::create([
-                'kode' => $attrName,
-                'nama' => ucfirst($attrName),
-            ]);
-            foreach ($values as $code => $valName) {
-                \App\Models\AttributeValue::create([
-                    'attribute_id' => $attr->id,
-                    'kode'         => $code,
-                    'nama'         => $valName,
-                ]);
-            }
-        }
+        // $attribute = [
+        //     'ukuran' => [
+        //         'S' => 'Small',
+        //         'M' => 'Medium',
+        //         'L' => 'Large',
+        //         'XL' => 'Extra Large',
+        //     ],
+        //     'warna' => [
+        //         'MERAH' => 'Merah',
+        //         'BIRU'  => 'Biru',
+        //         'HIJAU' => 'Hijau',
+        //         'KUNING' => 'Kuning',
+        //     ],
+        //     'gender' => [
+        //         'LK'    => 'Laki-Laki',
+        //         'PR'    => 'Perempuan',
+        //         'US'    => 'Unisex',
+        //     ],
+        //     'divisi' => [
+        //         'TK'    => 'Taman Kanak-Kanak',
+        //         'SD'    => 'Sekolah Dasar',
+        //         'SMP'   => 'Sekolah Menengah Pertama',
+        //     ],
+        // ];
+        // foreach ($attribute as $attrName => $values) {
+        //     $attr = \App\Models\Attribute::create([
+        //         'kode' => $attrName,
+        //         'nama' => ucfirst($attrName),
+        //     ]);
+        //     foreach ($values as $code => $valName) {
+        //         \App\Models\AttributeValue::create([
+        //             'attribute_id' => $attr->id,
+        //             'kode'         => $code,
+        //             'nama'         => $valName,
+        //         ]);
+        //     }
+        // }
 
         $this->call(RoleUserSeeder::class);
+        $this->call(ProductSeeder::class);
     }
 }
