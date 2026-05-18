@@ -58,6 +58,7 @@ class InjectUserDataToView
             view()->share('menucache', $menus);
             view()->share('roleactive', $roleactive);
             view()->share('roleuserlist', $rolelist);
+            view()->share('storelist', $user->stores);
 
             // if ($user->id_divisi == 6 || $user->multidivisi === 'Y') {
             //     view()->share('listdivisi', Divisi::getActiveSchool()->get());

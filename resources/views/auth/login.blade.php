@@ -7,14 +7,26 @@
         <div class="row g-0 min-vh-100">
 
             {{-- LEFT : HERO --}}
-            <div class="col-xl-7 col-xxl-8 d-none d-xl-flex align-items-top justify-content-center border-end"
-                style="background: url('{{ asset('assets/images/bg-themes/bg03.jpeg') }}') no-repeat center; background-size: cover;">
-                <div class="text-center px-5 pt-2">
-                    <!-- <h1 class="fw-bold text-muted mb-3" style="text-shadow: 0 4px 12px rgba(0,0,0,.45);">
-                                                    {{ config('app.name') }}
-                                                </h1> -->
-                    <p class="text-muted text-center fw-bold fs-4 mb-0 mt-4" style="text-shadow: 0 4px 12px rgba(0,0,0,.45);">
-                        Kelola Inventori dan Penjualan<br>Mudah dan Terintegrasi
+            <div class="col-xl-7 col-xxl-8 d-none d-xl-flex align-items-center justify-content-center position-relative overflow-hidden"
+                style="min-height: 100vh;
+                       background: url('{{ asset('assets/images/bg-themes/bg_chart.jpg') }}') no-repeat center center / cover;">
+
+                {{-- Gradient overlay --}}
+                <div class="position-absolute top-0 start-0 w-100 h-100"
+                    style="background: linear-gradient(135deg, rgba(124,58,237,0.78) 0%, rgba(79,70,229,0.68) 100%); z-index:1;">
+                </div>
+
+                {{-- Content --}}
+                <div class="text-center px-5 position-relative" style="z-index:2;">
+                    <img src="{{ asset('assets/images/bg-themes/marketing.png') }}" class="img-fluid mb-4"
+                        style="max-width: 380px; filter: drop-shadow(0 24px 48px rgba(0,0,0,0.40));"
+                        alt="Marketing Illustration">
+                    <h2 class="fw-bold text-white mb-2" style="text-shadow: 0 2px 10px rgba(0,0,0,0.35);">
+                        {{ config('app.name') }}
+                    </h2>
+                    <p class="text-white-50 mb-0"
+                        style="font-size: 1rem; max-width: 340px; margin: 0 auto; line-height: 1.6;">
+                        Kelola inventori dan penjualan dengan mudah, cepat, dan terintegrasi.
                     </p>
                 </div>
             </div>

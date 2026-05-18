@@ -67,10 +67,34 @@
             <li class="nav-item d-lg-none mobile-search-btn">
                 <a class="nav-link" href="javascript:;"><i class="material-icons-outlined">search</i></a>
             </li>
+            {{-- Tambahkan list store kalau melebihi dari 1 store --}}
+            @if (isset($storelist) && count($storelist) > 1)
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle dropdown-toggle-nocaret" href="javascript:;"
+                        data-bs-toggle="dropdown">
+                        <i class="material-icons-outlined">store</i>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        {{-- panggil url post name('select-store.choose') dengan parameter store_id --}}
+                        @foreach ($storelist as $row)
+                            <li>
+                                <form method="POST" action="{{ route('select-store.choose') }}">
+                                    @csrf
+                                    <input type="hidden" name="store_id" value="{{ $row->id }}">
+                                    <button type="submit" class="dropdown-item d-flex align-items-center py-2">
+                                        @php echo (session('store_id') == $row->id ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="material-icons-outlined">home</i>') @endphp
+                                        <span class="ms-2">{{ $row->name }}</span>
+                                    </button>
+                                </form>
+                            </li>
+                        @endforeach
+                    </ul>
+                </li>
+            @endif
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle dropdown-toggle-nocaret" href="javascript:;"
                     data-bs-toggle="dropdown">
-                    <i class="material-icons-outlined">home</i>
+                    <i class="material-icons-outlined">person</i>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
                     @if (isset($roleuserlist))
@@ -79,7 +103,7 @@
                                 <a class="dropdown-item d-flex align-items-center py-2" href="javascript:;"
                                     onclick="ROLE.setSessionRole('{{ Crypt::encryptString($row->role_id) }}')">
                                     @php echo ($row->role_id == $roleactive->id ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="material-icons-outlined">home</i>') @endphp
-                                    <span class="ms-2">{{ $row->roles->nama }}</span>
+                                    <span class="ms-2">{{ $row->roles->nama ?? '-' }}</span>
                                 </a>
                             </li>
                         @endforeach

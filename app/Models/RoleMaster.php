@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class RoleMaster extends Model
 {
     use HasFactory;
+
     protected $connection = 'mysql';
     protected $table = 'role_master';
 

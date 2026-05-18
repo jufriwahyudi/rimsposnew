@@ -87,6 +87,7 @@ class ProdukController extends Controller
                         }
                     }
                     ProductVariant::create([
+                        'store_id' => session('store_id'),
                         'product_id' => $product->id,
                         'sku' => $product->kode_produk . '-001',
                         'barcode' => $newBarcode,
@@ -128,6 +129,7 @@ class ProdukController extends Controller
                         }
                     }
                     $productVariant = ProductVariant::create([
+                        'store_id' => session('store_id'),
                         'product_id' => $product->id,
                         'sku' => $sku,
                         'barcode' => $newBarcode,
@@ -348,6 +350,7 @@ class ProdukController extends Controller
                         }
                     }
                     $productVariant = ProductVariant::create([
+                        'store_id' => session('store_id'),
                         'product_id' => $product->id,
                         'sku' => $variant['sku'],
                         'barcode' => $newBarcode,

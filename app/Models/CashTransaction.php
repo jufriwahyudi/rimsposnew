@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 
 class CashTransaction extends Model
 {
+    use HasStore;
     protected $connection = 'mysql';
     protected $table = 'cash_transactions';
     protected $fillable = [
+        'store_id',
         'ref_type',
         'ref_id',
         'transaction_type',

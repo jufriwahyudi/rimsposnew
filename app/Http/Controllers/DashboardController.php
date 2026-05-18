@@ -23,15 +23,30 @@ class DashboardController extends Controller
         $totalProducts = Product::count();
         $totalVariants = ProductVariant::where('is_active', 1)->count();
 
-        // Stok gudang & store
-        $stockData = DB::table('stock_movements')
+        // Stok gudang & store filter yang product_variants dengan store_id sesuai session
+        $storeId = session('store_id');
+
+        $stockData = DB::table('stock_movements as sm')
+            ->join('product_variants as pv', 'pv.id', '=', 'sm.product_variant_id')
             ->select(
-                'posisi',
-                DB::raw("COALESCE(SUM(CASE WHEN direction = 'in' THEN qty WHEN direction = 'out' THEN -qty ELSE 0 END), 0) as total_stock")
+                'sm.posisi',
+                DB::raw("
+                    COALESCE(
+                        SUM(
+                            CASE 
+                                WHEN sm.direction = 'in' THEN sm.qty
+                                WHEN sm.direction = 'out' THEN -sm.qty
+                                ELSE 0
+                            END
+                        ), 0
+                    ) as total_stock
+                ")
             )
-            ->whereDate('tanggal', '<=', $today)
-            ->groupBy('posisi')
-            ->pluck('total_stock', 'posisi');
+            ->where('pv.store_id', $storeId)
+            ->whereDate('sm.tanggal', '<=', $today)
+            ->groupBy('sm.posisi')
+            ->pluck('total_stock', 'sm.posisi');
+
 
         $stokGudang = $stockData['warehouse'] ?? 0;
         $stokStore = $stockData['store'] ?? 0;
@@ -61,7 +76,11 @@ class DashboardController extends Controller
 
         // Top 10 produk terlaris bulan ini
         $topProducts = DB::table('sale_items')
-            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->join('sales', function ($join) {
+                $join->on('sales.id', '=', 'sale_items.sale_id')
+                    ->where('sales.store_id', session('store_id'))
+                    ->where('sales.status', '=', 'paid');
+            })
             ->whereNull('sales.ref_sale_id')
             ->whereBetween('sales.sale_date', [$startOfMonth, $endOfMonth])
             ->whereIn('sale_items.status', ['sold', 'exchanged_in'])
@@ -114,6 +133,9 @@ class DashboardController extends Controller
     private function getStockOut(string $tanggal)
     {
         return StockMovement::where('direction', 'out')
+            ->whereHas('productVariant', function ($query) {
+                $query->where('store_id', session('store_id'));
+            })
             ->whereDate('tanggal', $tanggal)
             ->select(
                 'product_variant_id',
@@ -122,7 +144,7 @@ class DashboardController extends Controller
                 DB::raw('SUM(qty) as total_qty')
             )
             ->groupBy('product_variant_id', 'posisi', 'ref_type')
-            ->with(['variant.product'])
+            ->with(['productVariant.product'])
             ->orderByDesc('total_qty')
             ->get()
             ->map(function ($item) {

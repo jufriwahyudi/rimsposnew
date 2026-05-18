@@ -30,7 +30,7 @@
                                 style="width: 35px; height: 35px;" class="me-2 mt-1">
                             <div>
                                 <h5 class="fw-bold mb-0" style="color: #7c3aed">Laporan Laba Rugi</h5>
-                                <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                                <small class="text-muted">{{ session('store_name') }}</small>
                             </div>
                         </div>
                     </div>
@@ -40,8 +40,10 @@
                             <div class="row">
                                 <div class="col-md-12 col-sm-12">
                                     <div class="input-group">
-                                        <input type="text" name="datefilter" id="datefilter" class="form-control" placeholder="Pilih tanggal">
-                                        <button class="btn btn-primary" type="button" id="searchBtn"><i class="fa fa-search"></i> </button>
+                                        <input type="text" name="datefilter" id="datefilter" class="form-control"
+                                            placeholder="Pilih tanggal">
+                                        <button class="btn btn-primary" type="button" id="searchBtn"><i
+                                                class="fa fa-search"></i> </button>
                                     </div>
                                 </div>
                             </div>
@@ -57,10 +59,10 @@
 @endsection
 
 @push('styles')
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
 @endpush
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 
     <script>
@@ -119,4 +121,3 @@
         });
     </script>
 @endpush
-

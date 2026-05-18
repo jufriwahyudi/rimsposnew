@@ -24,7 +24,7 @@
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
                             <h5 class="fw-bold mb-0" style="color: #7c3aed">Pengaturan Attribute Produk</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                     <a href="javascript:void(0);" class="btn btn-success btn-sm mb-3" data-bs-toggle="modal"

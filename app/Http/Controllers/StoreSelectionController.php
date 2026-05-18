@@ -16,7 +16,10 @@ class StoreSelectionController extends Controller
 
         // Jika user hanya punya satu toko, langsung pilih otomatis
         if ($stores->count() === 1) {
-            session(['store_id' => $stores->first()->id]);
+            session([
+                'store_id' => $stores->first()->id,
+                'store_name' => $stores->first()->name
+            ]);
             Tenant::set($stores->first()->id);
             return redirect()->route('dashboard');
         }
@@ -40,7 +43,10 @@ class StoreSelectionController extends Controller
             return back()->withErrors(['store_id' => 'Toko tidak valid atau tidak memiliki akses.']);
         }
 
-        session(['store_id' => $store->id]);
+        session([
+            'store_id' => $store->id,
+            'store_name' => $store->name
+        ]);
         Tenant::set($store->id);
 
         return redirect()->route('dashboard');

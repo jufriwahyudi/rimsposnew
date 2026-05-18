@@ -30,7 +30,7 @@
                                 style="width: 35px; height: 35px;" class="me-2 mt-1">
                             <div>
                                 <h5 class="fw-bold mb-0" style="color: #7c3aed">Menentukan Jadwal Sesi</h5>
-                                <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                                <small class="text-muted">{{ session('store_name') }}</small>
                             </div>
                         </div>
                     </div>
@@ -41,8 +41,8 @@
                             <div class="row g-2 align-items-end mb-4">
                                 <div class="col-md-6 col-sm-12">
                                     <div class="input-group">
-                                        <input type="date" name="date_filter" id="datefilter" class="form-control" required
-                                            value="{{ old('date_filter') ?? date('Y-m-d') }}"></input>
+                                        <input type="date" name="date_filter" id="datefilter" class="form-control"
+                                            required value="{{ old('date_filter') ?? date('Y-m-d') }}"></input>
                                     </div>
                                 </div>
                                 <div class="col-auto ms-auto">
@@ -53,10 +53,10 @@
                             </div>
                         </form>
                         <hr class="my-4">
-                        
-                            <!-- Container untuk list jadwal -->
-                            <div id="list-jadwal-container"></div>
-                        
+
+                        <!-- Container untuk list jadwal -->
+                        <div id="list-jadwal-container"></div>
+
                     </div>
 
 
@@ -68,7 +68,7 @@
 
 @push('scripts')
     <script>
-        document.getElementById('tambahSesiBtn').addEventListener('click', function () {
+        document.getElementById('tambahSesiBtn').addEventListener('click', function() {
             fetch('/jadwal/list')
                 .then(response => response.text())
                 .then(html => {

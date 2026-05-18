@@ -33,19 +33,28 @@ class RoleUserSeeder extends Seeder
 
             ['nama' => 'Pengaturan', 'routename' => '#', 'icon' => 'widgets', 'id_parent' => 0, 'jnsmenu' => 'menu', 'urutan' => 2, 'stts' => 'Y'],
             ['nama' => 'Manajemen Menu', 'routename' => 'menu.index', 'icon' => '', 'id_parent' => 2, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
-            ['nama' => 'Manajemen Pengguna', 'routename' => 'role.index', 'icon' => '', 'id_parent' => 2, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+            ['nama' => 'Manajemen Pengguna', 'routename' => 'manage-users.index', 'icon' => '', 'id_parent' => 2, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+            ['nama' => 'Manajemen Role', 'routename' => 'role.index', 'icon' => '', 'id_parent' => 2, 'jnsmenu' => 'child', 'urutan' => 3, 'stts' => 'Y'],
 
             ['nama' => 'Produk', 'routename' => '#', 'icon' => 'inventory_2', 'id_parent' => 0, 'jnsmenu' => 'menu', 'urutan' => 3, 'stts' => 'Y'],
-            ['nama' => 'Pengaturan Produk', 'routename' => 'produk.index', 'icon' => '', 'id_parent' => 5, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
-            ['nama' => 'Atribut Produk', 'routename' => 'attributes.index', 'icon' => '', 'id_parent' => 5, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
-            ['nama' => 'Varian Produk', 'routename' => 'attribute-nilai.index', 'icon' => '', 'id_parent' => 5, 'jnsmenu' => 'child', 'urutan' => 3, 'stts' => 'Y'],
+            ['nama' => 'Pengaturan Produk', 'routename' => 'produk.index', 'icon' => '', 'id_parent' => 6, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
+            ['nama' => 'Atribut Produk', 'routename' => 'attributes.index', 'icon' => '', 'id_parent' => 6, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+            ['nama' => 'Varian Produk', 'routename' => 'attribute-nilai.index', 'icon' => '', 'id_parent' => 6, 'jnsmenu' => 'child', 'urutan' => 3, 'stts' => 'Y'],
 
             ['nama' => 'Stok', 'routename' => '#', 'icon' => 'request_quote', 'id_parent' => 0, 'jnsmenu' => 'menu', 'urutan' => 4, 'stts' => 'Y'],
-            ['nama' => 'Purchase Order', 'routename' => 'po.index', 'icon' => '', 'id_parent' => 9, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
+            ['nama' => 'Purchase Order', 'routename' => 'po.index', 'icon' => '', 'id_parent' => 10, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
+            ['nama' => 'Stock Opname', 'routename' => 'stock-opname-periods.index', 'icon' => '', 'id_parent' => 10, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+            ['nama' => 'Penyesuaian Stok', 'routename' => 'stock-adjustments.index', 'icon' => '', 'id_parent' => 10, 'jnsmenu' => 'child', 'urutan' => 3, 'stts' => 'Y'],
 
-            ['nama' => 'Penjualan', 'routename' => 'pos.index', 'icon' => 'point_of_sale', 'id_parent' => 0, 'jnsmenu' => 'menu', 'urutan' => 5, 'stts' => 'Y'],
-            ['nama' => 'POS', 'routename' => 'pos.index', 'icon' => '', 'id_parent' => 11, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
-            ['nama' => 'Data Penjualan', 'routename' => 'pos.sales', 'icon' => '', 'id_parent' => 11, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+            ['nama' => 'Penjualan', 'routename' => '#', 'icon' => 'point_of_sale', 'id_parent' => 0, 'jnsmenu' => 'menu', 'urutan' => 5, 'stts' => 'Y'],
+            ['nama' => 'POS', 'routename' => 'pos.index', 'icon' => '', 'id_parent' => 14, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
+            ['nama' => 'Data Penjualan', 'routename' => 'pos.sales', 'icon' => '', 'id_parent' => 14, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+
+            ['nama' => 'Laporan', 'routename' => '#', 'icon' => 'assessment', 'id_parent' => 0, 'jnsmenu' => 'menu', 'urutan' => 6, 'stts' => 'Y'],
+            ['nama' => 'Penjualan', 'routename' => 'laporan.penjualan', 'icon' => '', 'id_parent' => 17, 'jnsmenu' => 'child', 'urutan' => 1, 'stts' => 'Y'],
+            ['nama' => 'Stok', 'routename' => 'laporan.stok', 'icon' => '', 'id_parent' => 17, 'jnsmenu' => 'child', 'urutan' => 2, 'stts' => 'Y'],
+            ['nama' => 'Stok Terjual', 'routename' => 'laporan.harian', 'icon' => '', 'id_parent' => 17, 'jnsmenu' => 'child', 'urutan' => 3, 'stts' => 'Y'],
+            ['nama' => 'Penerimaan Kas', 'routename' => 'laporan.penerimaan_kas', 'icon' => '', 'id_parent' => 17, 'jnsmenu' => 'child', 'urutan' => 4, 'stts' => 'Y'],
         ];
         // Insert menu data into the database
         foreach ($menu as $item) {

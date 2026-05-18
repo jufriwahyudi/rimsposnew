@@ -23,6 +23,7 @@ use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\MasterSeragamController;
 use App\Http\Controllers\ManageUserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\StoreSelectionController;
 use App\Services\JournalFromCashTransactionService;
 
@@ -85,6 +86,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/dashboard/stock-out', [DashboardController::class, 'stockOut'])->name('dashboard.stockout');
     // Menu Management
     Route::resource('menu', MenuListController::class);
+    // Manage Store
+    Route::resource('stores', StoreController::class)->except(['create', 'show']);
+    Route::post('/stores/{id}/restore', [StoreController::class, 'restore'])->name('stores.restore');
+
     // Manage User
     Route::controller(ManageUserController::class)->prefix('manage-users')->name('manage-users.')->group(function () {
         Route::get('/', 'index')->name('index');
@@ -184,6 +189,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/sales/{sale}/exchange', [PosController::class, 'exchange'])->name('sales.exchange');
     Route::post('/sales/{sale}/print', [PosController::class, 'printThermal'])->name('sales.print-thermal');
     Route::get('/datasales/receiptdata/{id}', [PosController::class, 'printReceipt'])->name('sales.print-receipt');
+    Route::get('/sales/{id}/receipt', [PosController::class, 'showReceipt'])->name('sales.receipt');
 
 
     Route::prefix('nse/distribusi')->group(function () {

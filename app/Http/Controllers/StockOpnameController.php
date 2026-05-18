@@ -32,6 +32,7 @@ class StockOpnameController extends Controller
                     throw new \Exception('Stock Opname untuk posisi "' . $request->posisi . '" pada periode ini sudah ada.');
                 }
                 $opname = StockOpname::create([
+                    'store_id' => session('store_id'),
                     'code' => 'SO-' . time(),
                     'stock_opname_period_id' => $period->id,
                     'posisi' => $request->posisi, // warehouse / store
@@ -51,6 +52,7 @@ class StockOpnameController extends Controller
                             ->where('sm.posisi', '=', $request->posisi)
                             ->where('sm.tanggal', '<=', $period->period_date . ' 23:59:59');
                     })
+                    ->where('pv.store_id', session('store_id'))
                     ->select(
                         'pv.id as product_variant_id',
                         DB::raw("
@@ -101,6 +103,7 @@ class StockOpnameController extends Controller
         $stockOpname->load('items.productVariant.product');
         $stockOpname->load('items.productVariant.variantAttributes.value');
         $stockOpname->load('period');
+        // dd(json_encode($stockOpname->take(10), JSON_PRETTY_PRINT));
         return view('stock-opnames.edit', compact('stockOpname'));
     }
 

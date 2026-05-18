@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 
 class StockAdjustment extends Model
 {
+    use HasStore;
     protected $fillable = [
+        'store_id',
         'code',
         'effective_date',
         'posisi',
@@ -18,6 +21,11 @@ class StockAdjustment extends Model
         'created_by',
         'posted_at'
     ];
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     public function items()
     {

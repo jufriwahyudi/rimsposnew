@@ -25,7 +25,7 @@
                                 style="width: 35px; height: 35px;" class="me-2 mt-1">
                             <div>
                                 <h5 class="fw-bold mb-0" style="color: #7c3aed">Goods Receipt - {{ $po->po_number }}</h5>
-                                <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                                <small class="text-muted">{{ session('store_name') }}</small>
                             </div>
                         </div>
                         <a href="{{ route('po.create') }}" class="btn btn-success btn-sm mb-3"><i class="bi bi-plus"></i>
@@ -106,7 +106,7 @@
                                 <h5 class="fw-bold mb-0" style="color: #7c3aed">History Goods Receipt -
                                     {{ $po->po_number }}
                                 </h5>
-                                <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                                <small class="text-muted">{{ session('store_name') }}</small>
                             </div>
                         </div>
                     </div>

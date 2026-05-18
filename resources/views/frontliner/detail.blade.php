@@ -3,11 +3,11 @@
 
 @section('breadcrumb')
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
-        <div class="breadcrumb-title pe-3">Detail Setoran Frontliner</div>
+        <div class="breadcrumb-title pe-3">Detail Setoran Kasir</div>
         <div class="ps-3">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Detail Setoran Frontliner</a>
+                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Detail Setoran Kasir</a>
                     </li>
                 </ol>
             </nav>
@@ -24,8 +24,8 @@
                         <img src={{ asset('assets/images/alazca_logo.png') }} alt="Logo"
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
-                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Detail Setoran Frontliner</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Detail Setoran Kasir</h5>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                 </div>
@@ -42,7 +42,7 @@
                                     <dd class="col-sm-9"><?= date('d/m/Y', strtotime($detail->tanggal)) ?></dd>
                                 </dl>
                                 <dl class="row mb-0">
-                                    <dt class="col-sm-3">Frontliner:</dt>
+                                    <dt class="col-sm-3">Kasir:</dt>
                                     <dd class="col-sm-9"><?= $detail->namakasir ?></dd>
                                 </dl>
                                 <dl class="row mb-0">

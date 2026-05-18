@@ -3,8 +3,17 @@
 
 @section('content')
     <div class="card rounded-4">
-        <div class="card-header">
+        <div class="card-header d-flex align-items-center justify-content-between my-2">
             <h5 class="fw-bold">Stock Adjustment ({{ $status }})</h5>
+            @if ($status === 'DRAFT')
+                <a href="{{ route('stock-adjustments.history-posted') }}" class="btn btn-sm btn-primary">
+                    Riwayat Stock Adjustment
+                </a>
+            @else
+                <a href="{{ route('stock-adjustments.index') }}" class="btn btn-sm btn-primary">
+                    Draft Stock Adjustment
+                </a>
+            @endif
         </div>
         <div class="card-body">
             <table class="table table-bordered align-middle">

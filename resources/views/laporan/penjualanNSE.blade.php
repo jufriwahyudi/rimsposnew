@@ -30,7 +30,7 @@
                                 style="width: 35px; height: 35px;" class="me-2 mt-1">
                             <div>
                                 <h5 class="fw-bold mb-0" style="color: #7c3aed">Laporan Penjualan NSE</h5>
-                                <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                                <small class="text-muted">{{ session('store_name') }}</small>
                             </div>
                         </div>
                     </div>
@@ -41,7 +41,7 @@
                                 <div class="col-md-5 col-sm-12">
                                     <label for="datefilter">Tanggal Transaksi</label>
                                     <input type="text" name="datefilter" id="datefilter" class="form-control"
-                                        placeholder="Pilih tanggal">                                                               
+                                        placeholder="Pilih tanggal">
                                 </div>
                                 <div class="col-md-5 col-sm-12">
                                     <label for="id_divisi">Divisi</label>

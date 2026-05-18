@@ -24,7 +24,7 @@
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
                             <h5 class="fw-bold mb-0" style="color: #7c3aed">Pengaturan Menu</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                     <a href="{{ route('menu.create') }}" class="btn btn-success btn-sm mb-3"><i class="bi bi-plus"></i>
@@ -80,7 +80,8 @@
                                         <tr>
                                             <td>
                                                 <svg class="fill-icon" style="width: 20px; height: 20px;">
-                                                    <use href="{{ url('assets/svg/icon-sprite.svg#fill-' . $child->icon) }}">
+                                                    <use
+                                                        href="{{ url('assets/svg/icon-sprite.svg#fill-' . $child->icon) }}">
                                                     </use>
                                                 </svg>
                                             </td>

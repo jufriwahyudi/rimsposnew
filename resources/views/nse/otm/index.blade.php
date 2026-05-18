@@ -184,7 +184,7 @@
         <div class="text-center mb-4">
             <img src="{{ asset('assets/images/alazca_logo.png') }}" width="56" class="mb-2">
             <h5 class="fw-bold mb-0" style="color:#7c3aed">Pemilihan Jadwal Seragam</h5>
-            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+            <small class="text-muted">{{ session('store_name') }}</small>
         </div>
 
         <div class="card main-card">
@@ -283,7 +283,7 @@
         </div>
 
         <div class="text-center mt-4">
-            <small class="text-muted">&copy; {{ date('Y') }} Al-Azhar Cairo Banda Aceh</small>
+            <small class="text-muted">&copy; {{ date('Y') }} {{ session('store_name') }}</small>
         </div>
     </div>
 

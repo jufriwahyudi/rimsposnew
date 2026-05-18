@@ -5,16 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\CashTransaction;
 use App\Models\NseCalonSiswa;
 use App\Models\ProductVariant;
+use App\Models\Rekening;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemBatch;
 use App\Models\SeragamDistribusi;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
+use App\Models\Store;
 use App\Services\JournalEntryService;
 use App\Services\JournalFromCashTransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -22,11 +25,11 @@ class PosController extends Controller
 {
     public function index()
     {
-        $akunkas = DB::connection('financedb')->table('rekening')->where('kasbank', 'Y')->get();
-        $akunkasir = DB::connection('financedb')->table('a1_user')->where('id', auth()->user()->id_user_finance)->first()->kd_akun;
-        if (auth()->user()->id_user_finance == null) {
-            return redirect()->route('dashboard')->with('error', 'Harap mengatur akun kasir pada menu pengaturan aplikasi sebelum menggunakan fitur POS.');
-        }
+        // dd($roleuserlist);
+        $akunkas = Rekening::all();
+        // dd($akunkas);
+        $akunkasir = 0;
+
         return view('pos.index', compact('akunkas', 'akunkasir'));
     }
     public function sales()
@@ -109,13 +112,10 @@ class PosController extends Controller
         ]);
         // dd(json_encode($sale, JSON_PRETTY_PRINT));
         $variants = ProductVariant::with('product')->get();
-        $akunkas = DB::connection('financedb')->table('rekening')->where('kasbank', 'Y')->get();
-        $akunkasir = DB::connection('financedb')->table('a1_user')->where('id', auth()->user()->id_user_finance)->first()->kd_akun;
-        if ($sale->sale_type === 'nse') {
-            return view('pos.shownse', compact('sale', 'variants', 'akunkas', 'akunkasir'));
-        } else {
-            return view('pos.show', compact('sale', 'variants', 'akunkas', 'akunkasir'));
-        }
+        $akunkas = Rekening::all();
+        $akunkasir = 0;
+
+        return view('pos.show', compact('sale', 'variants', 'akunkas', 'akunkasir'));
     }
     /**
      * Endpoint pencarian produk (SKU / barcode / nama)
@@ -216,6 +216,7 @@ class PosController extends Controller
                 // 2️⃣ CREATE SALE
                 // =========================
                 $sale = Sale::create([
+                    'store_id'       => session('store_id'),
                     'invoice_number' => $this->generateInvoice(),
                     'sale_date'      => $transactionDate,
                     'sale_type'      => 'retail',
@@ -266,6 +267,7 @@ class PosController extends Controller
                 // =========================
                 if ($cashAmount > 0) {
                     CashTransaction::create([
+                        'store_id'         => session('store_id'),
                         'ref_type'         => 'SalePos',
                         'ref_id'           => $sale->id,
                         'transaction_type' => 'sale',
@@ -284,6 +286,7 @@ class PosController extends Controller
                 // =========================
                 if ($transferAmount > 0) {
                     CashTransaction::create([
+                        'store_id'         => session('store_id'),
                         'ref_type'         => 'SalePos',
                         'ref_id'           => $sale->id,
                         'transaction_type' => 'sale',
@@ -300,6 +303,7 @@ class PosController extends Controller
                 // jika pembayaran diskon 100% (gratisan), tetap buat cash transaction dengan amount 0 agar bisa tercatat di jurnal
                 if ($paidAmount == 0) {
                     CashTransaction::create([
+                        'store_id'         => session('store_id'),
                         'ref_type'         => 'SalePos',
                         'ref_id'           => $sale->id,
                         'transaction_type' => 'sale',
@@ -314,8 +318,10 @@ class PosController extends Controller
                 }
 
                 // Pembukuan jurnal
-                $service = new JournalFromCashTransactionService();
-                $service->createForSale($sale->id);
+                if (config('app.jurnal_transaksi')) {
+                    $service = new JournalFromCashTransactionService();
+                    $service->createForSale($sale->id);
+                }
 
                 return $sale;
             });
@@ -419,23 +425,23 @@ class PosController extends Controller
                         'status' => 'voided'
                     ]);
 
-                    if ($sale->sale_type === 'nse') {
-                        // Update juga status di tabel seragam_distribusi
-                        DB::connection('nsedb')->table('seragam_distribusi')
-                            ->where('sale_item_id', $item->id)
-                            ->update(['status' => 'fulfilled', 'scanned_at' => null, 'scanned_by' => 0, 'sale_item_id' => 0]);
+                    // if ($sale->sale_type === 'nse') {
+                    //     // Update juga status di tabel seragam_distribusi
+                    //     DB::connection('nsedb')->table('seragam_distribusi')
+                    //         ->where('sale_item_id', $item->id)
+                    //         ->update(['status' => 'fulfilled', 'scanned_at' => null, 'scanned_by' => 0, 'sale_item_id' => 0]);
 
-                        $pendingWajib = SeragamDistribusi::where('id_biodata', $sale->customer_id)
-                            ->where('status', 'pending')
-                            ->whereRelation('seragam', 'wajib', 'Y')
-                            ->exists();
+                    //     $pendingWajib = SeragamDistribusi::where('id_biodata', $sale->customer_id)
+                    //         ->where('status', 'pending')
+                    //         ->whereRelation('seragam', 'wajib', 'Y')
+                    //         ->exists();
 
-                        $siswa = NseCalonSiswa::findOrFail($sale->customer_id);
-                        $siswa->update([
-                            'ambil_seragam'   => $pendingWajib ? 'S' : 'N',
-                            'voucher_seragam' => 'N'
-                        ]);
-                    }
+                    //     $siswa = NseCalonSiswa::findOrFail($sale->customer_id);
+                    //     $siswa->update([
+                    //         'ambil_seragam'   => $pendingWajib ? 'S' : 'N',
+                    //         'voucher_seragam' => 'N'
+                    //     ]);
+                    // }
                 }
 
                 // 2️⃣ Update status sale
@@ -453,6 +459,20 @@ class PosController extends Controller
                         $jurnalService->delete($trx->nojurnal);
                     }
                     $trx->delete();
+                }
+
+                // Hapus jurnal terkait exchanged jika ada
+                $dataexchange = $sale->items()->whereIsNotNull('ref_sale_item_id')->get();
+                foreach ($dataexchange as $item) {
+                    $cashTrxExchange = CashTransaction::where('ref_type', 'Exchange')
+                        ->where('ref_id', $item->id)
+                        ->get();
+                    foreach ($cashTrxExchange as $trx) {
+                        if ($trx->nojurnal) {
+                            $jurnalService->delete($trx->nojurnal);
+                        }
+                        $trx->delete();
+                    }
                 }
             });
 
@@ -473,6 +493,7 @@ class PosController extends Controller
 
                 // 1️⃣ BUAT SALE REFUND
                 $refund = Sale::create([
+                    'store_id'       => session('store_id'),
                     'invoice_number' => 'RF-' . $sale->invoice_number,
                     'sale_date'      => now(),
                     'sale_type'      => $sale->sale_type,
@@ -530,15 +551,16 @@ class PosController extends Controller
                         ]);
                     }
 
-                    if ($sale->sale_type === 'nse') {
-                        // Update juga status di tabel seragam_distribusi
-                        DB::connection('nsedb')->table('seragam_distribusi')
-                            ->where('sale_item_id', $item->id)
-                            ->update(['status' => 'pending', 'scanned_at' => null, 'sale_item_id' => 0]);
-                    }
+                    // if ($sale->sale_type === 'nse') {
+                    //     // Update juga status di tabel seragam_distribusi
+                    //     DB::connection('nsedb')->table('seragam_distribusi')
+                    //         ->where('sale_item_id', $item->id)
+                    //         ->update(['status' => 'pending', 'scanned_at' => null, 'sale_item_id' => 0]);
+                    // }
                 }
                 // 4️⃣ CASH TRANSACTION REFUND
                 CashTransaction::create([
+                    'store_id'         => session('store_id'),
                     'ref_type'         => 'SalePosRefund',
                     'ref_id'           => $refund->id,
                     'transaction_type' => 'refund',
@@ -552,8 +574,10 @@ class PosController extends Controller
                 ]);
 
                 // Pembukuan jurnal
-                $service = new JournalFromCashTransactionService();
-                $service->createForRefund($refund->id);
+                if (config('app.jurnal_transaksi')) {
+                    $service = new JournalFromCashTransactionService();
+                    $service->createForRefund($refund->id);
+                }
             });
 
             return back()->with('success', 'Refund berhasil diproses');
@@ -573,7 +597,7 @@ class PosController extends Controller
         DB::transaction(function () use ($request, $sale) {
             $paymentMethod = $request->payment_method ?? 'cash';
             if ($paymentMethod === 'cash') {
-                $akunkasir = DB::connection('financedb')->table('a1_user')->where('id', auth()->user()->id_user_finance)->first()->kd_akun;
+                $akunkasir = 0;
                 $accountCode = $akunkasir;
             } else if ($paymentMethod === 'transfer') {
                 $accountCode = $request->akun_bank;
@@ -690,6 +714,7 @@ class PosController extends Controller
             $diff     = $newTotal - $oldTotal;
 
             $cashtrx = CashTransaction::create([
+                'store_id'         => session('store_id'),
                 'ref_type'         => 'Exchange',
                 'ref_id'           => $newItem->id,
                 'transaction_type' => $diff >= 0 ? 'exchange_additional' : 'exchange_refund',
@@ -717,19 +742,21 @@ class PosController extends Controller
             ]);
 
             // Pembukuan jurnal
-            if ($sale->sale_type === 'nse') {
-                $akun = DB::connection('nsedb')
-                    ->table('biaya_du as p')
-                    ->join('master_daftar_harga as q', 'p.id_komponen', '=', 'q.id')
-                    ->where('p.id_biodata', $sale->customer_id)
-                    ->where('q.nama', 'like', '%UNIFORM%')
-                    ->value('q.kdbeban');
-                $cashtrx->update(['account_code' => $akun]);
-                $service = new JournalFromCashTransactionService();
-                $service->createForNseExchange($newItem->id, $akun);
-            } else {
-                $service = new JournalFromCashTransactionService();
-                $service->createForExchange($newItem->id);
+            if (config('app.jurnal_transaksi')) {
+                if ($sale->sale_type === 'nse') {
+                    $akun = DB::connection('nsedb')
+                        ->table('biaya_du as p')
+                        ->join('master_daftar_harga as q', 'p.id_komponen', '=', 'q.id')
+                        ->where('p.id_biodata', $sale->customer_id)
+                        ->where('q.nama', 'like', '%UNIFORM%')
+                        ->value('q.kdbeban');
+                    $cashtrx->update(['account_code' => $akun]);
+                    $service = new JournalFromCashTransactionService();
+                    $service->createForNseExchange($newItem->id, $akun);
+                } else {
+                    $service = new JournalFromCashTransactionService();
+                    $service->createForExchange($newItem->id);
+                }
             }
         });
 
@@ -789,18 +816,18 @@ class PosController extends Controller
 
     public function printReceipt($id)
     {
-        $store = DB::connection('financedb')->table('a1_user_apps')->first();
+        $store = Store::findOrFail(session('store_id'));
         $sale = Sale::with(['items' => function ($query) {
             $query->whereIn('status', ['sold', 'exchanged_in']);
         }, 'cashier', 'refunds'])->findOrFail($id);
 
         return response()->json([
             'store' => [
-                'name'    => $store->nama_kuitansi ?? 'Koperasi App',
-                'address' => $store->alamat,
-                'city'    => $store->kabupaten,
-                'phone'   => $store->no_telp,
-                'logo'    => 'https://finance.alazcabna.sch.id/assets/img/logoweb/thumbnail/' . $store->logo_kuitansi,
+                'name'    => $store->name ?? 'RimsPos',
+                'address' => $store->address,
+                'city'    => $store->city,
+                'phone'   => $store->phone,
+                'logo'    => $store->logo ? Storage::url($store->logo) : null,
             ],
             'transaction' => [
                 'invoice' => $sale->invoice_number,
@@ -824,6 +851,25 @@ class PosController extends Controller
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
             ]
+        ]);
+    }
+
+    /**
+     * Tampilkan halaman struk untuk window.print
+     * Menggunakan data yang sama dengan printReceipt()
+     */
+    public function showReceipt($id)
+    {
+        $store = Store::findOrFail(session('store_id'));
+        $data = $this->printReceipt($id)->getData(true);
+
+        $view = ($store->printer_type === '58mm') ? 'pos.receipt-58mm' : 'pos.receipt';
+
+        return view($view, [
+            'store'       => $data['store'],
+            'transaction' => $data['transaction'],
+            'items'       => $data['items'],
+            'summary'     => $data['summary'],
         ]);
     }
 

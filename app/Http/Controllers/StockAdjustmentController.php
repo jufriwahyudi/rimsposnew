@@ -67,7 +67,9 @@ class StockAdjustmentController extends Controller
                 $result = $service->post($stockAdjustment);
 
                 // 2️⃣ Generate jurnal akuntansi
-                $this->generateJournal($stockAdjustment, $result);
+                if (config('app.jurnal_transaksi')) {
+                    $this->generateJournal($stockAdjustment, $result);
+                }
             });
 
             return back()->with('success', 'Stock Adjustment selesai diposting.');

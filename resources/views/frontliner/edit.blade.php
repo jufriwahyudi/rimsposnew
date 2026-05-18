@@ -3,11 +3,11 @@
 
 @section('breadcrumb')
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
-        <div class="breadcrumb-title pe-3">Setoran Frontliner</div>
+        <div class="breadcrumb-title pe-3">Setoran Kasir</div>
         <div class="ps-3">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Setoran Frontliner</a></li>
+                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Setoran Kasir</a></li>
                 </ol>
             </nav>
         </div>
@@ -23,8 +23,8 @@
                         <img src={{ asset('assets/images/alazca_logo.png') }} alt="Logo"
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
-                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Setoran Frontliner</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Setoran Kasir</h5>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                 </div>
@@ -45,13 +45,13 @@
                                     </div>
 
                                     <div class="col-md-4 form-group">
-                                        <label>Nama Frontliner</label>
+                                        <label>Nama Kasir</label>
                                         <input type="text" class="form-control" value="{{ Auth::user()->name }}"
                                             readonly>
                                     </div>
 
                                     <div class="col-md-4 form-group">
-                                        <label>Saldo Frontliner</label>
+                                        <label>Saldo Kasir</label>
                                         <small>Saldo Akhir Posisi
                                             {{ date('d/m/Y', strtotime($saldo->tanggal ?? $tanggal)) }}</small>
                                         <input type="text" class="form-control" readonly

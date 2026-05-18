@@ -25,7 +25,7 @@
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
                             <h5 class="fw-bold mb-0" style="color: #7c3aed">Stock Opname Edit</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                     <a href="{{ route('stock-opname-periods.show', $stockOpname->stock_opname_period_id) }}"
@@ -86,7 +86,7 @@
                                                     class="form-control text-center physical-input">
                                                 @if (!in_array($stockOpname->status, ['APPROVED', 'CANCELLED']))
                                                     <button class="btn btn-outline-secondary"
-                                                        onclick="savePhysicalQty({{ $item->id }}, this)">
+                                                        onclick="savePhysicalQty('{{ $item->id }}')">
                                                         <i class="bi bi-save"></i>
                                                     </button>
                                                 @endif
@@ -134,10 +134,11 @@
             </div>
         </div>
     </div>
-    <div class="toast position-fixed top-1 end-0 m-3" id="notifyToast">
+    <div class="toast fade position-fixed top-0 end-0 m-3" id="notifyToast" role="status" aria-live="polite"
+        aria-atomic="true" data-bs-autohide="true" data-bs-delay="3000" style="z-index:2000;">
         <div class="toast-header">
-            <strong class="me-auto">ZAYN</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            <strong class="me-auto">{{ config('app.name') }}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
         <div class="toast-body">
             Data berhasil disimpan
@@ -221,8 +222,14 @@
                         document.querySelector('#notifyToast .toast-body').innerText = 'Gagal menyimpan jumlah fisik';
                     }
                     const toastEl = document.getElementById('notifyToast');
-                    const toast = new bootstrap.Toast(toastEl);
-                    toast.show();
+                    if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+                        const toast = new bootstrap.Toast(toastEl);
+                        toast.show();
+                    } else {
+                        // Fallback: toggle show class if Bootstrap toast not available
+                        toastEl.classList.add('show');
+                        setTimeout(() => toastEl.classList.remove('show'), 3000);
+                    }
                 })
                 .catch(error => {
                     console.error('Error:', error);

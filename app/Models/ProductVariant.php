@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Traits\HasStore;
 use Illuminate\Database\Eloquent\Model;
 
 class ProductVariant extends Model
 {
+    use HasStore;
     protected $connection = 'mysql';
     protected $table = 'product_variants';
     protected $fillable = [
+        'store_id',
         'product_id',
         'sku',
         'barcode',

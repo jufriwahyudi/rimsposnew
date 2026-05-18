@@ -25,7 +25,7 @@
                         <div>
                             <h5 class="fw-bold mb-0" style="color: #7c3aed">Mutasi Produk: ({{ $product->kode_produk }})
                                 {{ $product->nama_produk }}</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                     <a href="{{ route('produk.show', $product->id) }}" class="btn btn-primary btn-sm mb-3"><i
@@ -68,8 +68,8 @@
                         </li>
                         <li class="nav-item" role="">
                             <button class="nav-link" id="barcode-tab" data-bs-toggle="tab" data-bs-target="#barcode"
-                                type="button" role="tab" aria-controls="barcode" aria-selected="false"><i 
-                                class="fa-solid fa-barcode"></i> Barcode</button>
+                                type="button" role="tab" aria-controls="barcode" aria-selected="false"><i
+                                    class="fa-solid fa-barcode"></i> Barcode</button>
                         </li>
                     </ul>
 
@@ -98,11 +98,12 @@
                             <div class="card border-0 shadow-sm rounded-4">
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-2">Barcode</h6>
-                                    <form action="{{ route('produk.barcode.add', $variant->id) }}" method="POST" id="barcodeForm">
+                                    <form action="{{ route('produk.barcode.add', $variant->id) }}" method="POST"
+                                        id="barcodeForm">
                                         @csrf
                                         <div class="mb-3">
                                             <div class="input-group">
-                                                <input type="text" class="form-control" id="barcodeInput" 
+                                                <input type="text" class="form-control" id="barcodeInput"
                                                     placeholder="Masukkan barcode..." autofocus name="barcode">
                                                 <button class="btn btn-primary" type="submit" id="btnTambahkan">
                                                     <i class="bi bi-plus-circle"></i> Tambahkan
@@ -121,24 +122,26 @@
                                                 </tr>
                                             </thead>
                                             <tbody id="barcodeTableBody">
-                                            @foreach ($variant->barcodes as $barcode)
-                                                <tr>
-                                                    <td>{{ $barcode->barcode }}</td>
-                                                    <td>{{ $variant->product->nama_produk }}</td>
-                                                    <td>{{ $barcode->is_active === 'Y' ? 'Aktif' : 'Non-Aktif' }}</td>
-                                                    <td class="text-center">
-                                                        @if($barcode->is_active === 'N')                          
-                                                        <button class="btn btn-sm btn-outline-success"  onclick="toggleBarcodeStatus({{ $barcode->id }})">
-                                                            {{ $barcode->is_active === 'Y' ? 'Nonaktifkan' : 'Aktifkan' }}
+                                                @foreach ($variant->barcodes as $barcode)
+                                                    <tr>
+                                                        <td>{{ $barcode->barcode }}</td>
+                                                        <td>{{ $variant->product->nama_produk }}</td>
+                                                        <td>{{ $barcode->is_active === 'Y' ? 'Aktif' : 'Non-Aktif' }}</td>
+                                                        <td class="text-center">
+                                                            @if ($barcode->is_active === 'N')
+                                                                <button class="btn btn-sm btn-outline-success"
+                                                                    onclick="toggleBarcodeStatus({{ $barcode->id }})">
+                                                                    {{ $barcode->is_active === 'Y' ? 'Nonaktifkan' : 'Aktifkan' }}
 
-                                                        </button>
-                                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteBarcode({{ $barcode->id }})">
-                                                            <i class="bi bi-trash"></i> Hapus
-                                                        </button>
-                                                        @endif
-                                                    </td>
-                                                </tr>
-                                            @endforeach                                            
+                                                                </button>
+                                                                <button class="btn btn-sm btn-outline-danger"
+                                                                    onclick="deleteBarcode({{ $barcode->id }})">
+                                                                    <i class="bi bi-trash"></i> Hapus
+                                                                </button>
+                                                            @endif
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
                                             </tbody>
                                         </table>
                                     </div>
@@ -154,75 +157,75 @@
 @endsection
 
 @push('scripts')
-<script>
-function toggleBarcodeStatus(barcodeId) {
-    Swal.fire({
-        title: 'Konfirmasi',
-        text: 'Apakah Anda yakin ingin mengubah status barcode ini?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Ya, ubah status',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            fetch('{{ route("produk.barcode.toggle", ":id") }}'.replace(':id', barcodeId), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+    <script>
+        function toggleBarcodeStatus(barcodeId) {
+            Swal.fire({
+                title: 'Konfirmasi',
+                text: 'Apakah Anda yakin ingin mengubah status barcode ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, ubah status',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch('{{ route('produk.barcode.toggle', ':id') }}'.replace(':id', barcodeId), {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Refresh halaman untuk memperbarui tampilan
+                                location.reload();
+                            } else {
+                                Swal.fire('Terjadi kesalahan', data.message || 'Terjadi kesalahan', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            Swal.fire('Terjadi kesalahan saat mengubah status barcode');
+                        });
                 }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Refresh halaman untuk memperbarui tampilan
-            location.reload();
-        } else {
-            Swal.fire('Terjadi kesalahan', data.message || 'Terjadi kesalahan', 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        Swal.fire('Terjadi kesalahan saat mengubah status barcode');
-    });
-        }
-    });
-    
-}
+            });
 
-function deleteBarcode(barcodeId) {
-    Swal.fire({
-        title: 'Konfirmasi Hapus',
-        text: 'Apakah Anda yakin ingin menghapus barcode ini? Data yang dihapus tidak dapat dikembalikan.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Ya, hapus',
-        cancelButtonText: 'Batal',
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-    }).then((result) => {
-        if (result.isConfirmed) {
-            fetch('{{ route("produk.barcode.delete", ":id") }}'.replace(':id', barcodeId), {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        }
+
+        function deleteBarcode(barcodeId) {
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: 'Apakah Anda yakin ingin menghapus barcode ini? Data yang dihapus tidak dapat dikembalikan.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, hapus',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch('{{ route('produk.barcode.delete', ':id') }}'.replace(':id', barcodeId), {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                location.reload();
+                            } else {
+                                Swal.fire('Terjadi kesalahan', data.message || 'Terjadi kesalahan', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            Swal.fire('Terjadi kesalahan', 'Terjadi kesalahan saat menghapus barcode', 'error');
+                        });
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    Swal.fire('Terjadi kesalahan', data.message || 'Terjadi kesalahan', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                Swal.fire('Terjadi kesalahan', 'Terjadi kesalahan saat menghapus barcode', 'error');
             });
         }
-    });
-}
-</script>
+    </script>
 @endpush

@@ -3,11 +3,11 @@
 
 @section('breadcrumb')
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
-        <div class="breadcrumb-title pe-3">Setoran Frontliner</div>
+        <div class="breadcrumb-title pe-3">Setoran Kasir</div>
         <div class="ps-3">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Setoran Frontliner</a></li>
+                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Setoran Kasir</a></li>
                 </ol>
             </nav>
         </div>
@@ -23,8 +23,8 @@
                         <img src={{ asset('assets/images/alazca_logo.png') }} alt="Logo"
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
-                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Setoran Frontliner</h5>
-                            <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Setoran Kasir</h5>
+                            <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
                     <a href="{{ route('frontliner.create') }}" class="btn btn-success btn-sm mb-3"><i

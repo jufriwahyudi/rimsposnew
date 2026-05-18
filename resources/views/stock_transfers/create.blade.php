@@ -10,7 +10,7 @@
                     <img src="{{ asset('assets/images/alazca_logo.png') }}" width="35" class="me-2">
                     <div>
                         <h5 class="fw-bold mb-0" style="color:#7c3aed">Request Transfer Stok</h5>
-                        <small class="text-muted">Al-Azhar Cairo Banda Aceh</small>
+                        <small class="text-muted">{{ session('store_name') }}</small>
                     </div>
                 </div>
 

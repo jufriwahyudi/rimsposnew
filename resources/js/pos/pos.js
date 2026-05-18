@@ -6,7 +6,7 @@ import './printer';
 const POS = {
     tabs: [],
     activeTabId: null,
-    akun_bank_kop: '11.01.17',
+    akun_bank_kop: '-',
 
     /* =========================
      * INIT
@@ -643,8 +643,8 @@ const POS = {
         let html = '<option value="">-- Pilih Bank --</option>';
 
         window.AKUN_BANK.forEach(item => {
-            html += `<option value="${item.kode}" ${item.kode === this.akun_bank_kop ? 'selected' : ''}>
-                    ${item.kode} - ${item.nama}
+            html += `<option value="${item.id}" ${item.id === this.akun_bank_kop ? 'selected' : ''}>
+                    ${item.no_rek} - ${item.nama_rek} (${item.bank_rek})
                  </option>`;
         });
 

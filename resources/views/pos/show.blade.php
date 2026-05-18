@@ -157,9 +157,13 @@
                         <i class="bi bi-printer"></i> Cetak Distribusi
                     </a>
                 @else
-                    <button class="btn btn-outline-primary" onclick="printReceipt()">
+                    {{-- <button class="btn btn-outline-primary" onclick="printReceipt()">
                         <i class="bi bi-printer"></i> Cetak Struk
-                    </button>
+                    </button> --}}
+                    {{-- Blade link --}}
+                    <a href="{{ route('sales.receipt', $sale->id) }}" target="_blank" class="btn btn-outline-primary">
+                        <i class="bi bi-printer"></i> Cetak Struk
+                    </a>
                 @endif
                 {{-- <button class="btn btn-outline-primary" onclick="Printer.printReceipt('{{ $sale->id }}')">
                     <i class="bi bi-printer"></i> Cetak Struk
@@ -259,7 +263,7 @@
                             <label class="form-label">Akun Bank Tujuan</label>
                             <select id="akunBank" name="akun_bank" class="form-select">
                                 <option value="">-- Pilih Bank --</option>
-                                {!! $akunkas->map(fn($a) => "<option value='{$a->kode}'>{$a->kode} - {$a->nama}</option>")->implode('') !!}
+                                {!! $akunkas->map(fn($a) => "<option value='{$a->id}'>{$a->no_rek} - {$a->nama_rek} ({$a->bank_rek})</option>")->implode('') !!}
                             </select>
                         </div>
                     </div>
@@ -391,7 +395,7 @@
                         <label class="form-label">Akun Bank Tujuan</label>
                         <select id="akunBank" class="form-select">
                             <option value="">-- Pilih Bank --</option>
-                            {!! $akunkas->map(fn($a) => "<option value='{$a->kode}'>{$a->kode} - {$a->nama}</option>")->implode('') !!}
+                            {!! $akunkas->map(fn($a) => "<option value='{$a->id}'>{$a->no_rek} - {$a->nama_rek} ({$a->bank_rek})</option>")->implode('') !!}
                         </select>
                     </div>
                 `,

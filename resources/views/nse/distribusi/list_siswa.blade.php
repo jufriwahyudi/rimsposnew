@@ -354,7 +354,7 @@
                     </div>
                     <div>
                         <h5 class="page-title mb-0">Distribusi Seragam NSE</h5>
-                        <span class="page-subtitle"><i class="bi bi-building me-1"></i>Al-Azhar Cairo Banda Aceh</span>
+                        <span class="page-subtitle"><i class="bi bi-building me-1"></i>{{ session('store_name') }}</span>
                     </div>
                 </div>
             </div>

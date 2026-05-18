@@ -21,6 +21,7 @@ class StockOpnamePeriodController extends Controller
         ]);
 
         StockOpnamePeriod::create([
+            'store_id' => session('store_id'),
             'code' => 'OPN-' . date('Ym', strtotime($request->period_date)),
             'period_date' => $request->period_date,
             'description' => $request->description,

@@ -325,7 +325,7 @@
                             <h5 class="product-title mb-0">{{ $product->nama_produk }}</h5>
                             <span class="product-code">{{ $product->kode_produk }}</span>
                         </div>
-                        <small class="text-muted"><i class="bi bi-building me-1"></i>Al-Azhar Cairo Banda Aceh</small>
+                        <small class="text-muted"><i class="bi bi-building me-1"></i>{{ session('store_name') }}</small>
                     </div>
                 </div>
                 <a href="{{ route('produk.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
