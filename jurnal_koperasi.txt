@@ -1,0 +1,11 @@
+Jurnal Koperasi
+---------------
+
+1. Purchase Order (Voucher)
+    D. 11.04.16 - Persediaan Koperasi Dalam Perjalanan
+    D. 51.03.17 - Beban Pajak Pembelian
+    K. 21.01.15 - Utang Koperasi
+
+2. Goods Receive (Jurnal Umum)
+    D. 11.04.14 - Persediaan Koperasi - Gudang
+    K. 11.04.16 - Persediaan Koperasi Dalam Perjalanan

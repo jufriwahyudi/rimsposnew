@@ -1,0 +1,32 @@
+/* custom.css */
+textarea::placeholder,
+input::placeholder {
+    color: #bebebe !important;
+    opacity: 1;
+}
+
+select:invalid {
+    color: #bebebe !important;
+}
+
+
+select option {
+    color: black;
+}
+
+
+input[type="date"]:invalid {
+    color: #bebebe !important;
+}
+
+.sec{
+    color: #bebebe;
+}
+
+.text-placeholder {
+    color: #bebebe; /* Warna placeholder Bootstrap */
+    opacity: 1; /* Pastikan opacity penuh */
+    font-weight: normal;
+}
+
+
