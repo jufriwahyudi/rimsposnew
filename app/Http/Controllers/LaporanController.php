@@ -12,6 +12,9 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Models\NseCalonSiswa;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
+use App\Exports\LaporanBiayaExport;
 use App\Exports\LaporanStokExport;
 use App\Exports\LaporanPenjualanExport;
 use App\Exports\LaporanPenjualanNSEExport;
@@ -504,6 +507,87 @@ class LaporanController extends Controller
         ))->setPaper('a4', 'landscape');
 
         return $pdf->stream('penerimaan_kas.pdf');
+    }
+
+    public function biayaOperasional()
+    {
+        $categories = ExpenseCategory::orderBy('name')->get();
+        return view('laporan.biaya_operasional', compact('categories'));
+    }
+
+    public function getBiayaOperasional(Request $request)
+    {
+        $mulai      = $request->mulai      ?? now()->startOfMonth()->toDateString();
+        $akhir      = $request->akhir      ?? now()->toDateString();
+        $jenis      = $request->jenis      ?? 'rekap'; // 'rekap' | 'detail'
+        $metode     = $request->metode;               // null | 'cash' | 'transfer'
+        $categoryId = $request->category_id;
+
+        $expenses = Expense::with(['category', 'user'])
+            ->whereBetween('transaction_date', [$mulai, $akhir])
+            ->when($metode && $metode !== 'semua', fn($q) => $q->where('payment_method', $metode))
+            ->when($categoryId, fn($q) => $q->where('expense_category_id', $categoryId))
+            ->orderBy('transaction_date')
+            ->get();
+
+        $total         = $expenses->sum('amount');
+        $totalCash     = $expenses->where('payment_method', 'cash')->sum('amount');
+        $totalTransfer = $expenses->where('payment_method', 'transfer')->sum('amount');
+
+        if ($jenis === 'rekap') {
+            $rows = $expenses
+                ->groupBy('expense_category_id')
+                ->map(function ($items) {
+                    return (object) [
+                        'kategori'         => $items->first()->category->name ?? '-',
+                        'jumlah_transaksi' => $items->count(),
+                        'total_cash'       => $items->where('payment_method', 'cash')->sum('amount'),
+                        'total_transfer'   => $items->where('payment_method', 'transfer')->sum('amount'),
+                        'total'            => $items->sum('amount'),
+                    ];
+                })
+                ->sortByDesc('total')
+                ->values();
+        } else {
+            $rows = $expenses->values()->map(function ($e, $i) {
+                return (object) [
+                    'no'           => $i + 1,
+                    'tanggal'      => $e->transaction_date->format('d/m/Y'),
+                    'kategori'     => $e->category->name ?? '-',
+                    'keterangan'   => $e->description,
+                    'metode'       => ucfirst($e->payment_method),
+                    'jumlah'       => $e->amount,
+                    'dicatat_oleh' => optional($e->user)->name ?? '-',
+                    'notes'        => $e->notes,
+                ];
+            });
+        }
+
+        if ($request->ajax()) {
+            return view(
+                'laporan.biaya_operasional_table',
+                compact('rows', 'jenis', 'total', 'totalCash', 'totalTransfer', 'mulai', 'akhir', 'metode')
+            );
+        }
+
+        return view(
+            'laporan.biaya_operasional',
+            compact('rows', 'jenis', 'total', 'totalCash', 'totalTransfer', 'mulai', 'akhir')
+        );
+    }
+
+    public function exportBiayaOperasional(Request $request)
+    {
+        $mulai      = $request->mulai      ?? now()->startOfMonth()->toDateString();
+        $akhir      = $request->akhir      ?? now()->toDateString();
+        $jenis      = $request->jenis      ?? 'rekap';
+        $metode     = $request->metode;
+        $categoryId = $request->category_id;
+
+        return Excel::download(
+            new LaporanBiayaExport($mulai, $akhir, $jenis, $metode, $categoryId),
+            'Laporan_Biaya_Operasional_' . $mulai . '_' . $akhir . '.xlsx'
+        );
     }
 
     public function neraca_lajur()

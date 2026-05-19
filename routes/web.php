@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
+use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\ExpenseController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DailyAuditController;
@@ -117,6 +119,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     });
     Route::prefix('settings')->group(function () {
         Route::resource('attributes', AttributeController::class)->except(['create', 'edit', 'show']);
+        Route::resource('expense-categories', ExpenseCategoryController::class)->except(['create', 'show']);
     });
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {
@@ -127,6 +130,11 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     });
     Route::get('/produk/datatables', [ProdukController::class, 'datatables'])->name('produk.datatables');
     Route::resource('produk', ProdukController::class);
+
+    // Biaya Operasional
+    Route::get('/expenses/datatables', [ExpenseController::class, 'datatables'])->name('expenses.datatables');
+    Route::resource('expenses', ExpenseController::class)->except(['create', 'show']);
+
     Route::get('produk/{product}/variants/{variant}', [ProdukController::class, 'showVariantDetail'])->name('produk.variants.detail');
     Route::delete('produk/variants/{variant}', [ProdukController::class, 'destroyVariant'])->name('produk.variants.destroy');
     Route::put('/produk/variant/update-harga', [ProdukController::class, 'updateHarga'])->name('produk.variants.updateHarga');
@@ -259,6 +267,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/laporan/penerimaan-kas/export', [LaporanController::class, 'exportPenerimaanKas'])->name('laporan.penerimaan_kas.export');
     Route::get('/laporan/neraca_lajur', [LaporanController::class, 'neraca_lajur'])->name('laporan.neraca_lajur');
     Route::get('/laporan/laba_rugi', [LaporanController::class, 'laba_rugi'])->name('laporan.laba_rugi');
+
+    Route::get('/laporan/biaya-operasional', [LaporanController::class, 'biayaOperasional'])->name('laporan.biaya_operasional');
+    Route::post('/laporan/biaya-operasional/data', [LaporanController::class, 'getBiayaOperasional'])->name('laporan.biaya_operasional.data');
+    Route::get('/laporan/biaya-operasional/export', [LaporanController::class, 'exportBiayaOperasional'])->name('laporan.biaya_operasional.export');
 
     #export excel laporan stok
     Route::get('/laporan-stok/excel', [LaporanController::class, 'exportExcel'])
