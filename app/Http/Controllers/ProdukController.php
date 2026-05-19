@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Milon\Barcode\DNS1D;
 use Yajra\DataTables\Facades\DataTables;
+use Illuminate\Support\Str;
 
 class ProdukController extends Controller
 {
@@ -86,12 +87,16 @@ class ProdukController extends Controller
                             break; // keluar dari loop jika barcode unik
                         }
                     }
-                    ProductVariant::create([
+                    $pv = ProductVariant::create([
                         'store_id' => session('store_id'),
                         'product_id' => $product->id,
                         'sku' => $product->kode_produk . '-001',
                         'barcode' => $newBarcode,
                         'harga_jual' => 0,
+                    ]);
+                    $pv->barcodes()->create([
+                        'barcode' => $newBarcode,
+                        'is_active' => 'Y'
                     ]);
                     return;
                 }

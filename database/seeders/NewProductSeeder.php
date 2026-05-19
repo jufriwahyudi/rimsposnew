@@ -8,14 +8,61 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\SaleItemBatch;
 use App\Models\StockBatch;
+use App\Models\StockMovement;
 use App\Models\VariantAttribute;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class NewProductSeeder extends Seeder
 {
     public function run(): void
     {
+        // truncate seluruh tabel terkait untuk memastikan data benar-benar baru walaupun ada foreign key constraint
+
+        // hapus sales batch → sales item → sales
+        DB::table('sale_item_batches')->delete();
+        DB::table('sale_items')->delete();
+        DB::table('sales')->delete();
+        // hapus goods receipt items → goods receipts
+        DB::table('goods_receipt_items')->delete();
+        DB::table('goods_receipts')->delete();
+        // hapus purchase order items → purchase orders
+        DB::table('purchase_order_items')->delete();
+        DB::table('purchase_orders')->delete();
+        // hapus relasi dulu
+        DB::table('variant_attributes')->delete();
+        DB::table('product_variant_barcodes')->delete();
+
+        // hapus nilai atribut lalu atribut
+        DB::table('attribute_values')->delete();
+        DB::table('attributes')->where('kode', 'varian')->delete();
+
+        // hapus product variants & products
+        DB::table('stock_movements')->delete();
+        DB::table('stock_batches')->delete();
+        DB::table('product_variants')->delete();
+        DB::table('products')->delete();
+
+        // reset AUTO_INCREMENT (opsional)
+        DB::statement('ALTER TABLE sale_item_batches AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE sale_items AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE sales AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE goods_receipt_items AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE goods_receipts AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE purchase_order_items AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE purchase_orders AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE variant_attributes AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE attribute_values AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE attributes AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE stock_movements AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE stock_batches AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE product_variants AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE products AUTO_INCREMENT = 1');
+
         $seq = 1;
 
         // Attribute generik "Varian" sebagai dimensi label varian
@@ -3646,11 +3693,17 @@ class NewProductSeeder extends Seeder
             $kode = $p['kode_produk'];
             if (Product::withoutGlobalScopes()->where('kode_produk', $kode)->exists()) continue;
 
+            $len_variant = count($p['variants']);
+            $nama_produk = $p['nama_produk'];
+            if ($len_variant == 1) {
+                $nama_produk .= ' - ' . $p['variants'][0]['label'];
+            }
             $product = Product::create([
                 'store_id'    => 1,
                 'kode_produk' => $kode,
-                'nama_produk' => $p['nama_produk'],
+                'nama_produk' => $nama_produk,
             ]);
+
 
             foreach ($p['variants'] as $v) {
                 $sku     = $kode . '-' . str_pad($seq, 5, '0', STR_PAD_LEFT);
@@ -3683,24 +3736,26 @@ class NewProductSeeder extends Seeder
                 }
 
                 // Label varian → AttributeValue + VariantAttribute
-                $attrValue = AttributeValue::where('attribute_id', $attrVarian->id)
-                    ->where('nama', $v['label'])
-                    ->first();
-                if (!$attrValue) {
-                    $attrValue = AttributeValue::create([
-                        'attribute_id' => $attrVarian->id,
-                        'store_id'     => 1,
-                        'kode'         => 'V' . str_pad($seq, 6, '0', STR_PAD_LEFT),
-                        'nama'         => $v['label'],
-                        'urutan'       => $seq,
+                if ($len_variant > 1) {
+                    $attrValue = AttributeValue::where('attribute_id', $attrVarian->id)
+                        ->where('nama', $v['label'])
+                        ->first();
+                    if (!$attrValue) {
+                        $attrValue = AttributeValue::create([
+                            'attribute_id' => $attrVarian->id,
+                            'store_id'     => 1,
+                            'kode'         => 'V' . str_pad($seq, 6, '0', STR_PAD_LEFT),
+                            'nama'         => $v['label'],
+                            'urutan'       => $seq,
+                        ]);
+                    }
+
+                    VariantAttribute::create([
+                        'product_variant_id' => $variant->id,
+                        'attribute_id'       => $attrVarian->id,
+                        'attribute_value_id' => $attrValue->id,
                     ]);
                 }
-
-                VariantAttribute::create([
-                    'product_variant_id' => $variant->id,
-                    'attribute_id'       => $attrVarian->id,
-                    'attribute_value_id' => $attrValue->id,
-                ]);
 
                 $seq++;
             }
