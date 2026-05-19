@@ -72,27 +72,50 @@
         .items {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
+        /* Lebar kolom hanya untuk baris detail (qty×harga | subtotal) */
+        .item-row-detail td:first-child {
+            width: 60%;
+        }
+
+        .item-row-detail td:last-child {
+            width: 40%;
+        }
+
+        /* Untuk item panjang pada 58mm: nama dan SKU baris terpisah, full width */
         .item-row-name td {
+            word-break: break-word;
+            white-space: normal;
+            padding: 4px 0 0;
             font-size: 9.5px;
             font-weight: bold;
-            padding: 3px 0 0;
+        }
+
+        .item-row-sku td {
+            word-break: break-word;
+            white-space: normal;
+            padding: 0;
+            font-size: 8.5px;
+            color: #888;
         }
 
         .item-row-detail td {
+            overflow-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+            padding: 1px 0 4px;
             font-size: 9px;
             color: #444;
-            padding: 0 0 3px;
         }
 
         .item-row-detail .right {
             text-align: right;
         }
 
-        .item-sku {
-            font-size: 8.5px;
-            color: #888;
+        .item-subtotal {
+            white-space: nowrap;
         }
 
         .summary {
@@ -160,6 +183,20 @@
                 margin: 0;
             }
 
+            /* Nonaktifkan subpixel antialiasing — penyebab utama blur di thermal printer */
+            * {
+                -webkit-font-smoothing: none !important;
+                -moz-osx-font-smoothing: unset !important;
+                font-smooth: never !important;
+                text-rendering: optimizeSpeed !important;
+                color: #000 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                text-shadow: none !important;
+                /* Thermal printer: stroke tipis tidak tercetak jelas, paksa bold */
+                font-weight: bold !important;
+            }
+
             html,
             body {
                 width: 58mm;
@@ -167,6 +204,9 @@
                 margin: 0;
                 padding: 0;
                 overflow: hidden;
+                font-size: 7pt;
+                -webkit-text-size-adjust: 100%;
+                text-size-adjust: 100%;
             }
 
             .receipt {
@@ -176,6 +216,59 @@
                 border: none;
                 box-shadow: none;
                 page-break-after: avoid;
+            }
+
+            .header h2 {
+                font-size: 9pt;
+            }
+
+            .header p {
+                font-size: 7pt;
+            }
+
+            .meta {
+                font-size: 7pt;
+            }
+
+            /* Print-specific untuk baris nama, SKU, dan detail */
+            .item-row-name td {
+                white-space: normal !important;
+                word-break: break-word !important;
+                font-size: 7.5pt !important;
+                padding: 4px 0 0 !important;
+            }
+
+            .item-row-sku td {
+                white-space: normal !important;
+                word-break: break-word !important;
+                font-size: 6.5pt !important;
+                padding: 0 !important;
+            }
+
+            .item-row-detail td {
+                overflow-wrap: break-word !important;
+                word-break: break-word !important;
+                white-space: normal !important;
+                font-size: 7pt !important;
+                padding: 1px 0 4px !important;
+            }
+
+            /* Subtotal tidak boleh dibungkus, override white-space: normal di atas */
+            .item-subtotal {
+                white-space: nowrap !important;
+                text-align: right !important;
+            }
+
+            .summary td {
+                font-size: 7pt;
+            }
+
+            .summary .total-row td {
+                font-size: 9pt;
+            }
+
+            .footer {
+                font-size: 6.5pt;
             }
 
             .btn-print {
@@ -235,17 +328,19 @@
             <table class="items">
                 <tbody>
                     @foreach ($items as $item)
-                        {{-- Baris 1: nama produk + SKU --}}
+                        {{-- Baris 1: nama produk --}}
                         <tr class="item-row-name">
-                            <td colspan="2">
-                                {{ $item['name'] }}
-                                <span class="item-sku">({{ $item['sku'] }})</span>
-                            </td>
+                            <td colspan="2">{{ $item['name'] }}</td>
                         </tr>
-                        {{-- Baris 2: qty x harga = subtotal --}}
+                        {{-- Baris 2: SKU --}}
+                        <tr class="item-row-sku">
+                            <td colspan="2">({{ $item['sku'] }})</td>
+                        </tr>
+                        {{-- Baris 3: qty x harga = subtotal --}}
                         <tr class="item-row-detail">
                             <td>{{ $item['qty'] }} x {{ number_format($item['price'], 0, ',', '.') }}</td>
-                            <td class="right">{{ number_format($item['qty'] * $item['price'], 0, ',', '.') }}</td>
+                            <td class="right item-subtotal">
+                                {{ number_format($item['qty'] * $item['price'], 0, ',', '.') }}</td>
                         </tr>
                     @endforeach
                 </tbody>

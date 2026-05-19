@@ -64,8 +64,7 @@
                         <form method="POST" action="{{ route('logout') }}" class="mt-3">
                             @csrf
                             <button type="submit" class="btn btn-outline-secondary w-100">
-                                <span class="material-icons align-middle me-1" style="font-size:18px;">logout</span>
-                                Keluar
+                                <i class="fa fa-sign-out-alt me-2"></i> Keluar
                             </button>
                         </form>
                     @else

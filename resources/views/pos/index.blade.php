@@ -201,7 +201,7 @@
     </style>
 @endpush
 @push('initial-scripts')
-    <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
+    {{-- <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script> --}}
     <script>
         window.AKUN_BANK = @json($akunkas);
         window.AKUN_KASIR = '{{ $akunkasir }}';
@@ -209,8 +209,8 @@
 @endpush
 @push('scripts')
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            Printer.initQZ();
-        });
+        // document.addEventListener("DOMContentLoaded", () => {
+        //     Printer.initQZ();
+        // });
     </script>
 @endpush

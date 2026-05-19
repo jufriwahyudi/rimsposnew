@@ -34,6 +34,14 @@ class EnsureStoreSelected
             }
         }
 
+        $selectedRole = session('selected_role');
+        if ($selectedRole) {
+            $role = \App\Models\RoleMaster::find($selectedRole);
+            if ($role && $role->role_type === 'SUPERADMIN') {
+                return $next($request);
+            }
+        }
+
         if (!session()->has('store_id')) {
             return redirect()->route('select-store.index');
         }

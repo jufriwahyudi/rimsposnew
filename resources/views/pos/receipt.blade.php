@@ -69,6 +69,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 4px;
+            table-layout: fixed;
         }
 
         .items th {
@@ -76,6 +77,15 @@
             border-bottom: 1px dashed #999;
             padding: 3px 2px;
             text-align: left;
+        }
+
+        /* Column widths: Produk | Subtotal */
+        .items th:first-child {
+            width: 70%;
+        }
+
+        .items th:nth-child(2) {
+            width: 30%;
         }
 
         .items th.right,
@@ -87,15 +97,40 @@
             font-size: 11px;
             padding: 3px 2px;
             vertical-align: top;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
         }
 
-        .items .item-name {
+        /* Item rows (two-line layout) */
+        .item-row-name td {
+            font-size: 11px;
             font-weight: bold;
+            padding: 4px 2px 0;
+            word-break: break-word;
+            white-space: normal;
         }
 
-        .items .item-detail {
+        .item-row-detail td {
+            font-size: 11px;
+            color: #666;
+            padding: 0 2px 4px;
+            white-space: nowrap;
+        }
+
+        /* Subtotal selalu satu baris */
+        .item-row-detail td.right {
+            white-space: nowrap;
+        }
+
+        .item-sku {
             color: #666;
             font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+            max-width: 100%;
         }
 
         .summary {
@@ -163,6 +198,20 @@
                 margin: 0;
             }
 
+            /* Nonaktifkan subpixel antialiasing — penyebab utama blur di thermal printer */
+            * {
+                -webkit-font-smoothing: none !important;
+                -moz-osx-font-smoothing: unset !important;
+                font-smooth: never !important;
+                text-rendering: optimizeSpeed !important;
+                color: #000 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                text-shadow: none !important;
+                /* Thermal printer: stroke tipis tidak tercetak jelas, paksa bold */
+                font-weight: bold !important;
+            }
+
             html,
             body {
                 width: 80mm;
@@ -170,6 +219,9 @@
                 margin: 0;
                 padding: 0;
                 overflow: hidden;
+                font-size: 8pt;
+                -webkit-text-size-adjust: 100%;
+                text-size-adjust: 100%;
             }
 
             .receipt {
@@ -179,6 +231,84 @@
                 border: none;
                 box-shadow: none;
                 page-break-after: avoid;
+            }
+
+            .header h2 {
+                font-size: 10pt;
+            }
+
+            .header p {
+                font-size: 8pt;
+            }
+
+            .meta {
+                font-size: 8pt;
+            }
+
+            /* Print-specific wrapping/ellipsis for long names/SKU */
+            .items {
+                table-layout: fixed !important;
+            }
+
+            .items td {
+                overflow-wrap: break-word !important;
+                word-break: break-word !important;
+                white-space: normal !important;
+            }
+
+            .item-row-name td {
+                display: -webkit-box !important;
+                -webkit-line-clamp: 2 !important;
+                -webkit-box-orient: vertical !important;
+                overflow: hidden !important;
+                white-space: normal !important;
+            }
+
+            .item-row-detail td {
+                overflow-wrap: break-word !important;
+                word-break: break-word !important;
+                white-space: normal !important;
+            }
+
+            .item-sku {
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                display: inline-block !important;
+                max-width: 100% !important;
+            }
+
+            .items th,
+            .items td {
+                font-size: 8pt;
+            }
+
+            .items {
+                table-layout: fixed !important;
+            }
+
+            .items th:first-child {
+                width: 70%;
+            }
+
+            .items th:nth-child(2) {
+                width: 30%;
+            }
+
+            .item-row-detail td {
+                white-space: nowrap !important;
+            }
+
+            .summary td {
+                font-size: 8pt;
+            }
+
+            .summary .total-row td {
+                font-size: 10pt;
+            }
+
+            .footer {
+                font-size: 7.5pt;
             }
 
             .btn-print {
@@ -240,20 +370,19 @@
                 <thead>
                     <tr>
                         <th>Produk</th>
-                        <th class="right">Qty</th>
-                        <th class="right">Harga</th>
                         <th class="right">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($items as $item)
-                        <tr>
-                            <td>
-                                <div class="item-name">{{ $item['name'] }}</div>
-                                <div class="item-detail">{{ $item['sku'] }}</div>
+                        {{-- Baris 1: Nama produk + SKU --}}
+                        <tr class="item-row-name">
+                            <td colspan="2">{{ $item['name'] }} <span class="item-sku">({{ $item['sku'] }})</span>
                             </td>
-                            <td class="right">{{ $item['qty'] }}</td>
-                            <td class="right">{{ number_format($item['price'], 0, ',', '.') }}</td>
+                        </tr>
+                        {{-- Baris 2: qty x harga di kiri, subtotal di kanan --}}
+                        <tr class="item-row-detail">
+                            <td>{{ $item['qty'] }} x {{ number_format($item['price'], 0, ',', '.') }}</td>
                             <td class="right">{{ number_format($item['qty'] * $item['price'], 0, ',', '.') }}</td>
                         </tr>
                     @endforeach

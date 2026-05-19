@@ -276,13 +276,13 @@
     </div>
 @endsection`
 @push('initial-scripts')
-    <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script>
+    {{-- <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script> --}}
 @endpush
 @push('scripts')
     <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            Printer.initQZ();
-        });
+        // document.addEventListener("DOMContentLoaded", () => {
+        //     Printer.initQZ();
+        // });
     </script>
     <script>
         function printReceipt() {

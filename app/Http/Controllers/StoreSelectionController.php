@@ -14,6 +14,19 @@ class StoreSelectionController extends Controller
         $user = Auth::user();
         $stores = $user->stores()->where('is_active', true)->orderBy('name')->get();
 
+        // jika role type SUPERADMIN, langsung bisa masuk tanpa pilih toko
+        $selectedRole = session('selected_role');
+        if ($selectedRole) {
+            $role = \App\Models\RoleMaster::find($selectedRole);
+            if ($role && $role->role_type === 'SUPERADMIN') {
+                session([
+                    'store_id' => null,
+                    'store_name' => 'Super Admin Access'
+                ]);
+                Tenant::set(null);
+                return redirect()->route('dashboard');
+            }
+        }
         // Jika user hanya punya satu toko, langsung pilih otomatis
         if ($stores->count() === 1) {
             session([

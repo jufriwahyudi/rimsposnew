@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Store;
+use App\Models\Vendor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -31,7 +32,7 @@ class StoreController extends Controller
 
         $logoPath = $this->saveLogo($request->logo_data);
 
-        Store::create([
+        $store = Store::create([
             'name'         => $request->name,
             'code'         => strtoupper($request->code),
             'address'      => $request->address,
@@ -40,6 +41,14 @@ class StoreController extends Controller
             'printer_type' => $request->printer_type,
             'is_active'    => $request->boolean('is_active', true),
             'logo'         => $logoPath,
+        ]);
+
+        Vendor::create([
+            'store_id' => $store->id,
+            'kode_vendor' => '001',
+            'nama_vendor' => 'Tanpa Supplier',
+            'telepon' => '-',
+            'alamat' => '-'
         ]);
 
         return response()->json(['success' => true, 'message' => 'Toko berhasil ditambahkan.']);

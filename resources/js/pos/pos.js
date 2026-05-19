@@ -1,7 +1,7 @@
 import Storage from './storage';
 import Cart from './cart';
 import Api from './api';
-import './printer';
+// import './printer';
 
 const POS = {
     tabs: [],
@@ -601,11 +601,20 @@ const POS = {
                         $('#customerName').val("");
                         if (result.isConfirmed) {
                             // Printer.printReceipt(res.invoice);
-                            fetch(`/datasales/receiptdata/${res.sale_id}`)
-                                .then(res => res.json())
-                                .then(data => {
-                                    Printer.printReceiptPrinter(data);
-                                });
+                            // fetch(`/datasales/receiptdata/${res.sale_id}`)
+                            //     .then(res => res.json())
+                            //     .then(data => {
+                            //         Printer.printReceiptPrinter(data);
+                            //     });
+                            // PRINT DENGAN NEW WINDOW
+                            const printWindow = window.open(`/sales/${res.sale_id}/receipt`, '_blank');
+                            printWindow.focus();
+                            printWindow.onload = function () {
+                                printWindow.print();
+                                printWindow.onafterprint = function () {
+                                    printWindow.close();
+                                };
+                            };
                         }
 
                         this.closeTab(this.cart.id);
