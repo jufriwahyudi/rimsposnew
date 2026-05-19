@@ -15,9 +15,31 @@ class ManageUserController extends Controller
 {
     public function index()
     {
-        $users = User::with(['roles.roles', 'stores'])->orderBy('name')->get();
-        $stores = Store::where('is_active', true)->orderBy('name')->get();
-        $roles  = RoleMaster::where('stts', 'Y')->orderBy('nama')->get();
+        $selectedRole = session('selected_role');
+        $users = User::with(['roles.roles', 'stores'])
+            ->when($selectedRole != 1, function ($query) use ($selectedRole) {
+                $query->whereHas('stores', function ($q) use ($selectedRole) {
+                    $q->where('stores.id', session('store_id'));
+                });
+            })
+            ->orderBy('name')
+            ->get();
+        $stores = Store::where('is_active', true)
+            ->when($selectedRole != 1, function ($query) {
+                $query->whereIn('id', function ($q) {
+                    $q->select('store_id')
+                        ->from('store_user')
+                        ->where('user_id', auth()->id());
+                });
+            })
+            ->orderBy('name')
+            ->get();
+        $roles  = RoleMaster::where('stts', 'Y')
+            ->when($selectedRole != 1, function ($query) {
+                $query->where('store_id', session('store_id'));
+            })
+            ->orderBy('nama')
+            ->get();
 
         return view('users.index', compact('users', 'stores', 'roles'));
     }

@@ -35,7 +35,15 @@ class SettingAppController extends Controller
      */
     public function index(Request $request)
     {
-        $roles = RoleMaster::with(['menus', 'users'])->where('stts', 'Y')->get();
+        $selectedRole = session('selected_role');
+
+        $roles = RoleMaster::with(['menus', 'users'])
+            ->where('stts', 'Y')
+            // ketika role superadmin, tampilkan semua role, selain itu tampilkan role yang memiliki store_id yang sama dengan session store_id
+            ->when($selectedRole != 1, function ($query) {
+                $query->where('store_id', session('store_id'));
+            })
+            ->get();
         return view('pengaturan.role.index', [
             "roles" => $roles
         ]);
@@ -62,6 +70,9 @@ class SettingAppController extends Controller
 
         // Simpan role ke database
         $role = new RoleMaster();
+        if (session('selected_role') != 1) {
+            $role->store_id = session('store_id');
+        }
         $role->nama = $request->input('nama_role');
         $role->role_type = $request->input('jenis_role');
         if ($role->save()) {
