@@ -4,8 +4,7 @@
             <h5 class="fw-bold mb-0" style="color: #7c3aed">Stok Terjual Harian</h5>
             <small class="text-muted">Tanggal: {{ $tanggal }}</small>
         </div>
-        <a href="{{ route('laporan.harian.export', ['tanggal' => $tanggal]) }}"
-            class="btn btn-sm btn-success">
+        <a href="{{ route('laporan.harian.export', ['tanggal' => $tanggal]) }}" class="btn btn-sm btn-success">
             <i class="bi bi-file-earmark-excel"></i> Export Excel
         </a>
     </div>

@@ -63,6 +63,8 @@ class NewProductSeeder extends Seeder
         DB::statement('ALTER TABLE product_variants AUTO_INCREMENT = 1');
         DB::statement('ALTER TABLE products AUTO_INCREMENT = 1');
 
+        return; // comment baris ini jika ingin menjalankan seeder
+
         $seq = 1;
 
         // Attribute generik "Varian" sebagai dimensi label varian

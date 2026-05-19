@@ -18,6 +18,7 @@ use App\Exports\LaporanBiayaExport;
 use App\Exports\LaporanStokExport;
 use App\Exports\LaporanPenjualanExport;
 use App\Exports\LaporanPenjualanNSEExport;
+use App\Exports\LaporanLabaRugiExport;
 use Maatwebsite\Excel\Facades\Excel;
 use PDF;
 
@@ -379,7 +380,7 @@ class LaporanController extends Controller
 
                 return (object) [
                     'sku' => $first->sku,
-                    'product_name' => $first->product_name,
+                    'product_name' => $first->variant ? $first->variant->product->nama_produk : ($first->product_name ?? '-'),
                     'variant_label' => optional($first->variant)->variant_label ?? '',
                     'harga_jual' => $first->price,
                     'total_qty' => $totalQty,
@@ -598,6 +599,90 @@ class LaporanController extends Controller
     public function laba_rugi()
     {
         return view('laporan.laba_rugi');
+    }
+
+    public function getLabaRugi(Request $request)
+    {
+        $mulai = $request->mulai ?? now()->startOfMonth()->toDateString();
+        $akhir = $request->akhir ?? now()->toDateString();
+
+        // ===== PENJUALAN =====
+        $sales = Sale::with([
+            'items' => fn($q) => $q->with('batches')->whereIn('status', ['sold', 'exchanged_in']),
+        ])
+            ->where('status', 'paid')
+            ->whereNull('ref_sale_id')
+            ->whereDoesntHave('refunds')
+            ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
+            ->get();
+
+        $omset = $sales->sum('grand_total');
+        $hpp   = 0;
+        foreach ($sales as $sale) {
+            foreach ($sale->items as $item) {
+                foreach ($item->batches as $batch) {
+                    $hpp += $batch->qty * $batch->cost_price;
+                }
+            }
+        }
+
+        $pendapatanKotor = $omset - $hpp;
+
+        // ===== BIAYA OPERASIONAL =====
+        $expenses = Expense::with('category')
+            ->whereBetween('transaction_date', [$mulai, $akhir])
+            ->orderBy('transaction_date')
+            ->get();
+
+        $biayaPerKategori = $expenses
+            ->groupBy('expense_category_id')
+            ->map(function ($items) {
+                return (object) [
+                    'kategori' => $items->first()->category->name ?? 'Lainnya',
+                    'total'    => $items->sum('amount'),
+                    'jumlah'   => $items->count(),
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
+
+        $totalBiaya = $expenses->sum('amount');
+        $labaRugi   = $pendapatanKotor - $totalBiaya;
+
+        if ($request->ajax()) {
+            return view('laporan.laba_rugi_table', compact(
+                'mulai',
+                'akhir',
+                'omset',
+                'hpp',
+                'pendapatanKotor',
+                'biayaPerKategori',
+                'totalBiaya',
+                'labaRugi'
+            ));
+        }
+
+        return view('laporan.laba_rugi', compact(
+            'mulai',
+            'akhir',
+            'omset',
+            'hpp',
+            'pendapatanKotor',
+            'biayaPerKategori',
+            'totalBiaya',
+            'labaRugi'
+        ));
+    }
+
+    public function exportLabaRugi(Request $request)
+    {
+        $mulai = $request->mulai ?? now()->startOfMonth()->toDateString();
+        $akhir = $request->akhir ?? now()->toDateString();
+
+        return Excel::download(
+            new LaporanLabaRugiExport($mulai, $akhir, session('store_name', '')),
+            'Laporan_Laba_Rugi_' . $mulai . '_' . $akhir . '.xlsx'
+        );
     }
 
     public function exportExcel(Request $request)

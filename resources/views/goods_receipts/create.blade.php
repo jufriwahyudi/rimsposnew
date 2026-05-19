@@ -66,7 +66,7 @@
                                 </tr>
                                 @foreach ($po->items as $item)
                                     <tr>
-                                        <td class="align-middle">{{ $item->variant->product->nama_produk }}<br>
+                                        <td class="align-middle">{{ $item->variant->variant_label }}<br>
                                             <small>SKU: {{ $item->variant->sku }}</small>
                                         </td>
                                         <td class="text-end align-middle">{{ round($item->qty_order) }}</td>
@@ -131,7 +131,7 @@
                                         <ul class="mb-0">
                                             @foreach ($gr->items as $item)
                                                 <li>
-                                                    {{ $item->purchaseOrderItem->variant->product->nama_produk }} -
+                                                    {{ $item->purchaseOrderItem->variant->variant_label }} -
                                                     {{ $item->purchaseOrderItem->variant->sku }} :
                                                     {{ number_format($item->qty_received) }}
                                                 </li>

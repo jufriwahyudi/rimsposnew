@@ -70,13 +70,7 @@
                                     <tr data-status="{{ $item->status }}">
                                         <td class="fw-semibold">{{ $item->productVariant->sku }}</td>
                                         <td>{{ $item->productVariant->product->nama_produk }}</td>
-                                        <td>
-                                            @foreach ($item->productVariant->variantAttributes->sortBy('attribute.urutan') as $attr)
-                                                <span class="badge bg-secondary">
-                                                    {{ $attr->value->nama }}
-                                                </span>
-                                            @endforeach
-                                        </td>
+                                        <td>{{ $item->productVariant->variant_label }}</td>
                                         <td class="text-center system-qty">{{ round($item->system_qty) }}</td>
                                         <td class="text-center">
                                             <div class="input-group input-group-sm">

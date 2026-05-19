@@ -1,5 +1,5 @@
 @extends('layouts.main.main')
-@section('title', 'Pengaturan Produk')
+@section('title', 'Tambah Produk')
 
 @section('breadcrumb')
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
@@ -23,7 +23,7 @@
                         <img src={{ asset('assets/images/alazca_logo.png') }} alt="Logo"
                             style="width: 35px; height: 35px;" class="me-2 mt-1">
                         <div>
-                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Pengaturan Produk</h5>
+                            <h5 class="fw-bold mb-0" style="color: #7c3aed">Tambah Produk</h5>
                             <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
@@ -34,11 +34,9 @@
                     @if (session('success'))
                         <div class="alert alert-success">{{ session('success') }}</div>
                     @endif
-
                     @if (session('error'))
                         <div class="alert alert-danger">{{ session('error') }}</div>
                     @endif
-
                     @if ($errors->any())
                         <div class="alert alert-danger">
                             <ul class="mb-0">
@@ -52,189 +50,140 @@
                     <form method="POST" action="{{ route('produk.store') }}">
                         @csrf
 
+                        {{-- Info Produk --}}
                         <div class="card mb-3">
+                            <div class="card-header fw-semibold">Informasi Produk</div>
                             <div class="card-body">
                                 <div class="mb-2">
                                     <label>Kode Produk</label>
-                                    <input name="kode" class="form-control" value="{{ old('kode') }}" required>
+                                    <input name="kode" class="form-control" value="{{ old('kode') }}" required
+                                        placeholder="Contoh: PRD-001">
                                 </div>
-
                                 <div class="mb-2">
                                     <label>Nama Produk</label>
                                     <input name="nama" class="form-control" value="{{ old('nama') }}" required>
                                 </div>
-
                                 <div class="mb-2">
                                     <label>Deskripsi Produk</label>
                                     <textarea name="deskripsi" class="form-control" rows="3">{{ old('deskripsi') }}</textarea>
                                 </div>
                             </div>
                         </div>
+
+                        {{-- Tabel Varian --}}
                         <div class="card mb-3">
-                            <div class="card-header">Pilih Varian</div>
-                            <div class="card-body">
-
-                                @foreach ($attributes as $attr)
-                                    <div class="mb-3">
-                                        <strong>{{ $attr->nama }}</strong><br>
-
-                                        @foreach ($attr->values as $val)
-                                            <label class="me-3">
-                                                <input type="checkbox" class="variant-checkbox"
-                                                    data-attribute="{{ $attr->id }}" data-order="{{ $attr->urutan }}"
-                                                    data-kode="{{ $val->kode }}" value="{{ $val->id }}">
-                                                {{ $val->nama }}
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                @endforeach
-
-                            </div>
-                            <div class="card-footer">
-                                <button type="button" class="btn btn-primary" onclick="generateVariants()">
-                                    <i class="bi bi-arrow-clockwise"></i> Generate Varian
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold">Daftar Varian</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addVariantRow()">
+                                    <i class="bi bi-plus-circle"></i> Tambah Varian
                                 </button>
                             </div>
+                            <div class="card-body p-0">
+                                <table class="table table-bordered mb-0" id="variantTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Nama Varian <small class="text-muted fw-normal">(contoh: Merah L, XL
+                                                    Hitam)</small></th>
+                                            <th width="22%">Barcode <small class="text-muted fw-normal">(kosongkan =
+                                                    auto)</small></th>
+                                            <th width="18%">Harga Jual</th>
+                                            <th width="7%" class="text-center">Hapus</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="variantBody">
+                                        {{-- baris lama (old input) --}}
+                                        @if (old('variants'))
+                                            @foreach (old('variants') as $i => $v)
+                                                <tr>
+                                                    <td>
+                                                        <input name="variants[{{ $i }}][nama]"
+                                                            class="form-control" value="{{ $v['nama'] ?? '' }}"
+                                                            placeholder="Nama varian">
+                                                    </td>
+                                                    <td>
+                                                        <input name="variants[{{ $i }}][barcode]"
+                                                            class="form-control barcode-input"
+                                                            value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
+                                                    </td>
+                                                    <td>
+                                                        <input name="variants[{{ $i }}][harga]"
+                                                            class="form-control" type="number" min="0"
+                                                            value="{{ $v['harga'] ?? '' }}" placeholder="0">
+                                                    </td>
+                                                    <td class="text-center align-middle">
+                                                        <button type="button" class="btn btn-danger btn-sm"
+                                                            onclick="removeRow(this)">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        @endif
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <table class="table" id="variantTable">
-                            <thead>
-                                <tr>
-                                    <th>Varian</th>
-                                    <th>Barcode</th>
-                                    <th>Harga</th>
-                                    <th width="8%" class="text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                        <a href="{{ route('produk.index') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i>
-                            Kembali</a>
-                        <button class="btn btn-primary"><i class="bi bi-save"></i> Simpan Produk</button>
-                    </form>
 
+                        <a href="{{ route('produk.index') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Kembali
+                        </a>
+                        <button class="btn btn-primary">
+                            <i class="bi bi-save"></i> Simpan Produk
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
-
 @endsection
+
 @push('scripts')
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        let rowIndex = {{ old('variants') ? count(old('variants')) : 0 }};
 
-            let oldVariants = @json(old('variants'));
-
-            if (!oldVariants) return;
-
-            // Ambil semua value id dari old variants
-            let selectedValues = [];
-
-            Object.values(oldVariants).forEach(v => {
-                if (v.values) {
-                    v.values.split(',').forEach(id => {
-                        selectedValues.push(id);
-                    });
-                }
-            });
-
-            // Centang checkbox sesuai old values
-            document.querySelectorAll('.variant-checkbox').forEach(cb => {
-                if (selectedValues.includes(cb.value)) {
-                    cb.checked = true;
-                }
-            });
-
-            // Generate ulang tabel
-            generateVariants();
-
-            // Restore barcode & harga
-            oldVariants.forEach((v, i) => {
-                if (document.querySelector(`[name="variants[${i}][barcode]"]`)) {
-                    document.querySelector(`[name="variants[${i}][barcode]"]`).value = v.barcode ?? '';
-                }
-                if (document.querySelector(`[name="variants[${i}][harga]"]`)) {
-                    document.querySelector(`[name="variants[${i}][harga]"]`).value = v.harga ?? '';
-                }
-            });
-        });
-
-        function generateBarcode(prefix, label, index) {
-            // Contoh barcode: PRM-SD-L-001
-            return `${prefix}-${label}-${String(index + 1).padStart(3, '0')}`;
+        function addVariantRow() {
+            const tbody = document.getElementById('variantBody');
+            const i = rowIndex++;
+            const row = `
+            <tr>
+                <td>
+                    <input name="variants[${i}][nama]" class="form-control"
+                        placeholder="Nama varian" required>
+                </td>
+                <td>
+                    <input name="variants[${i}][barcode]" class="form-control barcode-input"
+                        placeholder="Auto-generate">
+                </td>
+                <td>
+                    <input name="variants[${i}][harga]" class="form-control"
+                        type="number" min="0" placeholder="0">
+                </td>
+                <td class="text-center align-middle">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
         }
 
-        function generateVariants() {
-            let grouped = {};
-
-            document.querySelectorAll('.variant-checkbox:checked')
-                .forEach(el => {
-                    let attr = el.dataset.attribute;
-                    let order = parseInt(el.dataset.order);
-
-                    if (!grouped[attr]) {
-                        grouped[attr] = {
-                            order: order,
-                            values: []
-                        };
-                    }
-
-                    grouped[attr].values.push({
-                        id: el.value,
-                        kode: el.dataset.kode
-                    });
-                });
-            if (Object.keys(grouped).length === 0) {
-                alert('Pilih minimal 1 varian');
+        function removeRow(btn) {
+            const row = btn.closest('tr');
+            // Minimal 1 baris
+            const tbody = document.getElementById('variantBody');
+            if (tbody.querySelectorAll('tr').length <= 1) {
+                Swal.fire('Perhatian', 'Minimal harus ada 1 varian.', 'warning');
                 return;
             }
-            let sortedAttributes = Object.values(grouped)
-                .sort((a, b) => a.order - b.order);
-            let combinations = [
-                []
-            ];
-
-            sortedAttributes.forEach(attr => {
-                let temp = [];
-
-                combinations.forEach(c => {
-                    attr.values.forEach(v => {
-                        temp.push([...c, v]);
-                    });
-                });
-
-                combinations = temp;
-            });
-
-            let tbody = document.querySelector('#variantTable tbody');
-            tbody.innerHTML = '';
-
-            let productKode = document.querySelector('[name="kode"]').value || 'PRD';
-
-            combinations.forEach((combo, i) => {
-                let label = combo.map(v => v.kode).join('-');
-                let ids = combo.map(v => v.id).join(',');
-                let barcode = generateBarcode(productKode, label, i);
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td class="align-middle">
-                            ${label}
-                            <input type="hidden" name="variants[${i}][values]" value="${ids}">
-                        </td>
-                        <td>
-                            <input name="variants[${i}][barcode]" class="form-control" value="${barcode}">
-                        </td>
-                        <td>
-                            <input name="variants[${i}][harga]" class="form-control">
-                        </td>
-                        <td class="text-center align-middle">
-                            <button type="button" class="btn btn-danger btn-sm"
-                                onclick="this.closest('tr').remove()">
-                                Hapus
-                            </button>
-                        </td>
-                    </tr>`;
-            });
+            row.remove();
         }
+
+        // Tambah 1 baris kosong jika belum ada old input
+        document.addEventListener('DOMContentLoaded', function() {
+            const tbody = document.getElementById('variantBody');
+            if (tbody.querySelectorAll('tr').length === 0) {
+                addVariantRow();
+            }
+        });
     </script>
 @endpush

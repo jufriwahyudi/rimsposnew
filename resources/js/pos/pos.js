@@ -69,22 +69,25 @@ const POS = {
      * ========================= */
     async addByCode(code) {
         if (!code) return;
+        try {
+            const res = await Api.findProduct(code);
 
-        const res = await Api.findProduct(code);
-
-        if (res.type === 'single') {
-            if (res.data.stok <= 0) {
-                Swal.fire('Stok habis', 'Produk tidak tersedia', 'warning');
+            if (res.type === 'single') {
+                if (res.data.stok <= 0) {
+                    Swal.fire('Stok habis', 'Produk tidak tersedia', 'warning');
+                    return;
+                }
+                Cart.addItem(this.cart, res.data);
+                this.persist();
+                this.render();
                 return;
             }
-            Cart.addItem(this.cart, res.data);
-            this.persist();
-            this.render();
-            return;
-        }
 
-        if (res.type === 'multiple') {
-            this.showVariantChooser(res.data);
+            if (res.type === 'multiple') {
+                this.showVariantChooser(res.data);
+            }
+        } catch (err) {
+            Swal.fire('Error', err.message || 'Gagal mencari produk', 'error');
         }
     },
 

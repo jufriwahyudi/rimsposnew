@@ -479,25 +479,21 @@
                                     }
                                 @endphp
                                 <tr class="variant-row" data-sku="{{ strtolower($v->sku) }}"
-                                    data-barcode="{{ strtolower($v->barcodeActive->barcode) }}"
+                                    data-barcode="{{ strtolower(optional($v->barcodeActive)->barcode) }}"
                                     data-status="{{ $v->is_active }}" data-attrs='@json($variantAttrData)'
-                                    data-search="{{ strtolower($v->sku . ' ' . $v->barcodeActive->barcode . ' ' . collect($variantAttrData)->pluck('value')->join(' ') . ' ' . collect($variantAttrData)->pluck('kode')->join(' ')) }}"
+                                    data-search="{{ strtolower($v->sku . ' ' . optional($v->barcodeActive)->barcode . ' ' . $v->variant_name . ' ' . collect($variantAttrData)->pluck('value')->join(' ') . ' ' . collect($variantAttrData)->pluck('kode')->join(' ')) }}"
                                     @if ($hasDivisi) data-group="{{ strtolower(collect($variantAttrData)->firstWhere('attr', 'Divisi')['value'] ?? 'lainnya') }}" @endif>
                                     <td>
-                                        @forelse ($v->variantAttributes->sortBy(fn($va) => $va->attribute->urutan) as $va)
-                                            <span class="badge-attr">
-                                                <strong>{{ $va->attribute->nama }}:</strong> {{ $va->value->nama }}
-                                                ({{ $va->value->kode }})
-                                            </span>
-                                        @empty
-                                            <span class="text-muted fst-italic" style="font-size:0.8rem;">Tidak ada
-                                                atribut</span>
-                                        @endforelse
+                                        @if ($v->variant_label)
+                                            <span class="badge-attr">{{ $v->variant_label }}</span>
+                                        @else
+                                            <span class="text-muted fst-italic" style="font-size:0.8rem;">-</span>
+                                        @endif
                                     </td>
                                     <td>
                                         <div class="badge-sku text-truncate">{{ $v->sku }}</div>
                                         <div class="badge-barcode mt-1"><i
-                                                class="bi bi-upc me-1"></i>{{ $v->barcodeActive->barcode }}
+                                                class="bi bi-upc me-1"></i>{{ optional($v->barcodeActive)->barcode ?? '-' }}
                                         </div>
                                     </td>
                                     <td class="text-center fw-semibold">{{ number_format($v->stok_warehouse ?? 0) }}</td>
@@ -520,16 +516,15 @@
                                             <button type="button" class="btn-action edit btn-edit-harga"
                                                 data-bs-toggle="modal" data-bs-target="#modalEditHarga"
                                                 data-id="{{ $v->id }}" data-sku="{{ $v->sku }}"
-                                                data-barcode="{{ $v->barcodeActive->barcode }}"
+                                                data-barcode="{{ optional($v->barcodeActive)->barcode }}"
                                                 data-harga="{{ $v->harga_jual }}" title="Edit Harga">
                                                 <i class="bi bi-pencil-square"></i>
                                             </button>
                                             <button class="btn-action barcode btn-barcode" data-bs-toggle="modal"
                                                 data-bs-target="#barcodeModal" data-sku="{{ $v->sku }}"
                                                 data-id="{{ $v->id }}"
-                                                data-barcode="{{ $v->barcodeActive->barcode }}"
-                                                data-variant="{{ $v->variantAttributes->pluck('value.nama')->join(' | ') }}"
-                                                title="Barcode">
+                                                data-barcode="{{ optional($v->barcodeActive)->barcode }}"
+                                                data-variant="{{ $v->variant_label }}" title="Barcode">
                                                 <i class="bi bi-upc-scan"></i>
                                             </button>
                                         </div>

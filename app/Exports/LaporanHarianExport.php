@@ -77,7 +77,7 @@ class LaporanHarianExport implements
 
                 return (object) [
                     'sku' => $first->sku,
-                    'product_name' => $first->product_name,
+                    'product_name' => $first->variant ? $first->variant->product->nama_produk : ($first->product_name ?? '-'),
                     'variant_label' => optional($first->variant)->variant_label ?? '',
                     'harga_jual' => $first->price,
                     'total_qty' => $items->sum('qty'),

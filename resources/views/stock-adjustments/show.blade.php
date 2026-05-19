@@ -38,11 +38,7 @@
                     @foreach ($stockAdjustment->items as $item)
                         <tr class="{{ $item->cost <= 0 ? 'table-danger' : '' }}">
                             <td>{{ $item->productVariant->product->nama_produk }}</td>
-                            <td>
-                                @foreach ($item->productVariant->variantAttributes as $attr)
-                                    <span class="badge bg-secondary">{{ $attr->value->nama }}</span>
-                                @endforeach
-                            </td>
+                            <td>{{ $item->productVariant->variant_label }}</td>
                             <td class="text-center">{{ $item->qty }}</td>
                             <td class="text-end">
                                 @if ($item->cost > 0)

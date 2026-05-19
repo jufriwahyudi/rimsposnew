@@ -142,14 +142,7 @@
                                 @foreach ($variants as $variant)
                                     <tr>
                                         <td>
-                                            @forelse ($variant->variantAttributes->sortBy(fn($va) => $va->attribute->urutan) as $va)
-                                                {{ $va->attribute->nama }}:
-                                                {{ $va->value->nama }}
-                                                ({{ $va->value->kode }})
-                                                <br>
-                                            @empty
-                                                <span class="text-muted">- Tidak ada atribut -</span>
-                                            @endforelse
+                                            {{ $variant->variant_label ?: '-' }}
                                         </td>
 
                                         <td>{{ $variant->sku }}</td>
@@ -202,49 +195,24 @@
                 </div>
 
                 <div class="modal-body">
-
                     <form id="formAddVariant">
                         @csrf
+                        <input type="hidden" name="product_id" value="{{ $product->id }}">
 
-                        {{-- PILIH ATTRIBUTE --}}
-                        @foreach ($attributes as $attr)
-                            <div class="mb-3">
-                                <strong>{{ $attr->nama }}</strong><br>
-                                @foreach ($attr->values as $val)
-                                    <label class="me-3">
-                                        <input type="checkbox" class="variant-checkbox"
-                                            data-attribute="{{ $attr->id }}" data-kode="{{ $val->kode }}"
-                                            data-order="{{ $attr->urutan }}" value="{{ $val->id }}">
-                                        {{ $val->nama }} ({{ $val->kode }})
-                                    </label>
-                                @endforeach
-                            </div>
-                        @endforeach
-
-                        <hr>
-
-                        {{-- PREVIEW --}}
-                        <h6 class="fw-bold mb-2">Preview Varian</h6>
-
-                        <table class="table table-sm table-bordered">
+                        <table class="table table-sm table-bordered" id="newVariantTable">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Varian</th>
-                                    <th>SKU</th>
-                                    <th>Barcode</th>
-                                    <th>Harga Jual</th>
-                                    <th>Aksi</th>
+                                    <th>Nama Varian</th>
+                                    <th width="30%">Harga Jual</th>
+                                    <th width="8%" class="text-center">Hapus</th>
                                 </tr>
                             </thead>
-                            <tbody id="variantPreview">
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted">
-                                        Pilih kombinasi attribute
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody id="newVariantBody"></tbody>
                         </table>
-                        <input type="hidden" name="product_id" value="{{ $product->id }}">
+
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewVariantRow()">
+                            <i class="bi bi-plus-circle"></i> Tambah Baris
+                        </button>
                     </form>
                 </div>
 
@@ -321,164 +289,37 @@
         }
     </script>
     <script>
-        // existing combinations: array of "valueId-valueId"
-        const productKode = "{{ $product->kode_produk }}";
-        const existingVariants = @json($existingVariants);
+        let newVariantRowIndex = 0;
 
-
-        function generateCombinations(grouped) {
-            let combinations = [
-                []
-            ];
-
-            Object.values(grouped).forEach(values => {
-                let temp = [];
-                combinations.forEach(c => {
-                    values.forEach(v => {
-                        temp.push([...c, v]);
-                    });
-                });
-                combinations = temp;
-            });
-
-            return combinations;
+        function addNewVariantRow() {
+            const tbody = document.getElementById('newVariantBody');
+            const i = newVariantRowIndex++;
+            const row = `
+                <tr>
+                    <td>
+                        <input name="variants[${i}][nama]" class="form-control form-control-sm"
+                            placeholder="Nama varian" required>
+                    </td>
+                    <td>
+                        <input name="variants[${i}][harga_jual]" class="form-control form-control-sm"
+                            type="number" min="0" placeholder="0">
+                    </td>
+                    <td class="text-center align-middle">
+                        <button type="button" class="btn btn-danger btn-sm"
+                            onclick="this.closest('tr').remove()">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            tbody.insertAdjacentHTML('beforeend', row);
         }
 
-        function refreshPreview() {
-            let grouped = {};
-
-            document.querySelectorAll('.variant-checkbox:checked').forEach(el => {
-                let attr = el.dataset.attribute;
-                let order = parseInt(el.dataset.order);
-                if (!grouped[attr]) {
-                    grouped[attr] = {
-                        order: order,
-                        values: []
-                    };
-                }
-                grouped[attr].values.push({
-                    id: el.value,
-                    kode: el.dataset.kode
-                });
-            });
-
-            let tbody = document.getElementById('variantPreview');
-            tbody.innerHTML = '';
-
-            if (Object.keys(grouped).length === 0) {
-                tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center text-muted">
-                    Pilih kombinasi attribute
-                </td>
-            </tr>`;
-                return;
-            }
-
-            let sortedAttributes = Object.values(grouped)
-                .sort((a, b) => a.order - b.order);
-
-            let combos = generateCombinations(sortedAttributes.map(a => a.values));
-
-            combos.forEach((combo, i) => {
-                // ===== DATA DASAR =====
-                let label = combo.map(v => v.kode).join('-');
-                let sku = `${productKode}-${label}`;
-                let barcode = generateBarcode(productKode, label, i);
-
-                // ===== CEK DUPLIKAT =====
-                let valueIds = combo.map(v => parseInt(v.id));
-
-
-                let existing = existingVariants.find(v =>
-                    normalizeIds(v.attribute_value_ids) === normalizeIds(valueIds)
-                );
-
-                let harga = '';
-                let hargaDisabled = '';
-                let statusBadge = '';
-                let aksi = `<td class="text-center align-middle">
-                            <button type="button" class="btn btn-danger btn-sm"
-                                onclick="this.closest('tr').remove()">
-                                Hapus
-                            </button>
-                        </td>`;
-
-                if (existing) {
-                    harga = parseInt(existing.harga_jual);
-                    sku = existing.sku;
-                    barcode = existing.barcode;
-                    hargaDisabled = 'disabled';
-                    statusBadge = `
-                        <span class="badge bg-warning text-dark ms-2">
-                            Varian sudah ada
-                        </span>`;
-                    tbody.insertAdjacentHTML('beforeend', `
-                        <tr>
-                            <td>
-                                ${label}
-                                ${statusBadge}
-                            </td>
-                            <td>
-                                ${sku}
-                            </td>
-                            <td>
-                                ${barcode}
-                            </td>
-                            <td class="text-center">
-                                ${harga.toLocaleString()}
-                            </td>
-                            ${aksi}
-                        </tr>
-                    `);
-
-                } else {
-
-                    tbody.insertAdjacentHTML('beforeend', `
-                        <tr>
-                            <td>
-                                ${label}
-                                ${statusBadge}
-                                <input type="hidden" name="variants[${i}][values]"
-                                    value="${valueIds.join(',')}">
-                            </td>
-                            <td>
-                                ${sku}
-                                <input type="hidden" name="variants[${i}][sku]" value="${sku}">
-                            </td>
-                            <td>
-                                ${barcode}
-                                <input type="hidden" name="variants[${i}][barcode]" value="${barcode}">
-                            </td>
-                            <td>
-                                <input type="number"
-                                    class="form-control form-control-sm"
-                                    name="variants[${i}][harga_jual]"
-                                    value="${harga}"
-                                    ${hargaDisabled}
-                                    required>
-                            </td>
-                            ${aksi}
-                        </tr>
-                    `);
-                }
-            });
-        }
-
-        function normalizeIds(ids) {
-            return ids
-                .map(Number)
-                .sort((a, b) => a - b)
-                .join('-'); // string stabil
-        }
-
-        function generateBarcode(prefix, label, index) {
-            // Contoh barcode: PRM-SD-L-001
-            return `${prefix}-${label}-${String(index + 1).padStart(3, '0')}`;
-        }
-
-        document.querySelectorAll('.variant-checkbox')
-            .forEach(el => el.addEventListener('change', refreshPreview));
+        // Saat modal dibuka, reset dan tambah 1 baris kosong
+        document.getElementById('modalAddVariant').addEventListener('show.bs.modal', function() {
+            newVariantRowIndex = 0;
+            document.getElementById('newVariantBody').innerHTML = '';
+            addNewVariantRow();
+        });
     </script>
     <script>
         $('#formAddVariant').on('submit', function(e) {

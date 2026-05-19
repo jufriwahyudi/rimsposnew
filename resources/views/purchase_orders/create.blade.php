@@ -403,12 +403,16 @@
             checked.forEach((cb) => {
                 const variantId = cb.value;
                 const sku = cb.dataset.sku;
-                const label = `${selectedProduct.nama_produk} (${sku})`;
+                // nama variant dari variant yang dipilih
+                const variant = selectedProduct.variants.find(v => v.id == variantId);
+                const label =
+                    `${variant ? variant.variant_name : ''}<br><small>${selectedProduct.nama_produk} (${sku})</small>`;
+                // console.log('Selected variant:', variant);
 
                 const targetRow = addRow();
 
                 targetRow.querySelector('.variant-input').value = variantId;
-                targetRow.querySelector('.selected-variant').innerText = label;
+                targetRow.querySelector('.selected-variant').innerHTML = label;
                 targetRow.querySelector('.selected-variant').classList.remove('text-muted');
                 targetRow.querySelector('.selected-variant').classList.add('text-primary', 'fw-semibold');
             });

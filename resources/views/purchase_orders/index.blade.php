@@ -84,7 +84,7 @@
                                         <span class="badge bg-info text-dark">Menunggu Approval</span>
                                     @endif
 
-                                    @if (in_array($po->status, ['APPROVED', 'PARTIAL_RECEIVED']))
+                                    @if (in_array($po->status, ['APPROVED', 'PARTIAL_RECEIVED', 'RECEIVED']))
                                         <a href="{{ route('gr.create', $po) }}" class="btn btn-sm btn-success"><i
                                                 class="bi bi-box-arrow-in-down"></i> Terima Barang</a>
                                     @endif

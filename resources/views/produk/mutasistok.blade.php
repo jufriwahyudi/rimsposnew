@@ -50,6 +50,7 @@
                     @endif
                     {{-- Total Stok --}}
                     <div class="alert alert-info">
+                        <h6 class="fw-bold mb-2">{{ $variant->variant_label }}</h6>
                         <strong>Stok Gudang:</strong> {{ number_format($variant->stok_warehouse) }} <br>
                         <strong>Stok Toko:</strong> {{ number_format($variant->stok_store) }} <br>
                         <strong>Total:</strong> {{ number_format($variant->stok_total) }}
@@ -57,12 +58,12 @@
 
                     <ul class="nav nav-tabs" id="mutasiTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="gudang-tab" data-bs-toggle="tab" data-bs-target="#gudang"
+                            <button class="nav-link" id="gudang-tab" data-bs-toggle="tab" data-bs-target="#gudang"
                                 type="button" role="tab" aria-controls="gudang" aria-selected="true"><i
                                     class="bi bi-box"></i> Gudang</button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="toko-tab" data-bs-toggle="tab" data-bs-target="#toko"
+                            <button class="nav-link active" id="toko-tab" data-bs-toggle="tab" data-bs-target="#toko"
                                 type="button" role="tab" aria-controls="toko" aria-selected="false"><i
                                     class="bi bi-shop"></i> Toko</button>
                         </li>
@@ -74,7 +75,7 @@
                     </ul>
 
                     <div class="tab-content mt-3" id="mutasiTabsContent">
-                        <div class="tab-pane fade show active" id="gudang" role="tabpanel" aria-labelledby="gudang-tab">
+                        <div class="tab-pane fade" id="gudang" role="tabpanel" aria-labelledby="gudang-tab">
                             <div class="card border-0 shadow-sm rounded-4">
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-2">Gudang</h6>
@@ -84,7 +85,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="tab-pane fade" id="toko" role="tabpanel" aria-labelledby="toko-tab">
+                        <div class="tab-pane fade show active" id="toko" role="tabpanel" aria-labelledby="toko-tab">
                             <div class="card border-0 shadow-sm rounded-4">
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-2">Toko</h6>

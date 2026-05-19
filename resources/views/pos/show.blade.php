@@ -77,7 +77,7 @@
                         ])>
                             <td>#{{ $item->id }}</td>
                             <td>
-                                {{ $item->product_name }}
+                                {{ $item->variant ? $item->variant->product->nama_produk : $item->product_name }}
 
                                 {{-- Info hasil exchange --}}
                                 @if ($item->status === 'exchanged_in' && $item->ref_sale_item_id)
@@ -86,7 +86,7 @@
                                     </div>
                                 @endif
                             </td>
-                            <td>{{ variantLabel($item) }}</td>
+                            <td>{{ $item->product_name }}</td>
                             <td class="text-center">{{ $item->qty }}</td>
                             <td class="text-end">{{ number_format($item->price) }}</td>
                             <td class="text-end text-danger">

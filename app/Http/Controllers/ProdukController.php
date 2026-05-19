@@ -48,109 +48,60 @@ class ProdukController extends Controller
     }
     public function create()
     {
-        $storeId = session('store_id');
-        $attributes = Attribute::where('store_id', $storeId)
-            ->with('values')
-            ->orderBy('urutan')
-            ->get();
-        return view('produk.create', compact('attributes'));
+        return view('produk.create');
     }
     public function store(Request $request)
     {
         $request->validate([
-            'kode' => 'required|string|max:50|unique:products,kode_produk',
-            'nama' => 'required|string|max:150',
-            'variants' => 'nullable|array',
+            'kode'               => 'required|string|max:50|unique:products,kode_produk',
+            'nama'               => 'required|string|max:150',
+            'variants'           => 'nullable|array',
+            'variants.*.nama'    => 'nullable|string|max:150',
+            'variants.*.barcode' => 'nullable|string|max:100',
+            'variants.*.harga'   => 'nullable|numeric|min:0',
         ]);
         try {
             DB::transaction(function () use ($request) {
 
-                // 1️⃣ Simpan produk
                 $product = Product::create([
                     'store_id'    => session('store_id'),
                     'kode_produk' => strtoupper($request->kode),
                     'nama_produk' => $request->nama,
-                    'deskripsi' => $request->deskripsi,
+                    'deskripsi'   => $request->deskripsi,
                 ]);
 
-                /**
-                 * 2️⃣ Jika TIDAK ADA VARIAN
-                 * tetap buat 1 variant default
-                 */
-                if (empty($request->variants)) {
-                    while (true) {
-                        $newBarcode = strtoupper(Str::random(8));
-
-                        // Cek keunikan barcode
-                        $exists = ProductVariant::where('barcode', $newBarcode)->exists();
-                        if (!$exists) {
-                            break; // keluar dari loop jika barcode unik
-                        }
-                    }
-                    $pv = ProductVariant::create([
-                        'store_id' => session('store_id'),
-                        'product_id' => $product->id,
-                        'sku' => $product->kode_produk . '-001',
-                        'barcode' => $newBarcode,
-                        'harga_jual' => 0,
-                    ]);
-                    $pv->barcodes()->create([
-                        'barcode' => $newBarcode,
-                        'is_active' => 'Y'
-                    ]);
-                    return;
+                $variants = $request->variants ?? [];
+                if (empty($variants)) {
+                    $variants = [['nama' => '', 'barcode' => '', 'harga' => 0]];
                 }
 
-                /**
-                 * 3️⃣ Loop VARIAN
-                 */
-                foreach ($request->variants as $variant) {
-
-                    // Ambil attribute value
-                    $valueIds = explode(',', $variant['values']);
-
-                    $values = AttributeValue::with('attribute')
-                        ->whereIn('id', $valueIds)
-                        ->get()
-                        ->sortBy(fn($v) => $v->attribute->urutan)
-                        ->values();
-
-                    /**
-                     * 4️⃣ Generate SKU (LOGIS & STABIL)
-                     * PRM-SD-L-L
-                     */
-                    $sku = $product->kode_produk . '-' . $values->pluck('kode')->implode('-');
-
-                    /**
-                     * 5️⃣ Simpan VARIANT
-                     */
-                    while (true) {
-                        $newBarcode = strtoupper(Str::random(8));
-
-                        // Cek keunikan barcode
-                        $exists = ProductVariant::where('barcode', $newBarcode)->exists();
-                        if (!$exists) {
-                            break; // keluar dari loop jika barcode unik
+                foreach ($variants as $i => $v) {
+                    if (!empty($v['barcode'])) {
+                        $barcode = strtoupper($v['barcode']);
+                        if (ProductVariant::where('barcode', $barcode)->exists()) {
+                            throw new \Exception("Barcode '{$barcode}' sudah digunakan.");
                         }
+                    } else {
+                        do {
+                            $barcode = strtoupper(Str::random(8));
+                        } while (ProductVariant::where('barcode', $barcode)->exists());
                     }
-                    $productVariant = ProductVariant::create([
-                        'store_id' => session('store_id'),
-                        'product_id' => $product->id,
-                        'sku' => $sku,
-                        'barcode' => $newBarcode,
-                        'harga_jual' => $variant['harga'] ?? 0,
+
+                    $sku = $product->kode_produk . '-' . str_pad($i + 1, 3, '0', STR_PAD_LEFT);
+
+                    $pv = ProductVariant::create([
+                        'store_id'     => session('store_id'),
+                        'product_id'   => $product->id,
+                        'variant_name' => $v['nama'] ?? '',
+                        'sku'          => $sku,
+                        'barcode'      => $barcode,
+                        'harga_jual'   => $v['harga'] ?? 0,
                     ]);
 
-                    /**
-                     * 6️⃣ Simpan relasi attribute
-                     */
-                    foreach ($values as $value) {
-                        VariantAttribute::create([
-                            'product_variant_id' => $productVariant->id,
-                            'attribute_id' => $value->attribute->id,
-                            'attribute_value_id' => $value->id
-                        ]);
-                    }
+                    $pv->barcodes()->create([
+                        'barcode'   => $barcode,
+                        'is_active' => 'Y',
+                    ]);
                 }
             });
 
@@ -271,25 +222,10 @@ class ProdukController extends Controller
         }
 
         // 🔹 Existing variant (untuk JS: disable & deteksi duplikat)
-        $existingVariants = $product->variants->map(function ($v) {
-            return [
-                'id' => $v->id,
-                'sku' => $v->sku,
-                'barcode' => $v->barcode,
-                'harga_jual' => $v->harga_jual,
-                'attribute_value_ids' => $v->variantAttributes
-                    ->pluck('attribute_value_id')
-                    ->sort()
-                    ->values()
-                    ->toArray(),
-            ];
-        });
+        $existingVariants = collect([]);
 
-        // 🔹 Attribute master (untuk modal)
-        $attributes = Attribute::where('store_id', session('store_id'))
-            ->with('values')
-            ->orderBy('urutan')
-            ->get();
+        // 🔹 Attribute master (tidak lagi dibutuhkan, kosongkan)
+        $attributes = collect([]);
 
         return view('produk.edit', compact(
             'product',
@@ -320,62 +256,40 @@ class ProdukController extends Controller
     public function storeVariant(Request $request)
     {
         $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'variants' => 'nullable|array',
+            'product_id'          => 'required|exists:products,id',
+            'variants'            => 'required|array|min:1',
+            'variants.*.nama'     => 'required|string|max:150',
+            'variants.*.harga_jual' => 'nullable|numeric|min:0',
         ]);
         try {
             DB::transaction(function () use ($request) {
                 $product = Product::findOrFail($request->product_id);
-                /**
-                 * 3️⃣ Loop VARIAN
-                 */
-                foreach ($request->variants as $variant) {
+                $existingCount = $product->variants()->count();
 
-                    // Ambil attribute value
-                    $valueIds = explode(',', $variant['values']);
+                foreach ($request->variants as $i => $v) {
+                    do {
+                        $barcode = strtoupper(Str::random(8));
+                    } while (ProductVariant::where('barcode', $barcode)->exists());
 
-                    $values = AttributeValue::with('attribute')->whereIn('id', $valueIds)->get();
+                    $sku = $product->kode_produk . '-' . str_pad($existingCount + $i + 1, 3, '0', STR_PAD_LEFT);
 
-                    /**
-                     * 4️⃣ Generate SKU (LOGIS & STABIL)
-                     * PRM-SD-L-L
-                     */
-                    // $sku = $product->kode_produk . '-' . $values->pluck('kode')->implode('-');
-
-                    /**
-                     * 5️⃣ Simpan VARIANT
-                     */
-                    while (true) {
-                        $newBarcode = strtoupper(Str::random(8));
-
-                        // Cek keunikan barcode
-                        $exists = ProductVariant::where('barcode', $newBarcode)->exists();
-                        if (!$exists) {
-                            break; // keluar dari loop jika barcode unik
-                        }
-                    }
-                    $productVariant = ProductVariant::create([
-                        'store_id' => session('store_id'),
-                        'product_id' => $product->id,
-                        'sku' => $variant['sku'],
-                        'barcode' => $newBarcode,
-                        'harga_jual' => $variant['harga_jual'] ?? 0,
+                    $pv = ProductVariant::create([
+                        'store_id'     => session('store_id'),
+                        'product_id'   => $product->id,
+                        'variant_name' => $v['nama'],
+                        'sku'          => $sku,
+                        'barcode'      => $barcode,
+                        'harga_jual'   => $v['harga_jual'] ?? 0,
                     ]);
 
-                    /**
-                     * 6️⃣ Simpan relasi attribute
-                     */
-                    foreach ($values as $value) {
-                        VariantAttribute::create([
-                            'product_variant_id' => $productVariant->id,
-                            'attribute_id' => $value->attribute->id,
-                            'attribute_value_id' => $value->id
-                        ]);
-                    }
+                    $pv->barcodes()->create([
+                        'barcode'   => $barcode,
+                        'is_active' => 'Y',
+                    ]);
                 }
             });
 
-            return response()->json(['success' => true, 'message' => 'Variant berhasil ditambahkan.', 'icon' => 'success'], 200);
+            return response()->json(['success' => true, 'message' => 'Varian berhasil ditambahkan.', 'icon' => 'success'], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage(), 'icon' => 'error'], 500);
         }
@@ -609,6 +523,7 @@ class ProdukController extends Controller
                     $query->where(function ($sub) use ($word) {
 
                         $sub->where('sku', 'like', "%$word%")
+                            ->orWhere('variant_name', 'like', "%$word%")
                             ->orWhereHas('product', function ($q2) use ($word) {
                                 $q2->where('nama_produk', 'like', "%$word%");
                             })
@@ -633,7 +548,7 @@ class ProdukController extends Controller
                 'nama_produk' => $v->product->nama_produk,
                 'sku' => $v->sku,
                 'barcode' => optional($v->barcodeActive)->barcode,
-                'label' => $v->variasi_label,
+                'label' => $v->variant_label,
                 'url' => route('produk.variants.detail', ['product' => $v->product_id, 'variant' => $v->id]),
             ];
         }));

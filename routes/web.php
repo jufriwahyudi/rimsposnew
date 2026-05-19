@@ -267,6 +267,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/laporan/penerimaan-kas/export', [LaporanController::class, 'exportPenerimaanKas'])->name('laporan.penerimaan_kas.export');
     Route::get('/laporan/neraca_lajur', [LaporanController::class, 'neraca_lajur'])->name('laporan.neraca_lajur');
     Route::get('/laporan/laba_rugi', [LaporanController::class, 'laba_rugi'])->name('laporan.laba_rugi');
+    Route::post('/laporan/laba-rugi/data', [LaporanController::class, 'getLabaRugi'])->name('laporan.laba_rugi.data');
+    Route::get('/laporan/laba-rugi/export', [LaporanController::class, 'exportLabaRugi'])->name('laporan.laba_rugi.export');
 
     Route::get('/laporan/biaya-operasional', [LaporanController::class, 'biayaOperasional'])->name('laporan.biaya_operasional');
     Route::post('/laporan/biaya-operasional/data', [LaporanController::class, 'getBiayaOperasional'])->name('laporan.biaya_operasional.data');

@@ -132,9 +132,7 @@ class PosController extends Controller
                 'product_id' => $v->product_id,
                 'sku'        => $v->sku,
                 'name'       => $v->product->nama_produk,
-                'variant'    => $v->variantAttributes
-                    ? implode(', ', $v->variantAttributes->map(fn($va) => $va->value->nama)->toArray())
-                    : '',
+                'variant'    => $v->variant_label,
                 'price'      => $v->harga_jual,
                 'stok'       => (int) $v->stok_store,
             ];
@@ -157,9 +155,13 @@ class PosController extends Controller
 
         // 2. Search nama produk
         $variants = ProductVariant::with(['product', 'variantAttributes.value'])
-            ->whereHas('product', function ($q2) use ($q) {
-                $q2->where('nama_produk', 'like', "%{$q}%");
+            ->where(function ($q2) use ($q) {
+                $q2->where('variant_name', 'like', "%{$q}%")
+                    ->orWhereHas('product', function ($q3) use ($q) {
+                        $q3->where('nama_produk', 'like', "%{$q}%");
+                    });
             })
+            ->where('is_active', 'Y')
             ->get();
 
         if ($variants->count() === 1) {
@@ -246,7 +248,7 @@ class PosController extends Controller
                         'product_id'         => $item['product_id'],
                         'product_variant_id' => $item['variant_id'] ?? null,
                         'sku'                => $item['sku'],
-                        'product_name'       => $item['name'],
+                        'product_name'       => $item['variant'] ?? $item['name'],
                         'price'              => $item['price'],
                         'qty'                => $item['qty'],
                         'discount_amount'    => $item['discount_amount'],

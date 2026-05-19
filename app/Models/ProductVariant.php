@@ -13,6 +13,7 @@ class ProductVariant extends Model
     protected $fillable = [
         'store_id',
         'product_id',
+        'variant_name',
         'sku',
         'barcode',
         'harga_jual',
@@ -120,8 +121,10 @@ class ProductVariant extends Model
 
     public function getVariantLabelAttribute()
     {
+        if (!empty($this->variant_name)) {
+            return $this->variant_name;
+        }
         return $this->variantAttributes
-            // ->sortBy(fn($va) => optional($va->value)->urutan)
             ->map(fn($va) => optional($va->value)->nama)
             ->filter()
             ->implode(' · ');
