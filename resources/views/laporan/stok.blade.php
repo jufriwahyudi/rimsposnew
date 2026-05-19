@@ -51,13 +51,16 @@
                     <tbody>
                         @php $totalNilaiPersediaan = 0; @endphp
                         @forelse($products as $product)
+                            @php $varianCount = $product->variants->count(); @endphp
 
-                            {{-- HEADER PRODUK --}}
-                            <tr class="table-secondary fw-bold">
-                                <td colspan="8">
-                                    <i class="bi bi-box-seam me-2"></i>{{ $product->nama_produk }}
-                                </td>
-                            </tr>
+                            {{-- HEADER PRODUK: hanya tampil jika varian > 1 --}}
+                            @if ($varianCount > 1)
+                                <tr class="table-secondary fw-bold">
+                                    <td colspan="8">
+                                        <i class="bi bi-box-seam me-2"></i>{{ $product->nama_produk }}
+                                    </td>
+                                </tr>
+                            @endif
 
                             {{-- VARIANT --}}
                             @foreach ($product->variants as $variant)
@@ -68,29 +71,33 @@
                                     $modal = $variant->modalPerTanggal($tanggal);
                                     $nilaiPersediaan = $modal * $totalStok;
                                     $totalNilaiPersediaan += $nilaiPersediaan;
+                                    $label = $variant->variant_label ?: 'Tidak ada varian';
                                 @endphp
                                 <tr>
-                                    <td style="padding-left: 32px">
-                                        <div class="fw-semibold">{{ $variant->sku }}</div>
-                                        <small class="text-muted">
-                                            {{ $variant->variant_label ?: 'Tidak ada varian' }}
-                                        </small>
+                                    <td @if ($varianCount > 1) style="padding-left: 32px" @endif>
+                                        @if ($varianCount === 1)
+                                            {{-- Produk + varian digabung dalam 1 baris --}}
+                                            <div class="fw-semibold">
+                                                <i
+                                                    class="bi bi-box-seam me-1 text-secondary"></i>{{ $product->nama_produk }}
+                                                @if ($label !== 'Tidak ada varian' && $label !== 'Default')
+                                                    <span class="text-muted fw-normal"> &mdash; {{ $label }}</span>
+                                                @endif
+                                            </div>
+                                            <small class="text-muted">{{ $variant->sku }}</small>
+                                        @else
+                                            <div class="fw-semibold">{{ $label }}</div>
+                                            <small class="text-muted">{{ $variant->sku }}</small>
+                                        @endif
                                     </td>
                                     <td class="text-center">{{ $stokWarehouse }}</td>
                                     <td class="text-center">{{ $stokStore }}</td>
                                     <td class="text-center fw-bold">{{ $totalStok }}</td>
-                                    <td class="text-end">
-                                        {{ number_format($modal, 0, ',', '.') }}
-                                    </td>
-                                    <td class="text-end">
-                                        {{ number_format($variant->harga_jual, 0, ',', '.') }}
-                                    </td>
+                                    <td class="text-end">{{ number_format($modal, 0, ',', '.') }}</td>
+                                    <td class="text-end">{{ number_format($variant->harga_jual, 0, ',', '.') }}</td>
+                                    <td class="text-end fw-bold">{{ number_format($nilaiPersediaan, 0, ',', '.') }}</td>
                                     <td class="text-end fw-bold">
-                                        {{ number_format($nilaiPersediaan, 0, ',', '.') }}
-                                    </td>
-                                    <td class="text-end fw-bold">
-                                        {{ number_format($variant->harga_jual * $totalStok, 0, ',', '.') }}
-                                    </td>
+                                        {{ number_format($variant->harga_jual * $totalStok, 0, ',', '.') }}</td>
                                 </tr>
                             @endforeach
 

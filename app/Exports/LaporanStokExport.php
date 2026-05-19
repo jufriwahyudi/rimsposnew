@@ -96,44 +96,56 @@ class LaporanStokExport implements
             ->get();
 
         foreach ($products as $product) {
+            $varianCount = $product->variants->count();
 
-            // Simpan row produk untuk styling
-            $this->productHeaderRows[] = $rowNumber;
-
-            $rows[] = [
-                $product->nama_produk,
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-                '',
-            ];
-            $rowNumber++;
+            // Header produk hanya jika varian > 1
+            if ($varianCount > 1) {
+                $this->productHeaderRows[] = $rowNumber;
+                $rows[] = [
+                    '',
+                    $product->nama_produk,
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                ];
+                $rowNumber++;
+            }
 
             foreach ($product->variants as $variant) {
                 $stokWarehouse = (int) data_get($variant, 'stock_warehouse', 0);
-                $stokStore = (int) data_get($variant, 'stock_store', 0);
-                $totalStok = $stokWarehouse + $stokStore;
+                $stokStore     = (int) data_get($variant, 'stock_store', 0);
+                $totalStok     = $stokWarehouse + $stokStore;
 
-                $modal = (float) ($variant->modalPerTanggal($this->tanggal) ?? 0);
+                $modal           = (float) ($variant->modalPerTanggal($this->tanggal) ?? 0);
                 $nilaiPersediaan = $modal * $totalStok;
 
-
                 $totalNilaiPersediaan += $nilaiPersediaan;
-                $totalNilaiJual += $variant->harga_jual * $totalStok;
+                $totalNilaiJual       += $variant->harga_jual * $totalStok;
+
+                $label = $variant->variant_label ?: 'Tidak ada varian';
+
+                // Kolom nama: gabung produk+varian jika hanya 1 varian
+                if ($varianCount === 1) {
+                    $namaKolom = $product->nama_produk
+                        . (($label !== 'Tidak ada varian' && $label !== 'Default') ? ' — ' . $label : '');
+                } else {
+                    $namaKolom = $label;
+                }
+
                 $rows[] = [
                     $variant->sku,
-                    $variant->variant_label ?: 'Tidak ada varian',
-                    $stokWarehouse === 0 ? '0' : (string) $stokWarehouse,
-                    $stokStore === 0 ? '0' : (string) $stokStore,
-                    $totalStok === 0 ? '0' : (string) $totalStok,
-                    $modal == 0 ? '0' : $modal,
-                    $variant->harga_jual == 0 ? '0' : $variant->harga_jual,
-                    $nilaiPersediaan == 0 ? '0' : $nilaiPersediaan,
-                    $variant->harga_jual * $totalStok == 0 ? '0' : ($variant->harga_jual * $totalStok),
+                    $namaKolom,
+                    $stokWarehouse,
+                    $stokStore,
+                    $totalStok,
+                    $modal,
+                    $variant->harga_jual,
+                    $nilaiPersediaan,
+                    $variant->harga_jual * $totalStok,
                 ];
                 $rowNumber++;
             }
