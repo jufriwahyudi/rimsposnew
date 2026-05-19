@@ -462,7 +462,7 @@ class PosController extends Controller
                 }
 
                 // Hapus jurnal terkait exchanged jika ada
-                $dataexchange = $sale->items()->whereIsNotNull('ref_sale_item_id')->get();
+                $dataexchange = $sale->items()->whereNotNull('ref_sale_item_id')->get();
                 foreach ($dataexchange as $item) {
                     $cashTrxExchange = CashTransaction::where('ref_type', 'Exchange')
                         ->where('ref_id', $item->id)
