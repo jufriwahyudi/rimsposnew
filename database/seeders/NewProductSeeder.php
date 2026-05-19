@@ -3696,7 +3696,7 @@ class NewProductSeeder extends Seeder
             $len_variant = count($p['variants']);
             $nama_produk = $p['nama_produk'];
             if ($len_variant == 1) {
-                $nama_produk .= ' - ' . $p['variants'][0]['label'];
+                $nama_produk .= ($p['variants'][0]['label'] === 'Default' ? '' : ' - ' . $p['variants'][0]['label']);
             }
             $product = Product::create([
                 'store_id'    => 1,
