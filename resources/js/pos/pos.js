@@ -156,11 +156,19 @@ const POS = {
      * EVENT BINDING
      * ========================= */
     bindEvents() {
-        document.getElementById('skuInput')?.addEventListener('keydown', e => {
+        const skuInput = document.getElementById('skuInput');
+
+        skuInput?.addEventListener('keydown', e => {
             if (e.key === 'Enter') {
                 this.addByCode(e.target.value.trim());
                 e.target.value = '';
             }
+        });
+
+        document.getElementById('skuSearchBtn')?.addEventListener('click', () => {
+            this.addByCode(skuInput.value.trim());
+            skuInput.value = '';
+            skuInput.focus();
         });
 
         document.getElementById('posTabs')?.addEventListener('click', e => {

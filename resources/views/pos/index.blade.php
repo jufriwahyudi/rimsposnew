@@ -59,10 +59,13 @@
                         {{-- LEFT : CART --}}
                         <div class="col-md-8">
 
-                            {{-- INPUT SKU --}}
+                            {{-- INPUT SKU CARI --}}
                             <div class="input-group mb-3">
                                 <input type="text" id="skuInput" class="form-control form-control-lg"
                                     placeholder="Scan barcode / input SKU / kode produk" autofocus>
+                                <button class="btn btn-primary btn-lg" id="skuSearchBtn" type="button">
+                                    <i class="bi bi-search"></i>
+                                </button>
                             </div>
 
                             {{-- CART TABLE --}}
