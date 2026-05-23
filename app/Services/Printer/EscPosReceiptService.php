@@ -42,7 +42,8 @@ class EscPosReceiptService
     {
         ob_start();
         $connector = new RawbtPrintConnector();
-        $this->build($connector, $data);
+        $this->buildPrinter($connector, $data);
+        $this->printer->close(); // triggers finalize() → echoes intent URI
         return ob_get_clean();
     }
 
@@ -57,26 +58,27 @@ class EscPosReceiptService
     public function base64(array $data): string
     {
         $connector = new DummyPrintConnector();
-        $this->build($connector, $data);
-        return base64_encode($connector->getData());
+        $this->buildPrinter($connector, $data);
+        $rawBytes = $connector->getData(); // ambil data SEBELUM close()
+        $this->printer->close();           // finalize() nullifies buffer
+        return base64_encode($rawBytes);
     }
 
     /* =====================================================================
      * CORE BUILDER
      * ===================================================================== */
 
-    protected function build($connector, array $data): void
+    protected function buildPrinter($connector, array $data): void
     {
         $profile       = CapabilityProfile::load('default');
         $this->printer = new Printer($connector, $profile);
 
-        $this->printHeader($data['store']       ?? []);
+        $this->printHeader($data['store']            ?? []);
         $this->printTransaction($data['transaction'] ?? []);
-        $this->printItems($data['items']         ?? []);
-        $this->printSummary($data['summary']     ?? []);
+        $this->printItems($data['items']             ?? []);
+        $this->printSummary($data['summary']         ?? []);
         $this->printFooter();
-
-        $this->printer->close();
+        // close() dipanggil oleh masing-masing metode publik
     }
 
     /* =====================================================================
