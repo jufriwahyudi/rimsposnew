@@ -41,7 +41,9 @@ class EscPosReceiptService
     public function intentUri(array $data): string
     {
         ob_start();
-        $connector = new RawbtPrintConnector();
+        $profile   = CapabilityProfile::load('POS-5890');
+        $rawbt = new RawbtPrintConnector();
+        $connector = new Printer($rawbt, $profile); // untuk build printer tanpa langsung kirim ke RawBT
         $this->buildPrinter($connector, $data);
         $this->printer->close(); // triggers finalize() → echoes intent URI
         return ob_get_clean();
