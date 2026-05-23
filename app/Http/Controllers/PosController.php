@@ -15,6 +15,7 @@ use App\Models\StockMovement;
 use App\Models\Store;
 use App\Services\JournalEntryService;
 use App\Services\JournalFromCashTransactionService;
+use App\Services\Printer\EscPosReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -809,11 +810,13 @@ class PosController extends Controller
 
     public function printThermal(Sale $sale)
     {
-        $printer = app(\App\Services\Printer\ReceiptPrinter::class);
+        $store    = Store::findOrFail(session('store_id'));
+        $paper    = $store->printer_type ?? '80mm';
+        $data     = $this->printReceipt($sale->id)->getData(true);
+        $service  = new EscPosReceiptService($paper);
+        $intentUri = $service->intentUri($data);
 
-        $data = $printer->printSale($sale);
-
-        return response($data, 200, ['Content-Type' => 'text/plain']);
+        return response($intentUri, 200, ['Content-Type' => 'text/plain']);
     }
 
     public function printReceipt($id)
@@ -853,6 +856,37 @@ class PosController extends Controller
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
             ]
+        ]);
+    }
+
+    /**
+     * Cetak via RawBT (Android).
+     *
+     * GET /sales/{id}/rawbt          → pakai printer_type dari setting toko
+     * GET /sales/{id}/rawbt/58mm     → paksa 58mm
+     * GET /sales/{id}/rawbt/80mm     → paksa 80mm
+     *
+     * Response JSON:
+     *   intent_uri  → langsung pakai: window.location.href = data.intent_uri
+     *   base64      → untuk WebPrint API RawBT (POST ke http://localhost:8080/rawbt)
+     *   paper       → ukuran kertas yang digunakan
+     */
+    public function printRawbt(Request $request, $id, string $paper = null)
+    {
+        $store = Store::findOrFail(session('store_id'));
+        $paper = $paper ?? $store->printer_type ?? '80mm';
+
+        if (!in_array($paper, ['58mm', '80mm'])) {
+            $paper = '80mm';
+        }
+
+        $data    = $this->printReceipt($id)->getData(true);
+        $service = new EscPosReceiptService($paper);
+
+        return response()->json([
+            'paper'      => $paper,
+            'intent_uri' => $service->intentUri($data),
+            'base64'     => $service->base64($data),
         ]);
     }
 

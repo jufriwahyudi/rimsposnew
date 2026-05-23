@@ -151,23 +151,10 @@
                 <a href="{{ route('pos.sales') }}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Kembali
                 </a>
-                @if ($sale->sale_type === 'nse')
-                    <a href="{{ route('nse.distribusi.cetak', ['id' => $sale->id, 'method' => 'download']) }}"
-                        target="_blank" class="btn btn-outline-primary">
-                        <i class="bi bi-printer"></i> Cetak Distribusi
-                    </a>
-                @else
-                    {{-- <button class="btn btn-outline-primary" onclick="printReceipt()">
-                        <i class="bi bi-printer"></i> Cetak Struk
-                    </button> --}}
-                    {{-- Blade link --}}
-                    <a href="{{ route('sales.receipt', $sale->id) }}" target="_blank" class="btn btn-outline-primary">
-                        <i class="bi bi-printer"></i> Cetak Struk
-                    </a>
-                @endif
-                {{-- <button class="btn btn-outline-primary" onclick="Printer.printReceipt('{{ $sale->id }}')">
+                <button type="button" class="btn btn-outline-primary" id="btnCetakStruk"
+                    onclick="cetakStruk({{ $sale->id }})">
                     <i class="bi bi-printer"></i> Cetak Struk
-                </button> --}}
+                </button>
                 <!-- jika sales date(created_at) adalah hari ini, tampilkan tombol void -->
                 @if ($sale->status == 'paid' && $sale->created_at->isToday() && $sale->refunds->count() === 0)
                     <form method="POST" class="form-inline mb-0" action="{{ route('sales.void', $sale) }}"
@@ -294,6 +281,86 @@
                 .catch(error => {
                     console.error('Error fetching receipt data:', error);
                     Swal.fire('Gagal mengambil data struk.');
+                });
+        }
+
+        /**
+         * Cetak struk via RawBT.
+         *
+         * - Android / mobile  → Android Intent URI (buka RawBT langsung)
+         * - Desktop / laptop  → WebPrint API RawBT di localhost:8080
+         *   Jika WebPrint tidak tersedia (timeout/error) fallback ke window.print.
+         */
+        function cetakStruk(saleId) {
+            const btn = document.getElementById('btnCetakStruk');
+            btn.disabled = true;
+            const originalLabel = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Mengirim...';
+
+            fetch(`/sales/${saleId}/rawbt`)
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(d => {
+                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+                    if (isMobile) {
+                        // ── Android Intent: buka RawBT langsung ──────────────
+                        window.location.href = d.intent_uri;
+                        btn.disabled = false;
+                        btn.innerHTML = originalLabel;
+                    } else {
+                        // ── Desktop: kirim ke WebPrint API RawBT ─────────────
+                        const bytes = Uint8Array.from(atob(d.base64), c => c.charCodeAt(0));
+
+                        fetch('http://localhost:8080/rawbt', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/octet-stream'
+                                },
+                                body: bytes
+                            })
+                            .then(res => {
+                                if (!res.ok) throw new Error('WebPrint error ' + res.status);
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Dikirim ke printer',
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+                            })
+                            .catch(() => {
+                                // Fallback: buka halaman struk untuk window.print
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'RawBT tidak terdeteksi',
+                                    text: 'Pastikan RawBT WebPrint aktif di port 8080, atau gunakan cetak browser.',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Cetak Browser',
+                                    cancelButtonText: 'Tutup',
+                                }).then(result => {
+                                    if (result.isConfirmed) {
+                                        window.open('{{ route('sales.receipt', '') }}/' + saleId,
+                                        '_blank');
+                                    }
+                                });
+                            })
+                            .finally(() => {
+                                btn.disabled = false;
+                                btn.innerHTML = originalLabel;
+                            });
+                    }
+                })
+                .catch(err => {
+                    console.error('cetakStruk error:', err);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: 'Tidak dapat mengambil data struk.'
+                    });
+                    btn.disabled = false;
+                    btn.innerHTML = originalLabel;
                 });
         }
 

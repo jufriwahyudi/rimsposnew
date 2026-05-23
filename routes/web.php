@@ -198,6 +198,9 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/sales/{sale}/print', [PosController::class, 'printThermal'])->name('sales.print-thermal');
     Route::get('/datasales/receiptdata/{id}', [PosController::class, 'printReceipt'])->name('sales.print-receipt');
     Route::get('/sales/{id}/receipt', [PosController::class, 'showReceipt'])->name('sales.receipt');
+    // RawBT ESC/POS – {paper?} opsional: 58mm atau 80mm (default dari setting toko)
+    Route::get('/sales/{id}/rawbt/{paper?}', [PosController::class, 'printRawbt'])->name('sales.rawbt')
+        ->where('paper', '58mm|80mm');
 
 
     Route::prefix('nse/distribusi')->group(function () {
