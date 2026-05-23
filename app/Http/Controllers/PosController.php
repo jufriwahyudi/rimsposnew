@@ -877,7 +877,7 @@ class PosController extends Controller
         $service   = new EscPosReceiptService($paper);
         $intentUri = $service->intentUri($data);
         // dd(substr($intentUri, 0, 100));
-        dd(substr($intentUri, -200));
+        // dd(substr($intentUri, -200));
 
         return response($intentUri, 200, ['Content-Type' => 'text/plain']);
     }
