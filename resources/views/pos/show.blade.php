@@ -287,11 +287,26 @@
         /**
          * Cetak struk via RawBT.
          *
-         * - Android / mobile  → Android Intent URI (buka RawBT langsung)
-         * - Desktop / laptop  → WebPrint API RawBT di localhost:8080
-         *   Jika WebPrint tidak tersedia (timeout/error) fallback ke window.print.
+         * Mobile/Android:
+         *   Navigasi langsung ke /rawbt-print (TIDAK lewat fetch async).
+         *   Halaman tersebut meng-execute intent URI secara synchronous,
+         *   sehingga Chrome Android mengenalinya sebagai navigasi sah
+         *   dan membuka app RawBT (bukan Play Store).
+         *
+         * Desktop/laptop:
+         *   Fetch JSON → kirim bytes ke RawBT WebPrint API (localhost:8080).
+         *   Jika WebPrint offline → fallback window.print browser.
          */
         function cetakStruk(saleId) {
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            if (isMobile) {
+                // ── Android: navigasi langsung, jaga user-gesture ────────────
+                window.location.href = `/sales/${saleId}/rawbt-print`;
+                return;
+            }
+
+            // ── Desktop: fetch + WebPrint API ────────────────────────────────
             const btn = document.getElementById('btnCetakStruk');
             btn.disabled = true;
             const originalLabel = btn.innerHTML;
@@ -303,62 +318,40 @@
                     return r.json();
                 })
                 .then(d => {
-                    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-                    if (isMobile) {
-                        // ── Android Intent: buka RawBT langsung ──────────────
-                        window.location.href = d.intent_uri;
-                        btn.disabled = false;
-                        btn.innerHTML = originalLabel;
-                    } else {
-                        // ── Desktop: kirim ke WebPrint API RawBT ─────────────
-                        const bytes = Uint8Array.from(atob(d.base64), c => c.charCodeAt(0));
-
-                        fetch('http://localhost:8080/rawbt', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/octet-stream'
-                                },
-                                body: bytes
-                            })
-                            .then(res => {
-                                if (!res.ok) throw new Error('WebPrint error ' + res.status);
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Dikirim ke printer',
-                                    timer: 1500,
-                                    showConfirmButton: false
-                                });
-                            })
-                            .catch(() => {
-                                // Fallback: buka halaman struk untuk window.print
-                                Swal.fire({
-                                    icon: 'warning',
-                                    title: 'RawBT tidak terdeteksi',
-                                    text: 'Pastikan RawBT WebPrint aktif di port 8080, atau gunakan cetak browser.',
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Cetak Browser',
-                                    cancelButtonText: 'Tutup',
-                                }).then(result => {
-                                    if (result.isConfirmed) {
-                                        window.open('{{ route('sales.receipt', '') }}/' + saleId,
-                                        '_blank');
-                                    }
-                                });
-                            })
-                            .finally(() => {
-                                btn.disabled = false;
-                                btn.innerHTML = originalLabel;
-                            });
-                    }
-                })
-                .catch(err => {
-                    console.error('cetakStruk error:', err);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal',
-                        text: 'Tidak dapat mengambil data struk.'
+                    const bytes = Uint8Array.from(atob(d.base64), c => c.charCodeAt(0));
+                    return fetch('http://localhost:8080/rawbt', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/octet-stream'
+                        },
+                        body: bytes
                     });
+                })
+                .then(res => {
+                    if (!res.ok) throw new Error('WebPrint error ' + res.status);
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Dikirim ke printer',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                })
+                .catch(() => {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'RawBT tidak terdeteksi',
+                        text: 'Pastikan RawBT WebPrint aktif di port 8080, atau gunakan cetak browser.',
+                        showCancelButton: true,
+                        confirmButtonText: 'Cetak Browser',
+                        cancelButtonText: 'Tutup',
+                    }).then(result => {
+                        if (result.isConfirmed) {
+                            window.open('{{ route('sales.receipt', ':id') }}'.replace(':id', saleId),
+                            '_blank');
+                        }
+                    });
+                })
+                .finally(() => {
                     btn.disabled = false;
                     btn.innerHTML = originalLabel;
                 });

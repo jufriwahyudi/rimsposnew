@@ -891,6 +891,34 @@ class PosController extends Controller
     }
 
     /**
+     * Halaman cetak RawBT untuk Android/mobile.
+     *
+     * Browser navigasi langsung ke halaman ini (bukan lewat fetch async),
+     * sehingga intent URI tetap terikat ke user-gesture dan Chrome Android
+     * dapat membuka RawBT yang sudah terinstall dengan benar.
+     *
+     * GET /sales/{id}/rawbt-print
+     * GET /sales/{id}/rawbt-print/58mm
+     * GET /sales/{id}/rawbt-print/80mm
+     */
+    public function printRawbtPage($id, string $paper = null)
+    {
+        $store = Store::findOrFail(session('store_id'));
+        $paper = $paper ?? $store->printer_type ?? '80mm';
+
+        if (!in_array($paper, ['58mm', '80mm'])) {
+            $paper = '80mm';
+        }
+
+        $data      = $this->printReceipt($id)->getData(true);
+        $service   = new EscPosReceiptService($paper);
+        $intentUri = $service->intentUri($data);
+        $backUrl   = route('sales.show', $id);
+
+        return view('pos.rawbt-print', compact('intentUri', 'backUrl'));
+    }
+
+    /**
      * Tampilkan halaman struk untuk window.print
      * Menggunakan data yang sama dengan printReceipt()
      */
