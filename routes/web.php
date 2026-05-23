@@ -198,10 +198,12 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/sales/{sale}/print', [PosController::class, 'printThermal'])->name('sales.print-thermal');
     Route::get('/datasales/receiptdata/{id}', [PosController::class, 'printReceipt'])->name('sales.print-receipt');
     Route::get('/sales/{id}/receipt', [PosController::class, 'showReceipt'])->name('sales.receipt');
-    // RawBT JSON API – untuk desktop WebPrint
+    // RawBT plain-text endpoint – mirip CI3 showticketprint (Android + PC)
+    Route::post('/sales/{id}/showticketprint', [PosController::class, 'showticketprint'])->name('sales.showticketprint');
+    // RawBT JSON API – untuk desktop WebPrint (backup)
     Route::get('/sales/{id}/rawbt/{paper?}', [PosController::class, 'printRawbt'])->name('sales.rawbt')
         ->where('paper', '58mm|80mm');
-    // RawBT halaman redirect – untuk Android/mobile (intent URI via page navigation)
+    // RawBT halaman redirect – untuk Android/mobile (backup)
     Route::get('/sales/{id}/rawbt-print/{paper?}', [PosController::class, 'printRawbtPage'])->name('sales.rawbt-print')
         ->where('paper', '58mm|80mm');
 

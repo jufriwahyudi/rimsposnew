@@ -860,6 +860,27 @@ class PosController extends Controller
     }
 
     /**
+     * Endpoint plain-text mirip CI3 showticketprint.
+     *
+     * POST /sales/{id}/showticketprint
+     *
+     * Kembalikan Android Intent URI sebagai plain text.
+     * Dipakai oleh cetakStruk() via fetch → lalu:
+     *   - Android : window.location.href = intentUri
+     *   - PC      : WebSocket ws://127.0.0.1:40213/ → kirim intentUri
+     */
+    public function showticketprint($id)
+    {
+        $store     = Store::findOrFail(session('store_id'));
+        $paper     = $store->printer_type ?? '80mm';
+        $data      = $this->printReceipt($id)->getData(true);
+        $service   = new EscPosReceiptService($paper);
+        $intentUri = $service->intentUri($data);
+
+        return response($intentUri, 200, ['Content-Type' => 'text/plain']);
+    }
+
+    /**
      * Cetak via RawBT (Android).
      *
      * GET /sales/{id}/rawbt          → pakai printer_type dari setting toko

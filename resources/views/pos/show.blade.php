@@ -285,75 +285,81 @@
         }
 
         /**
-         * Cetak struk via RawBT.
+         * Cetak struk via RawBT — mengikuti pola CI3 yang sudah terbukti.
          *
-         * Mobile/Android:
-         *   Navigasi langsung ke /rawbt-print (TIDAK lewat fetch async).
-         *   Halaman tersebut meng-execute intent URI secara synchronous,
-         *   sehingga Chrome Android mengenalinya sebagai navigasi sah
-         *   dan membuka app RawBT (bukan Play Store).
-         *
-         * Desktop/laptop:
-         *   Fetch JSON → kirim bytes ke RawBT WebPrint API (localhost:8080).
-         *   Jika WebPrint offline → fallback window.print browser.
+         * 1. AJAX POST → server kembalikan Android Intent URI (plain text).
+         * 2. Android : window.location.href = intentUri  → buka RawBT.
+         * 3. PC/Mac  : WebSocket ws://127.0.0.1:40213/ → kirim intentUri.
+         *              Fallback: cetak browser jika WebSocket gagal.
          */
         function cetakStruk(saleId) {
-            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-            if (isMobile) {
-                // ── Android: navigasi langsung, jaga user-gesture ────────────
-                window.location.href = `/sales/${saleId}/rawbt-print`;
-                return;
-            }
-
-            // ── Desktop: fetch + WebPrint API ────────────────────────────────
             const btn = document.getElementById('btnCetakStruk');
             btn.disabled = true;
             const originalLabel = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Mengirim...';
 
-            fetch(`/sales/${saleId}/rawbt`)
+            fetch(`/sales/${saleId}/showticketprint`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    }
+                })
                 .then(r => {
                     if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.json();
+                    return r.text();
                 })
-                .then(d => {
-                    const bytes = Uint8Array.from(atob(d.base64), c => c.charCodeAt(0));
-                    return fetch('http://localhost:8080/rawbt', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/octet-stream'
-                        },
-                        body: bytes
-                    });
-                })
-                .then(res => {
-                    if (!res.ok) throw new Error('WebPrint error ' + res.status);
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Dikirim ke printer',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                })
-                .catch(() => {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'RawBT tidak terdeteksi',
-                        text: 'Pastikan RawBT WebPrint aktif di port 8080, atau gunakan cetak browser.',
-                        showCancelButton: true,
-                        confirmButtonText: 'Cetak Browser',
-                        cancelButtonText: 'Tutup',
-                    }).then(result => {
-                        if (result.isConfirmed) {
-                            window.open('{{ route('sales.receipt', ':id') }}'.replace(':id', saleId),
-                            '_blank');
+                .then(intentUri => {
+                    var ua = navigator.userAgent.toLowerCase();
+                    var isAndroid = ua.indexOf('android') > -1;
+
+                    if (isAndroid) {
+                        // ── Android: langsung navigasi ke intent URI (sama persis dengan CI3) ──
+                        window.location.href = intentUri;
+                    } else {
+                        // ── PC/Mac: WebSocket ke RawBT port 40213 (sama persis dengan CI3) ──
+                        try {
+                            var socket = new WebSocket('ws://127.0.0.1:40213/');
+                            socket.bufferType = 'arraybuffer';
+                            socket.onerror = function() {
+                                btn.disabled = false;
+                                btn.innerHTML = originalLabel;
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'RawBT tidak terdeteksi',
+                                    text: 'Pastikan aplikasi RawBT WebPrint aktif di PC.',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Cetak Browser',
+                                    cancelButtonText: 'Tutup',
+                                }).then(result => {
+                                    if (result.isConfirmed) {
+                                        window.open('{{ route('sales.receipt', ':id') }}'.replace(':id',
+                                            saleId), '_blank');
+                                    }
+                                });
+                            };
+                            socket.onopen = function() {
+                                socket.send(intentUri);
+                                socket.close(1000, 'Work complete');
+                                btn.disabled = false;
+                                btn.innerHTML = originalLabel;
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Dikirim ke printer',
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+                            };
+                        } catch (ex) {
+                            btn.disabled = false;
+                            btn.innerHTML = originalLabel;
+                            Swal.fire('Error', ex.message, 'error');
                         }
-                    });
+                    }
                 })
-                .finally(() => {
+                .catch(err => {
                     btn.disabled = false;
                     btn.innerHTML = originalLabel;
+                    Swal.fire('Error', 'Gagal mengambil data cetak: ' + err.message, 'error');
                 });
         }
 
