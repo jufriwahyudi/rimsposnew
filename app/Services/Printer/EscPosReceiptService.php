@@ -97,8 +97,8 @@ class EscPosReceiptService
         if (file_exists($logoPath)) {
             try {
                 $img = EscposImage::load($logoPath);
-                $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-                $this->printer->graphics($img);
+                // $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+                // $this->printer->graphics($img);
             } catch (\Exception $e) {
                 // Abaikan error logo
             }
