@@ -309,6 +309,9 @@
                     return r.text();
                 })
                 .then(intentUri => {
+                    // Debug: lihat intent URI di console browser
+                    console.log('[RawBT] intentUri:', intentUri);
+
                     var ua = navigator.userAgent.toLowerCase();
                     var isAndroid = ua.indexOf('android') > -1;
 

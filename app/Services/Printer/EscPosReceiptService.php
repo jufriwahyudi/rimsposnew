@@ -5,7 +5,6 @@ namespace App\Services\Printer;
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\DummyPrintConnector;
-use Mike42\Escpos\PrintConnectors\RawbtPrintConnector;
 use Mike42\Escpos\CapabilityProfile;
 
 /**
@@ -37,14 +36,14 @@ class EscPosReceiptService
     /**
      * Hasilkan Android Intent URI untuk dikirim ke RawBT.
      * Frontend cukup:  window.location.href = intentUri;
+     *
+     * Menggunakan DummyPrintConnector (tidak ada ob_start) dan
+     * merakit intent URI secara manual — lebih andal dari RawbtPrintConnector.
      */
     public function intentUri(array $data): string
     {
-        ob_start();
-        $connector = new RawbtPrintConnector();
-        $this->buildPrinter($connector, $data);
-        $this->printer->close(); // triggers finalize() → echoes intent URI
-        return ob_get_clean();
+        return 'intent:base64,' . $this->base64($data)
+            . '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
     }
 
     /* =====================================================================
