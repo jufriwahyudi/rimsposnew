@@ -94,7 +94,7 @@ class EscPosReceiptService
         $this->printer->setFont(Printer::FONT_A);
 
         // Logo store (jika ada)
-        $logoPath = Storage::url($store['logo'] ?? '');
+        $logoPath = $store['logo'];
         if (file_exists($logoPath)) {
             try {
                 $img = EscposImage::load($logoPath, false);
@@ -219,7 +219,7 @@ class EscPosReceiptService
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
 
         // Feed & cut
-        $this->printer->feed(3);
+        $this->printer->feed(1);
         $this->printer->cut();
     }
 
