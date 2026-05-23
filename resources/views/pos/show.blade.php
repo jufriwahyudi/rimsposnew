@@ -318,6 +318,8 @@
                     if (isAndroid) {
                         // ── Android: langsung navigasi ke intent URI (sama persis dengan CI3) ──
                         window.location.href = intentUri;
+                        btn.disabled = false;
+                        btn.innerHTML = originalLabel;
                     } else {
                         // ── PC/Mac: WebSocket ke RawBT port 40213 (sama persis dengan CI3) ──
                         try {

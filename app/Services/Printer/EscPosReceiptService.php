@@ -219,7 +219,8 @@ class EscPosReceiptService
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
 
         // Feed & cut
-        $this->printer->feed(1);
+        // $this->printer->feed(1);
+        // deteksi otomatis: jika printer mendukung, ini akan memotong kertas setelah print selesai
         $this->printer->cut();
     }
 
