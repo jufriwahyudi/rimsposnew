@@ -40,13 +40,13 @@ class EscPosReceiptService
      */
     public function intentUri(array $data): string
     {
-        // ob_start();
-        // $connector = new RawbtPrintConnector();
-        // $this->buildPrinter($connector, $data);
-        // $this->printer->close(); // triggers finalize() → echoes intent URI
-        // return ob_get_clean();
-        return 'intent:base64,' . $this->base64($data)
-            . '=#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+        ob_start();
+        $connector = new RawbtPrintConnector();
+        $this->buildPrinter($connector, $data);
+        $this->printer->close(); // triggers finalize() → echoes intent URI
+        return ob_get_clean();
+        // return 'intent:base64,' . $this->base64($data)
+        //     . '=#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
     }
 
     /* =====================================================================
