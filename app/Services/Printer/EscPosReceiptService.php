@@ -2,6 +2,7 @@
 
 namespace App\Services\Printer;
 
+use Illuminate\Support\Facades\Storage;
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\DummyPrintConnector;
@@ -92,8 +93,8 @@ class EscPosReceiptService
         $this->printer->initialize();
         $this->printer->setFont(Printer::FONT_A);
 
-        // Logo (lewati jika gagal load)
-        $logoPath = public_path('img/logo.png');
+        // Logo store (jika ada)
+        $logoPath = Storage::url($store['logo'] ?? '');
         if (file_exists($logoPath)) {
             try {
                 $img = EscposImage::load($logoPath, false);
