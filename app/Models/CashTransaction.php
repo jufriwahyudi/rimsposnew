@@ -22,6 +22,7 @@ class CashTransaction extends Model
         'transaction_date',
         'user_id',
         'notes',
+        'bukti_bayar',
         'nojurnal'
     ];
 

@@ -416,10 +416,21 @@ class PosController extends Controller
             return response()->json(['message' => 'store_id diperlukan'], 422);
         }
 
-        try {
-            $sale = DB::transaction(function () use ($request, $storeId) {
+        // Handle bukti_bayar upload (optional, for transfer/split)
+        $buktiBayarPath = null;
+        if ($request->hasFile('bukti_bayar') && $request->file('bukti_bayar')->isValid()) {
+            $buktiBayarPath = $request->file('bukti_bayar')
+                ->store('bukti_bayar', 'public');
+        }
 
-                $cart = $request->cart;
+        try {
+            $sale = DB::transaction(function () use ($request, $storeId, $buktiBayarPath) {
+
+                // Support both JSON body and multipart/form-data
+                $cart = $request->input('cart');
+                if (is_string($cart)) {
+                    $cart = json_decode($cart, true) ?? [];
+                }
 
                 $paymentMethod  = $cart['payment_method'];
                 $paidAmount     = $cart['paid_amount'];
@@ -536,6 +547,7 @@ class PosController extends Controller
                         'transaction_date' => $transactionDate,
                         'user_id'          => auth()->id(),
                         'notes'            => 'POS Mobile (Transfer) #' . $sale->invoice_number,
+                        'bukti_bayar'      => $buktiBayarPath,
                     ]);
                 }
 
@@ -549,6 +561,10 @@ class PosController extends Controller
                 'change'  => $sale->change_amount,
             ]);
         } catch (\Exception $e) {
+            // Clean up uploaded file if transaction failed
+            if ($buktiBayarPath) {
+                \Storage::disk('public')->delete($buktiBayarPath);
+            }
             return response()->json([
                 'message' => 'Transaksi gagal: ' . $e->getMessage()
             ], 500);
@@ -597,12 +613,30 @@ class PosController extends Controller
 
         $perPage = min((int) $request->query('per_page', 20), 100);
 
+        $customerSearch   = trim((string) $request->query('customer_name', ''));
+        $paymentStatusFilter = $request->query('payment_status'); // 'lunas' | 'hutang' | null
+
+        Log::alert('API Sales request', [
+            'user_id' => auth()->id(),
+            'store_id' => $storeId,
+            'from' => $from->toDateTimeString(),
+            'to' => $to->toDateTimeString(),
+            'customer_search' => $customerSearch,
+            'payment_status_filter' => $paymentStatusFilter,
+        ]);
+
         $paginated = Sale::with('payments')
             ->withCount('items')
             ->where('store_id', $storeId)
             ->where('user_id', auth()->id())
             ->whereNull('ref_sale_id')
             ->whereBetween('sale_date', [$from, $to])
+            ->when($customerSearch !== '', function ($q) use ($customerSearch) {
+                $q->where('customer_name', 'like', '%' . $customerSearch . '%');
+            })
+            ->when($paymentStatusFilter, function ($q) use ($paymentStatusFilter) {
+                $q->where('payment_status', $paymentStatusFilter);
+            })
             ->orderByDesc('sale_date')
             ->paginate($perPage);
 
@@ -978,8 +1012,15 @@ class PosController extends Controller
 
         $effectiveAmount = min($amount, $remaining);
 
+        // Handle bukti_bayar upload (optional, for transfer)
+        $buktiBayarPath = null;
+        if ($request->hasFile('bukti_bayar') && $request->file('bukti_bayar')->isValid()) {
+            $buktiBayarPath = $request->file('bukti_bayar')
+                ->store('bukti_bayar', 'public');
+        }
+
         try {
-            $result = DB::transaction(function () use ($sale, $effectiveAmount, $paymentMethod, $akunBank, $storeId, $alreadyPaid) {
+            $result = DB::transaction(function () use ($sale, $effectiveAmount, $paymentMethod, $akunBank, $storeId, $alreadyPaid, $buktiBayarPath) {
                 CashTransaction::create([
                     'store_id'         => $storeId,
                     'ref_type'         => 'SaleDebt',
@@ -992,6 +1033,7 @@ class PosController extends Controller
                     'transaction_date' => now(),
                     'user_id'          => auth()->id(),
                     'notes'            => 'Bayar Hutang #' . $sale->invoice_number,
+                    'bukti_bayar'      => $buktiBayarPath,
                 ]);
 
                 $newPaidTotal = $alreadyPaid + $effectiveAmount;
@@ -1017,6 +1059,9 @@ class PosController extends Controller
                 'remaining'      => (float) max(0, $result['newRemaining']),
             ]);
         } catch (\Exception $e) {
+            if ($buktiBayarPath) {
+                \Storage::disk('public')->delete($buktiBayarPath);
+            }
             return response()->json(['message' => 'Gagal: ' . $e->getMessage()], 500);
         }
     }
@@ -1076,6 +1121,14 @@ class PosController extends Controller
             'change_amount'    => (float) $sale->change_amount,
             'payment_status'   => $sale->payment_status,
             'status'           => $sale->status,
+            'bukti_bayar_url'  => (function () use ($sale) {
+                $path = CashTransaction::where('ref_id', $sale->id)
+                    ->whereIn('ref_type', ['SalePos', 'SaleDebt'])
+                    ->whereNotNull('bukti_bayar')
+                    ->latest()
+                    ->value('bukti_bayar');
+                return $path ? asset('storage/' . $path) : null;
+            })(),
             'items'            => $items,
             'payments'         => $payments,
         ]);
