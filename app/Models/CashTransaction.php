@@ -29,4 +29,9 @@ class CashTransaction extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function rekening()
+    {
+        return $this->belongsTo(Rekening::class, 'account_code', 'id');
+    }
 }

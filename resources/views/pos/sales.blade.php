@@ -38,6 +38,7 @@
                             <th>Kasir</th>
                             <th width="10%" class="text-center">Total</th>
                             <th width="10%" class="text-center">Metode</th>
+                            <th width="10%" class="text-center">Payment Status</th>
                             <th width="10%" class="text-center">Status</th>
                             <th width="8%" class="text-center">Aksi</th>
                         </tr>

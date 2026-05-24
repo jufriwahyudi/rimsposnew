@@ -31,6 +31,7 @@ const Sales = {
                 { data: 'kasir' },
                 { data: 'grand_total', className: 'text-end' },
                 { data: 'payment_method', className: 'text-center' },
+                { data: 'payment_status', className: 'text-center' },
                 { data: 'status', orderable: false, searchable: false, className: 'text-center' },
                 { data: 'action', orderable: false, searchable: false, className: 'text-center' }
             ]

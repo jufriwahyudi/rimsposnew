@@ -19,6 +19,7 @@ class Sale extends Model
         'sale_type',
         'customer_id',
         'customer_name',
+        'customer_phone',
         'receipt_name',
         'user_id',
         'subtotal',
@@ -30,6 +31,7 @@ class Sale extends Model
         'change_amount',
         'nojurnal',
         'status',
+        'payment_status',
         'has_exchange',
     ];
 

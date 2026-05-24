@@ -1,8 +1,30 @@
 <?php
 
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\PosController;
 use Illuminate\Support\Facades\Route;
 
-// Route::middleware('auth:sanctum')->group(function () {
-Route::get('/pos/product', [PosController::class, 'findProduct']);
-// });
+// ── Auth (public) ────────────────────────────────────────────────────────────
+Route::prefix('auth')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+});
+
+// ── Auth (protected) ─────────────────────────────────────────────────────────
+Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me',      [AuthController::class, 'me']);
+});
+
+// ── POS (protected) ──────────────────────────────────────────────────────────
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/pos/product',               [PosController::class, 'findProduct']);
+    Route::get('/pos/rekening',              [PosController::class, 'apiRekening']);
+    Route::get('/pos/customers',             [PosController::class, 'apiCustomers']);
+    Route::post('/pos/checkout',             [PosController::class, 'apiCheckout']);
+    Route::get('/pos/sales',                 [PosController::class, 'apiSales']);
+    Route::get('/pos/sales/{id}',            [PosController::class, 'apiSaleDetail']);
+    Route::get('/pos/sales/{id}/receipt',    [PosController::class, 'apiReceipt']);
+    Route::post('/pos/sales/{id}/void',      [PosController::class, 'apiVoid']);
+    Route::post('/pos/sales/{id}/refund',    [PosController::class, 'apiRefund']);
+    Route::post('/pos/sales/{id}/pay',       [PosController::class, 'apiPayDebt']);
+});

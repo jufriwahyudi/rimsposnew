@@ -179,6 +179,8 @@ class EscPosReceiptService
             $this->writeLine('*** ' . $status . ' ***');
             $this->printer->setEmphasis(false);
             $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        } else {
+            $this->writeLine('PaySt: ' . (strtoupper($trx['payment_status'] ?? 'LUNAS')));
         }
 
         $this->separator();

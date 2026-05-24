@@ -18,12 +18,71 @@ use App\Services\JournalFromCashTransactionService;
 use App\Services\Printer\EscPosReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 
 class PosController extends Controller
 {
+    /**
+     * GET /api/pos/rekening?store_id=N
+     * Returns bank accounts for a given store (used for transfer payment in mobile).
+     */
+    public function apiCustomers(Request $request)
+    {
+        $storeId = $request->integer('store_id');
+        $search  = $request->string('search');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $customers = \App\Models\Customer::where('store_id', $storeId)
+            ->when($search, fn($q) => $q->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', '%' . $search . '%')
+                    ->orWhere('phone', 'LIKE', '%' . $search . '%');
+            }))
+            ->orderBy('name')
+            ->limit(10)
+            ->get(['id', 'name', 'phone']);
+
+        return response()->json(['data' => $customers]);
+    }
+
+    public function apiRekening(Request $request)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $rekening = Rekening::where('store_id', $storeId)
+            ->orderBy('bank_rek')
+            ->get(['id', 'no_rek', 'nama_rek', 'bank_rek']);
+
+        return response()->json(['data' => $rekening]);
+    }
+
     public function index()
     {
         // dd($roleuserlist);
@@ -76,6 +135,10 @@ class PosController extends Controller
                 })->implode(', ');
 
                 return $methods ?: '-';
+            })
+
+            ->addColumn('payment_status', function ($s) {
+                return $s->payment_status ? ucfirst($s->payment_status) : '-';
             })
 
             ->editColumn('status', function ($s) {
@@ -134,7 +197,7 @@ class PosController extends Controller
                 'sku'        => $v->sku,
                 'name'       => $v->product->nama_produk,
                 'variant'    => $v->variant_label,
-                'price'      => $v->harga_jual,
+                'price'      => (float) $v->harga_jual,
                 'stok'       => (int) $v->stok_store,
             ];
         };
@@ -339,6 +402,683 @@ class PosController extends Controller
                 'message' => 'Transaksi gagal: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * API Checkout — Mobile app version.
+     * Accepts store_id from request body instead of session.
+     */
+    public function apiCheckout(Request $request)
+    {
+        $storeId = $request->input('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        try {
+            $sale = DB::transaction(function () use ($request, $storeId) {
+
+                $cart = $request->cart;
+
+                $paymentMethod  = $cart['payment_method'];
+                $paidAmount     = $cart['paid_amount'];
+                $cashAmount     = $cart['cash_amount'] ?? 0;
+                $transferAmount = $cart['transfer_amount'] ?? 0;
+                $akunBank       = $cart['akun_bank'] ?? null;
+                $transactionDate = $cart['transaction_date']
+                    ? $cart['transaction_date'] . ' ' . now()->format('H:i:s')
+                    : now();
+                $customerName  = $cart['customer_name'] ?? 'Umum';
+                $customerPhone = $cart['customer_phone'] ?? null;
+                $customerId    = null;
+
+                // ── Hutang: buat/temukan pelanggan ──────────────────────────
+                if ($paymentMethod === 'hutang') {
+                    if (empty($customerName) || $customerName === 'Umum') {
+                        throw new \Exception('Nama pelanggan wajib diisi untuk transaksi hutang');
+                    }
+                    // Cari customer yang sudah ada by id, atau by phone, atau buat baru
+                    if (!empty($cart['customer_id'])) {
+                        $customer = \App\Models\Customer::where('store_id', $storeId)
+                            ->find($cart['customer_id']);
+                    }
+                    if (empty($customer) && $customerPhone) {
+                        $customer = \App\Models\Customer::firstOrCreate(
+                            ['store_id' => $storeId, 'phone' => $customerPhone],
+                            ['name' => $customerName]
+                        );
+                    }
+                    if (empty($customer)) {
+                        $customer = \App\Models\Customer::create([
+                            'store_id' => $storeId,
+                            'name'     => $customerName,
+                            'phone'    => $customerPhone,
+                        ]);
+                    }
+                    $customerId   = $customer->id;
+                    $customerName = $customer->name;
+                    $paidAmount   = 0;
+                }
+
+                if ($paymentMethod !== 'hutang' && $paidAmount < $cart['total']) {
+                    throw new \Exception('Pembayaran kurang dari total belanja');
+                }
+
+                $sale = Sale::create([
+                    'store_id'       => $storeId,
+                    'invoice_number' => $this->generateInvoice(),
+                    'sale_date'      => $transactionDate,
+                    'sale_type'      => 'retail',
+                    'customer_id'    => $customerId,
+                    'customer_name'  => $customerName,
+                    'customer_phone' => $customerPhone,
+                    'user_id'        => auth()->id(),
+                    'subtotal'       => $cart['subtotal'],
+                    'discount_total' => $cart['discount_total'],
+                    'trans_discount' => $cart['transaction_discount'] ?? 0,
+                    'tax_total'      => 0,
+                    'grand_total'    => $cart['total'],
+                    'paid_amount'    => $paidAmount,
+                    'change_amount'  => max(0, $cashAmount - $cart['total']),
+                    'status'         => 'paid',
+                    'payment_status' => $paymentMethod === 'hutang' ? 'hutang' : 'lunas',
+                ]);
+
+                foreach ($cart['items'] as $item) {
+                    $saleItem = SaleItem::create([
+                        'sale_id'            => $sale->id,
+                        'product_id'         => $item['product_id'],
+                        'product_variant_id' => $item['variant_id'] ?? null,
+                        'sku'                => $item['sku'],
+                        'product_name'       => $item['variant'] ?? $item['name'],
+                        'price'              => $item['price'],
+                        'qty'                => $item['qty'],
+                        'discount_amount'    => $item['discount_amount'],
+                        'subtotal'           => $item['subtotal'],
+                    ]);
+
+                    $this->issueFIFOWithBatchLog(
+                        $transactionDate,
+                        $item['variant_id'],
+                        'store',
+                        $item['qty'],
+                        $saleItem
+                    );
+                }
+
+                if ($cashAmount > 0) {
+                    CashTransaction::create([
+                        'store_id'         => $storeId,
+                        'ref_type'         => 'SalePos',
+                        'ref_id'           => $sale->id,
+                        'transaction_type' => 'sale',
+                        'payment_method'   => 'cash',
+                        'account_code'     => 0,
+                        'amount'           => min($cashAmount, $cart['total']),
+                        'direction'        => 'in',
+                        'transaction_date' => $transactionDate,
+                        'user_id'          => auth()->id(),
+                        'notes'            => 'POS Mobile (Cash) #' . $sale->invoice_number,
+                    ]);
+                }
+
+                if ($transferAmount > 0) {
+                    CashTransaction::create([
+                        'store_id'         => $storeId,
+                        'ref_type'         => 'SalePos',
+                        'ref_id'           => $sale->id,
+                        'transaction_type' => 'sale',
+                        'payment_method'   => 'transfer',
+                        'account_code'     => $akunBank,
+                        'amount'           => min($transferAmount, $cart['total']),
+                        'direction'        => 'in',
+                        'transaction_date' => $transactionDate,
+                        'user_id'          => auth()->id(),
+                        'notes'            => 'POS Mobile (Transfer) #' . $sale->invoice_number,
+                    ]);
+                }
+
+                return $sale;
+            });
+
+            return response()->json([
+                'message' => 'Transaksi berhasil',
+                'invoice' => $sale->invoice_number,
+                'sale_id' => $sale->id,
+                'change'  => $sale->change_amount,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Transaksi gagal: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: List sales for the authenticated user and given store (mobile).
+     * GET /api/pos/sales?store_id=N&from=YYYY-MM-DD&to=YYYY-MM-DD&page=N&per_page=20
+     * Default: last 30 days when no date filter is provided.
+     */
+    public function apiSales(Request $request)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        // Pastikan user memiliki akses ke store ini
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        // Parse & validasi tanggal — default 30 hari terakhir
+        try {
+            $from = $request->from
+                ? \Carbon\Carbon::createFromFormat('Y-m-d', $request->from)->startOfDay()
+                : now()->subDays(30)->startOfDay();
+
+            $to = $request->to
+                ? \Carbon\Carbon::createFromFormat('Y-m-d', $request->to)->endOfDay()
+                : now()->endOfDay();
+        } catch (\Exception) {
+            return response()->json(['message' => 'Format tanggal tidak valid (YYYY-MM-DD)'], 422);
+        }
+
+        if ($from->gt($to)) {
+            return response()->json(['message' => 'Tanggal awal tidak boleh melebihi tanggal akhir'], 422);
+        }
+
+        $perPage = min((int) $request->query('per_page', 20), 100);
+
+        $paginated = Sale::with('payments')
+            ->withCount('items')
+            ->where('store_id', $storeId)
+            ->where('user_id', auth()->id())
+            ->whereNull('ref_sale_id')
+            ->whereBetween('sale_date', [$from, $to])
+            ->orderByDesc('sale_date')
+            ->paginate($perPage);
+
+
+        $data = $paginated->getCollection()->map(function ($sale) {
+            $paymentMethods = $sale->payments
+                ->pluck('payment_method')
+                ->unique()
+                ->values();
+
+            return [
+                'id'              => $sale->id,
+                'invoice_number'  => $sale->invoice_number,
+                'sale_date'       => $sale->sale_date->format('Y-m-d H:i:s'),
+                'customer_name'   => $sale->customer_name,
+                'grand_total'     => (float) $sale->grand_total,
+                'paid_amount'     => (float) $sale->paid_amount,
+                'change_amount'   => (float) $sale->change_amount,
+                'status'          => $sale->status,
+                'payment_status'  => $sale->payment_status,
+                'payment_methods' => $paymentMethods,
+                'items_count'     => $sale->items_count,
+            ];
+        });
+
+        Log::info('API Sales fetched', [
+            'user_id' => auth()->id(),
+            'store_id' => $storeId,
+            'from' => $from->toDateTimeString(),
+            'to' => $to->toDateTimeString(),
+            'result_count' => count($data),
+        ]);
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page'    => $paginated->lastPage(),
+                'per_page'     => $paginated->perPage(),
+                'total'        => $paginated->total(),
+                'from'         => $from->format('Y-m-d'),
+                'to'           => $to->format('Y-m-d'),
+            ],
+        ]);
+    }
+
+    /**
+     * API: Sale detail with items and payment breakdown (mobile).
+     * GET /api/pos/sales/{id}?store_id=N
+     */
+    /**
+     * GET /api/pos/sales/{id}/receipt?store_id=N
+     *
+     * Hasilkan Android Intent URI untuk dicetak via RawBT.
+     * Response: { paper, intent_uri }
+     */
+    public function apiReceipt(Request $request, int $id)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items', 'cashier'])
+            ->where('store_id', $storeId)
+            ->findOrFail($id);
+
+        $store = Store::findOrFail($storeId);
+        $paper = $store->printer_type ?? '80mm';
+
+        if (!in_array($paper, ['58mm', '80mm'])) {
+            $paper = '80mm';
+        }
+
+        $items = $sale->items
+            ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
+            ->map(fn($item) => [
+                'name'  => $item->product_name,
+                'sku'   => $item->sku,
+                'qty'   => $item->qty,
+                'price' => round($item->price),
+            ])->values()->toArray();
+
+        $data = [
+            'store' => [
+                'name'    => $store->name ?? 'RimsPos',
+                'address' => $store->address,
+                'city'    => $store->city,
+                'phone'   => $store->phone,
+                'logo'    => null,
+            ],
+            'transaction' => [
+                'invoice'  => $sale->invoice_number,
+                'date'     => $sale->sale_date->format('d-m-Y H:i'),
+                'cashier'  => $sale->cashier?->name ?? 'Admin',
+                'customer' => $sale->customer_name ?? 'Umum',
+                'status'   => strtoupper($sale->status),
+                'payment_status' => strtoupper($sale->payment_status),
+            ],
+            'items'   => $items,
+            'summary' => [
+                'subtotal' => round($sale->subtotal),
+                'discount' => round(($sale->discount_total ?? 0) + ($sale->trans_discount ?? 0)),
+                'total'    => round($sale->grand_total),
+                'paid'     => round($sale->paid_amount),
+                'change'   => round($sale->change_amount),
+            ],
+        ];
+
+        $service   = new EscPosReceiptService($paper);
+        $base64    = $service->base64($data);
+
+        return response()->json([
+            'paper'  => $paper,
+            'base64' => $base64,
+        ]);
+    }
+
+    /**
+     * POST /api/pos/sales/{id}/void?store_id=N
+     * Batalkan transaksi hari ini (hanya boleh di hari yang sama).
+     */
+    public function apiVoid(Request $request, int $id)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items.batches'])
+            ->where('store_id', $storeId)
+            ->findOrFail($id);
+
+        if ($sale->status === 'void') {
+            return response()->json(['message' => 'Transaksi sudah di-void'], 422);
+        }
+
+        if (!$sale->sale_date->isToday()) {
+            return response()->json(['message' => 'Void hanya bisa dilakukan di hari yang sama dengan transaksi'], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($sale) {
+
+                // 1. Kembalikan stok (reverse FIFO)
+                foreach ($sale->items->whereIn('status', ['sold', 'exchanged_in']) as $item) {
+                    foreach ($item->batches as $batch) {
+                        StockBatch::where('id', $batch->stock_batch_id)
+                            ->increment('qty_sisa', $batch->qty);
+
+                        StockMovement::create([
+                            'product_variant_id' => $item->product_variant_id,
+                            'stock_batch_id'     => $batch->stock_batch_id,
+                            'posisi'             => 'store',
+                            'tanggal'            => now(),
+                            'tipe'               => 'in',
+                            'direction'          => 'in',
+                            'qty'                => $batch->qty,
+                            'ref_type'           => 'SaleVoid',
+                            'ref_id'             => $sale->id,
+                        ]);
+                    }
+                    $item->update(['status' => 'voided']);
+                }
+
+                // 2. Update status sale
+                $sale->update(['status' => 'void']);
+
+                // 3. Hapus cash transaction & jurnal
+                $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse'])
+                    ->where('ref_id', $sale->id)
+                    ->get();
+                $jurnalService = new JournalEntryService();
+                foreach ($cashTrx as $trx) {
+                    if ($trx->nojurnal) {
+                        $jurnalService->delete($trx->nojurnal);
+                    }
+                    $trx->delete();
+                }
+            });
+
+            return response()->json(['message' => 'Transaksi berhasil di-void']);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal void transaksi: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/pos/sales/{id}/refund?store_id=N
+     * Refund transaksi yang sudah lewat hari ini.
+     */
+    public function apiRefund(Request $request, int $id)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items.batches', 'payments'])
+            ->where('store_id', $storeId)
+            ->findOrFail($id);
+
+        if ($sale->status === 'void') {
+            return response()->json(['message' => 'Transaksi sudah di-void'], 422);
+        }
+
+        if ($sale->refunds()->exists()) {
+            return response()->json(['message' => 'Transaksi sudah pernah di-refund'], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($sale, $storeId) {
+
+                // Tentukan metode pembayaran dari transaksi asli
+                $paymentMethod = $sale->payments->first()?->payment_method ?? 'cash';
+
+                // 1. Buat sale refund
+                $refund = Sale::create([
+                    'store_id'       => $storeId,
+                    'invoice_number' => 'RF-' . $sale->invoice_number,
+                    'sale_date'      => now(),
+                    'sale_type'      => $sale->sale_type,
+                    'customer_id'    => $sale->customer_id,
+                    'customer_name'  => $sale->customer_name,
+                    'user_id'        => auth()->id(),
+                    'subtotal'       => -$sale->subtotal,
+                    'discount_total' => -$sale->discount_total,
+                    'trans_discount' => - ($sale->trans_discount ?? 0),
+                    'tax_total'      => 0,
+                    'grand_total'    => -$sale->grand_total,
+                    'paid_amount'    => 0,
+                    'change_amount'  => 0,
+                    'status'         => 'paid',
+                    'ref_sale_id'    => $sale->id,
+                ]);
+
+                // 2. Loop item & kembalikan stok dari batch asli
+                foreach ($sale->items->whereIn('status', ['sold', 'exchanged_in']) as $item) {
+                    $refundItem = SaleItem::create([
+                        'sale_id'            => $refund->id,
+                        'product_id'         => $item->product_id,
+                        'product_variant_id' => $item->product_variant_id,
+                        'sku'                => $item->sku,
+                        'product_name'       => $item->product_name,
+                        'price'              => $item->price,
+                        'qty'                => $item->qty,
+                        'discount_amount'    => -$item->discount_amount,
+                        'subtotal'           => -$item->subtotal,
+                        'status'             => 'refunded',
+                    ]);
+
+                    foreach ($item->batches as $batch) {
+                        $batch->stockBatch->increment('qty_sisa', $batch->qty);
+
+                        StockMovement::create([
+                            'product_variant_id' => $item->product_variant_id,
+                            'stock_batch_id'     => $batch->stock_batch_id,
+                            'posisi'             => 'store',
+                            'tanggal'            => now(),
+                            'tipe'               => 'in',
+                            'direction'          => 'in',
+                            'qty'                => $batch->qty,
+                            'ref_type'           => 'SaleRefund',
+                            'ref_id'             => $refundItem->id,
+                        ]);
+                    }
+                }
+
+                // 3. Cash transaction refund
+                CashTransaction::create([
+                    'store_id'         => $storeId,
+                    'ref_type'         => 'SalePosRefund',
+                    'ref_id'           => $refund->id,
+                    'transaction_type' => 'refund',
+                    'payment_method'   => $paymentMethod,
+                    'account_code'     => 0,
+                    'amount'           => $sale->grand_total,
+                    'direction'        => 'out',
+                    'transaction_date' => now(),
+                    'user_id'          => auth()->id(),
+                    'notes'            => 'Refund POS Mobile #' . $sale->invoice_number,
+                ]);
+
+                // Pembukuan jurnal
+                if (config('app.jurnal_transaksi')) {
+                    $service = new JournalFromCashTransactionService();
+                    $service->createForRefund($refund->id);
+                }
+            });
+
+            return response()->json(['message' => 'Refund berhasil diproses']);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal proses refund: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function apiPayDebt(Request $request, int $id)
+    {
+        $storeId = $request->input('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::where('store_id', $storeId)->findOrFail($id);
+
+        if ($sale->payment_status !== 'hutang') {
+            return response()->json(['message' => 'Transaksi ini bukan hutang'], 422);
+        }
+
+        if ($sale->status === 'void') {
+            return response()->json(['message' => 'Transaksi sudah di-void'], 422);
+        }
+
+        $amount        = (float) $request->input('amount', 0);
+        $paymentMethod = $request->input('payment_method', 'cash');
+        $akunBank      = $request->input('akun_bank');
+        $alreadyPaid   = (float) $sale->paid_amount;
+        $remaining     = $sale->grand_total - $alreadyPaid;
+
+        if ($amount <= 0) {
+            return response()->json(['message' => 'Jumlah pembayaran harus lebih dari 0'], 422);
+        }
+
+        if ($amount > $remaining + 0.01) {
+            return response()->json([
+                'message' => 'Jumlah melebihi sisa hutang (Rp ' . number_format($remaining, 0, ',', '.') . ')',
+            ], 422);
+        }
+
+        $effectiveAmount = min($amount, $remaining);
+
+        try {
+            $result = DB::transaction(function () use ($sale, $effectiveAmount, $paymentMethod, $akunBank, $storeId, $alreadyPaid) {
+                CashTransaction::create([
+                    'store_id'         => $storeId,
+                    'ref_type'         => 'SaleDebt',
+                    'ref_id'           => $sale->id,
+                    'transaction_type' => 'sale',
+                    'payment_method'   => $paymentMethod,
+                    'account_code'     => $paymentMethod === 'transfer' ? ($akunBank ?? 0) : 0,
+                    'amount'           => $effectiveAmount,
+                    'direction'        => 'in',
+                    'transaction_date' => now(),
+                    'user_id'          => auth()->id(),
+                    'notes'            => 'Bayar Hutang #' . $sale->invoice_number,
+                ]);
+
+                $newPaidTotal = $alreadyPaid + $effectiveAmount;
+                $newRemaining = $sale->grand_total - $newPaidTotal;
+                $isLunas      = $newRemaining <= 0.01;
+
+                $sale->update([
+                    'paid_amount'    => $isLunas ? (float) $sale->grand_total : $newPaidTotal,
+                    'payment_status' => $isLunas ? 'lunas' : 'hutang',
+                ]);
+
+                return [
+                    'isLunas'      => $isLunas,
+                    'newPaidTotal' => $newPaidTotal,
+                    'newRemaining' => $newRemaining,
+                ];
+            });
+
+            return response()->json([
+                'message'        => $result['isLunas'] ? 'Hutang lunas!' : 'Pembayaran berhasil diterima',
+                'payment_status' => $result['isLunas'] ? 'lunas' : 'hutang',
+                'paid_total'     => (float) $result['newPaidTotal'],
+                'remaining'      => (float) max(0, $result['newRemaining']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Gagal: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function apiSaleDetail(Request $request, int $id)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items', 'payments', 'cashier'])
+            ->where('store_id', $storeId)
+            ->where('user_id', auth()->id())
+            ->findOrFail($id);
+
+        $items = $sale->items->map(function ($item) {
+            return [
+                'id'              => $item->id,
+                'sku'             => $item->sku,
+                'product_name'    => $item->product_name,
+                'price'           => (float) $item->price,
+                'qty'             => (int) $item->qty,
+                'discount_amount' => (float) $item->discount_amount,
+                'subtotal'        => (float) $item->subtotal,
+            ];
+        });
+
+        $payments = $sale->payments->map(function ($p) {
+            return [
+                'method' => $p->payment_method,
+                'amount' => (float) $p->amount,
+            ];
+        });
+
+        return response()->json([
+            'id'               => $sale->id,
+            'invoice_number'   => $sale->invoice_number,
+            'sale_date'        => $sale->sale_date->format('Y-m-d H:i:s'),
+            'customer_name'    => $sale->customer_name,
+            'cashier_name'     => $sale->cashier?->name ?? '-',
+            'subtotal'         => (float) $sale->subtotal,
+            'discount_total'   => (float) $sale->discount_total,
+            'trans_discount'   => (float) $sale->trans_discount,
+            'grand_total'      => (float) $sale->grand_total,
+            'paid_amount'      => (float) $sale->paid_amount,
+            'change_amount'    => (float) $sale->change_amount,
+            'payment_status'   => $sale->payment_status,
+            'status'           => $sale->status,
+            'items'            => $items,
+            'payments'         => $payments,
+        ]);
     }
 
     protected function issueFIFOWithBatchLog(

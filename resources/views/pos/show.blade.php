@@ -40,6 +40,10 @@
                         @else
                             <br>Pelanggan: <em>Umum</em>
                         @endif
+
+                        @if ($sale->payment_status)
+                            <br>Status Pembayaran: {{ ucfirst($sale->payment_status) }}
+                        @endif
                     </div>
                 </div>
 
