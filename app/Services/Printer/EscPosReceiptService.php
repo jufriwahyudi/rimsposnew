@@ -94,12 +94,14 @@ class EscPosReceiptService
         $this->printer->setFont(Printer::FONT_A);
 
         // Logo store (jika ada)
-        $logoPath = $store['logo'];
-        if (file_exists($logoPath)) {
+        $logoPath = $this->resolveLogoPath($store['logo'] ?? null);
+        \Log::debug('[EscPosReceiptService] Logo path: ' . $logoPath);
+        if ($logoPath && file_exists($logoPath)) {
             try {
                 $img = EscposImage::load($logoPath, false);
                 $this->printer->setJustification(Printer::JUSTIFY_CENTER);
                 $this->printer->bitImage($img);
+                \Log::debug('[EscPosReceiptService] Logo loaded successfully');
             } catch (\Exception $e) {
                 // Abaikan error logo
             }
@@ -123,6 +125,43 @@ class EscPosReceiptService
 
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         $this->separator();
+    }
+
+    protected function resolveLogoPath(?string $logo): ?string
+    {
+        if (!$logo) {
+            return null;
+        }
+
+        $logo = trim($logo);
+        if ($logo === '') {
+            return null;
+        }
+
+        if (file_exists($logo)) {
+            return $logo;
+        }
+
+        $urlPath = parse_url($logo, PHP_URL_PATH) ?: $logo;
+        $publicPath = public_path(ltrim($urlPath, '/\\'));
+        if (file_exists($publicPath)) {
+            return $publicPath;
+        }
+
+        $storagePath = ltrim($urlPath, '/\\');
+        if (str_starts_with($storagePath, 'storage/')) {
+            $storagePath = substr($storagePath, strlen('storage/'));
+        }
+
+        if (Storage::disk('public')->exists($storagePath)) {
+            return Storage::disk('public')->path($storagePath);
+        }
+
+        if (Storage::exists($storagePath)) {
+            return Storage::path($storagePath);
+        }
+
+        return null;
     }
 
     protected function printTransaction(array $trx): void
