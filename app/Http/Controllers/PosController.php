@@ -766,6 +766,174 @@ class PosController extends Controller
     }
 
     /**
+     * POST /api/pos/sales/{id}/exchange
+     * Tukar barang (mobile). Mirip exchange() versi web tapi gunakan store_id dari body.
+     */
+    public function apiExchange(Request $request, int $id)
+    {
+        $storeId = $request->input('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items.batches'])
+            ->where('store_id', $storeId)
+            ->findOrFail($id);
+
+        if ($sale->status !== 'paid') {
+            return response()->json(['message' => 'Tukar barang hanya bisa dilakukan pada transaksi berstatus paid'], 422);
+        }
+
+        $request->validate([
+            'old_item_id'    => 'required|integer|exists:sale_items,id',
+            'new_variant_id' => 'required|integer|exists:product_variants,id',
+            'qty'            => 'required|integer|min:1',
+            'payment_method' => 'nullable|in:cash,transfer',
+            'akun_bank'      => 'nullable|integer',
+        ]);
+
+        try {
+            DB::transaction(function () use ($request, $sale, $storeId) {
+                $paymentMethod = $request->payment_method ?? 'cash';
+                if ($paymentMethod === 'cash') {
+                    $accountCode = 0;
+                } elseif ($paymentMethod === 'transfer') {
+                    $accountCode = $request->akun_bank ?? 0;
+                } else {
+                    throw new \Exception('Metode pembayaran tidak valid');
+                }
+
+                // 1. Validasi item lama milik sale ini
+                $originalItem = SaleItem::with('batches')
+                    ->where('sale_id', $sale->id)
+                    ->where('status', 'sold')
+                    ->findOrFail($request->old_item_id);
+
+                if ($request->qty > $originalItem->qty) {
+                    throw new \Exception('Qty exchange melebihi qty item');
+                }
+
+                $exchangeQty = (int) $request->qty;
+
+                // 2. Partial / full exchange item lama
+                if ($exchangeQty < $originalItem->qty) {
+                    $originalItem->update([
+                        'qty'      => $originalItem->qty - $exchangeQty,
+                        'subtotal' => ($originalItem->qty - $exchangeQty) * $originalItem->price,
+                    ]);
+
+                    $exchangedOutItem = SaleItem::create([
+                        'sale_id'            => $sale->id,
+                        'product_id'         => $originalItem->product_id,
+                        'product_variant_id' => $originalItem->product_variant_id,
+                        'sku'                => $originalItem->sku,
+                        'product_name'       => $originalItem->product_name,
+                        'price'              => $originalItem->price,
+                        'qty'                => $exchangeQty,
+                        'discount_amount'    => 0,
+                        'subtotal'           => $exchangeQty * $originalItem->price,
+                        'status'             => 'exchanged_out',
+                    ]);
+
+                    $this->splitBatches($originalItem, $exchangedOutItem, $exchangeQty);
+                } else {
+                    $originalItem->update(['status' => 'exchanged_out']);
+                    $exchangedOutItem = $originalItem;
+                }
+
+                // 3. Kembalikan stok item lama
+                foreach ($exchangedOutItem->batches as $batch) {
+                    StockBatch::where('id', $batch->stock_batch_id)
+                        ->increment('qty_sisa', $batch->qty);
+
+                    StockMovement::create([
+                        'product_variant_id' => $exchangedOutItem->product_variant_id,
+                        'stock_batch_id'     => $batch->stock_batch_id,
+                        'posisi'             => 'store',
+                        'tanggal'            => now(),
+                        'tipe'               => 'in',
+                        'direction'          => 'in',
+                        'qty'                => $batch->qty,
+                        'ref_type'           => 'ExchangeInStore',
+                        'ref_id'             => $exchangedOutItem->id,
+                    ]);
+                }
+
+                // 4. Item baru (exchanged_in)
+                $variantNew = ProductVariant::with('product')->findOrFail($request->new_variant_id);
+
+                $newItem = SaleItem::create([
+                    'sale_id'            => $sale->id,
+                    'product_id'         => $variantNew->product_id,
+                    'product_variant_id' => $variantNew->id,
+                    'sku'                => $variantNew->sku,
+                    'product_name'       => $variantNew->product->nama_produk,
+                    'price'              => $variantNew->harga_jual,
+                    'qty'                => $exchangeQty,
+                    'discount_amount'    => 0,
+                    'subtotal'           => $exchangeQty * $variantNew->harga_jual,
+                    'status'             => 'exchanged_in',
+                    'ref_sale_item_id'   => $exchangedOutItem->id,
+                ]);
+
+                $this->issueFIFOWithBatchLog(
+                    now(),
+                    $variantNew->id,
+                    'store',
+                    $exchangeQty,
+                    $newItem,
+                    'ExchangeOutStore'
+                );
+
+                // 5. Selisih harga → cash transaction
+                $diff = $newItem->subtotal - $exchangedOutItem->subtotal;
+
+                CashTransaction::create([
+                    'store_id'         => $storeId,
+                    'ref_type'         => 'Exchange',
+                    'ref_id'           => $newItem->id,
+                    'transaction_type' => $diff >= 0 ? 'exchange_additional' : 'exchange_refund',
+                    'payment_method'   => $paymentMethod,
+                    'account_code'     => $accountCode,
+                    'amount'           => abs($diff),
+                    'direction'        => $diff >= 0 ? 'in' : 'out',
+                    'transaction_date' => now(),
+                    'user_id'          => auth()->id(),
+                    'note'             => 'Tukar Barang (Mobile)',
+                ]);
+
+                // 6. Update total sale
+                $sale->update([
+                    'subtotal'    => $sale->items()->where('status', '!=', 'exchanged_out')->sum('subtotal'),
+                    'grand_total' => $sale->items()->where('status', '!=', 'exchanged_out')->sum('subtotal'),
+                    'paid_amount' => $sale->paid_amount + ($diff > 0 ? $diff : 0) - ($diff < 0 ? abs($diff) : 0),
+                ]);
+
+                if (config('app.jurnal_transaksi')) {
+                    $service = new JournalFromCashTransactionService();
+                    $service->createForExchange($newItem->id);
+                }
+            });
+
+            return response()->json(['message' => 'Tukar barang berhasil']);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal tukar barang: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * POST /api/pos/sales/{id}/void?store_id=N
      * Batalkan transaksi hari ini (hanya boleh di hari yang sama).
      */
@@ -1097,6 +1265,8 @@ class PosController extends Controller
                 'qty'             => (int) $item->qty,
                 'discount_amount' => (float) $item->discount_amount,
                 'subtotal'        => (float) $item->subtotal,
+                'status'          => $item->status,
+                'ref_sale_item_id' => $item->ref_sale_item_id,
             ];
         });
 
@@ -1106,6 +1276,20 @@ class PosController extends Controller
                 'amount' => (float) $p->amount,
             ];
         });
+
+        //tambahkan payment dari cash transaction dari ref_id barang yang ditukar (exchange)
+        if ($sale->items->where('status', 'exchanged_out')->count() > 0) {
+            $exchangePayment = CashTransaction::where('ref_type', 'Exchange')
+                ->whereIn('ref_id', $sale->items->where('status', 'exchanged_in')->pluck('id'))
+                ->get()
+                ->map(function ($p) {
+                    return [
+                        'method' => $p->payment_method,
+                        'amount' => (float) $p->amount,
+                    ];
+                });
+            $payments = $payments->concat($exchangePayment)->values();
+        }
 
         return response()->json([
             'id'               => $sale->id,

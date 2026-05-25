@@ -27,4 +27,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/pos/sales/{id}/void',      [PosController::class, 'apiVoid']);
     Route::post('/pos/sales/{id}/refund',    [PosController::class, 'apiRefund']);
     Route::post('/pos/sales/{id}/pay',       [PosController::class, 'apiPayDebt']);
+    Route::post('/pos/sales/{id}/exchange',  [PosController::class, 'apiExchange']);
 });
