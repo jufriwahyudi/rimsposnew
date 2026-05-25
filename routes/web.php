@@ -3,6 +3,7 @@
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\RekeningController;
 use App\Http\Controllers\ExpenseController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -120,6 +121,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::prefix('settings')->group(function () {
         Route::resource('attributes', AttributeController::class)->except(['create', 'edit', 'show']);
         Route::resource('expense-categories', ExpenseCategoryController::class)->except(['create', 'show']);
+        Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
     });
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {
