@@ -632,7 +632,12 @@ class PosController extends Controller
             ->whereNull('ref_sale_id')
             ->whereBetween('sale_date', [$from, $to])
             ->when($customerSearch !== '', function ($q) use ($customerSearch) {
-                $q->where('customer_name', 'like', '%' . $customerSearch . '%');
+                // Cari di nama pelanggan atau nomor telepon atau no_invoice
+                $q->where(function ($q2) use ($customerSearch) {
+                    $q2->where('customer_name', 'LIKE', "%{$customerSearch}%")
+                        ->orWhere('customer_phone', 'LIKE', "%{$customerSearch}%")
+                        ->orWhere('invoice_number', 'LIKE', "%{$customerSearch}%");
+                });
             })
             ->when($paymentStatusFilter, function ($q) use ($paymentStatusFilter) {
                 $q->where('payment_status', $paymentStatusFilter);
