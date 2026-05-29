@@ -28,6 +28,7 @@ use App\Http\Controllers\ManageUserController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\StoreSelectionController;
+use App\Http\Controllers\VendorController;
 use App\Services\JournalFromCashTransactionService;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -122,6 +123,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('attributes', AttributeController::class)->except(['create', 'edit', 'show']);
         Route::resource('expense-categories', ExpenseCategoryController::class)->except(['create', 'show']);
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
+        Route::resource('vendors', VendorController::class)->except(['create', 'show']);
     });
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {

@@ -17,4 +17,10 @@ class Vendor extends Model
         'telepon',
         'alamat',
     ];
+
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class, 'vendor_id');
+    }
 }
+
