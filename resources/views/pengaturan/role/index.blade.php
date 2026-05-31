@@ -89,6 +89,7 @@
                                 <option value="ADMIN">Admin</option>
                                 <option value="WAREHOUSE">Warehouse</option>
                                 <option value="STORE">Store</option>
+                                <option value="STELLING">Stelling</option>
                             </select>
                         </div>
                     </form>

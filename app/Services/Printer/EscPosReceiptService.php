@@ -76,12 +76,93 @@ class EscPosReceiptService
         $profile       = CapabilityProfile::load('POS-5890');
         $this->printer = new Printer($connector, $profile);
 
-        $this->printHeader($data['store']            ?? []);
-        $this->printTransaction($data['transaction'] ?? []);
-        $this->printItems($data['items']             ?? []);
-        $this->printSummary($data['summary']         ?? []);
-        $this->printFooter();
-        // close() dipanggil oleh masing-masing metode publik
+        $isChecklist = $data['is_checklist'] ?? false;
+
+        if ($isChecklist) {
+            $this->printChecklistHeader($data['store'] ?? []);
+            $this->printChecklistTransaction($data['transaction'] ?? []);
+            $this->printChecklistItems($data['items'] ?? []);
+            $this->printChecklistFooter();
+        } else {
+            $this->printHeader($data['store']            ?? []);
+            $this->printTransaction($data['transaction'] ?? []);
+            $this->printItems($data['items']             ?? []);
+            $this->printSummary($data['summary']         ?? []);
+            $this->printFooter();
+        }
+    }
+
+    protected function printChecklistHeader(array $store): void
+    {
+        $this->printer->initialize();
+        $this->printer->setFont(Printer::FONT_A);
+
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->printer->setTextSize(2, 1);
+        $this->printer->setEmphasis(true);
+        $this->writeLine('ORDER KITCHEN / KDS');
+        $this->printer->setEmphasis(false);
+        $this->printer->setTextSize(1, 1);
+        $this->writeLine($store['name'] ?? 'RIMS POS');
+        
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->separator();
+    }
+
+    protected function printChecklistTransaction(array $trx): void
+    {
+        if (!empty($trx['table_number'])) {
+            $this->printer->setTextSize(2, 1);
+            $this->printer->setEmphasis(true);
+            $this->writeLine('MEJA: ' . $trx['table_number']);
+            $this->printer->setEmphasis(false);
+            $this->printer->setTextSize(1, 1);
+            $this->separator();
+        }
+        $this->writeLine('No   : ' . ($trx['invoice']  ?? '-'));
+        $this->writeLine('Tgl  : ' . ($trx['date']     ?? '-'));
+        $this->writeLine('Kasir: ' . ($trx['cashier']  ?? '-'));
+        $this->writeLine('Cust : ' . ($trx['customer'] ?? 'Umum'));
+        $this->separator();
+    }
+
+    protected function printChecklistItems(array $items): void
+    {
+        foreach ($items as $item) {
+            $name     = (string) ($item['name']  ?? '');
+            $qty      = (int)    ($item['qty']   ?? 0);
+
+            $strQty = '[ ] ' . $qty . ' x ';
+
+            if ($this->width >= 48) {
+                // 80mm
+                $qtyCol = $this->mbPad($strQty, 8);
+                $nameCol = mb_substr($name, 0, 40);
+                $this->writeLine($qtyCol . $nameCol);
+
+                if (mb_strlen($name) > 40) {
+                    $rest = mb_substr($name, 40);
+                    foreach ($this->wrapText($rest, 40) as $chunk) {
+                        $this->writeLine(str_repeat(' ', 8) . $chunk);
+                    }
+                }
+            } else {
+                // 58mm
+                $qtyCol = $strQty;
+                // Baris 1: qty + name
+                $firstLine = $qtyCol . $name;
+                foreach ($this->wrapText($firstLine, $this->width) as $chunk) {
+                    $this->writeLine($chunk);
+                }
+            }
+        }
+    }
+
+    protected function printChecklistFooter(): void
+    {
+        $this->separator();
+        $this->printer->feed(2);
+        $this->printer->cut();
     }
 
     /* =====================================================================

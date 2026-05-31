@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'tenant_id',
     ];
 
     /**
@@ -56,5 +57,10 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Store::class, 'store_user')
             ->withTimestamps();
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 }

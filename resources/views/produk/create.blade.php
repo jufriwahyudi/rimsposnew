@@ -47,7 +47,7 @@
                         </div>
                     @endif
 
-                    <form method="POST" action="{{ route('produk.store') }}">
+                    <form method="POST" action="{{ route('produk.store') }}" enctype="multipart/form-data">
                         @csrf
 
                         {{-- Info Produk --}}
@@ -67,6 +67,26 @@
                                     <label>Deskripsi Produk</label>
                                     <textarea name="deskripsi" class="form-control" rows="3">{{ old('deskripsi') }}</textarea>
                                 </div>
+                                @if ($isFnB)
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label>Tenant / Stelling Provider</label>
+                                            <select name="tenant_id" class="form-select">
+                                                <option value="">-- Tanpa Tenant (Umum) --</option>
+                                                @foreach ($tenants as $t)
+                                                    <option value="{{ $t->id }}" {{ old('tenant_id') == $t->id ? 'selected' : '' }}>
+                                                        {{ $t->nama_tenant }} ({{ $t->kode_tenant }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label>Foto Produk</label>
+                                            <input type="file" name="image" class="form-control" accept="image/*">
+                                            <small class="text-muted">Maksimal 2MB, JPG atau PNG</small>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
 
@@ -79,48 +99,75 @@
                                 </button>
                             </div>
                             <div class="card-body p-0">
-                                <table class="table table-bordered mb-0" id="variantTable">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Nama Varian <small class="text-muted fw-normal">(contoh: Merah L, XL
-                                                    Hitam)</small></th>
-                                            <th width="22%">Barcode <small class="text-muted fw-normal">(kosongkan =
-                                                    auto)</small></th>
-                                            <th width="18%">Harga Jual</th>
-                                            <th width="7%" class="text-center">Hapus</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="variantBody">
-                                        {{-- baris lama (old input) --}}
-                                        @if (old('variants'))
-                                            @foreach (old('variants') as $i => $v)
-                                                <tr>
-                                                    <td>
-                                                        <input name="variants[{{ $i }}][nama]"
-                                                            class="form-control" value="{{ $v['nama'] ?? '' }}"
-                                                            placeholder="Nama varian">
-                                                    </td>
-                                                    <td>
-                                                        <input name="variants[{{ $i }}][barcode]"
-                                                            class="form-control barcode-input"
-                                                            value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
-                                                    </td>
-                                                    <td>
-                                                        <input name="variants[{{ $i }}][harga]"
-                                                            class="form-control" type="number" min="0"
-                                                            value="{{ $v['harga'] ?? '' }}" placeholder="0">
-                                                    </td>
-                                                    <td class="text-center align-middle">
-                                                        <button type="button" class="btn btn-danger btn-sm"
-                                                            onclick="removeRow(this)">
-                                                            <i class="bi bi-trash"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            @endforeach
-                                        @endif
-                                    </tbody>
-                                </table>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered mb-0" id="variantTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Nama Varian <small class="text-muted fw-normal">(contoh: Merah L, XL Hitam)</small></th>
+                                                <th width="15%">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></th>
+                                                <th width="12%">Harga Jual</th>
+                                                @if ($isFnB)
+                                                    <th width="11%">Track Stock</th>
+                                                    <th width="13%">Cost (Manual)</th>
+                                                    <th width="13%">Tipe Komisi</th>
+                                                    <th width="13%">Rate Komisi</th>
+                                                @endif
+                                                <th width="7%" class="text-center">Hapus</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="variantBody">
+                                            {{-- baris lama (old input) --}}
+                                            @if (old('variants'))
+                                                @foreach (old('variants') as $i => $v)
+                                                    <tr>
+                                                        <td>
+                                                            <input name="variants[{{ $i }}][nama]"
+                                                                class="form-control" value="{{ $v['nama'] ?? '' }}"
+                                                                placeholder="Nama varian">
+                                                        </td>
+                                                        <td>
+                                                            <input name="variants[{{ $i }}][barcode]"
+                                                                class="form-control barcode-input"
+                                                                value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
+                                                        </td>
+                                                        <td>
+                                                            <input name="variants[{{ $i }}][harga]"
+                                                                class="form-control" type="number" min="0"
+                                                                value="{{ $v['harga'] ?? '' }}" placeholder="0">
+                                                        </td>
+                                                        @if ($isFnB)
+                                                            <td>
+                                                                <select name="variants[{{ $i }}][track_stock]" class="form-select form-select-sm">
+                                                                    <option value="1" {{ ($v['track_stock'] ?? '1') == '1' ? 'selected' : '' }}>Ya</option>
+                                                                    <option value="0" {{ ($v['track_stock'] ?? '1') == '0' ? 'selected' : '' }}>Tidak</option>
+                                                                </select>
+                                                            </td>
+                                                            <td>
+                                                                <input name="variants[{{ $i }}][cost_price_manual]" class="form-control form-control-sm" type="number" min="0" value="{{ $v['cost_price_manual'] ?? '0' }}">
+                                                            </td>
+                                                            <td>
+                                                                <select name="variants[{{ $i }}][commission_type]" class="form-select form-select-sm">
+                                                                    <option value="global" {{ ($v['commission_type'] ?? 'global') == 'global' ? 'selected' : '' }}>Global Tenant</option>
+                                                                    <option value="percentage" {{ ($v['commission_type'] ?? 'global') == 'percentage' ? 'selected' : '' }}>Persentase</option>
+                                                                    <option value="nominal" {{ ($v['commission_type'] ?? 'global') == 'nominal' ? 'selected' : '' }}>Nominal Flat</option>
+                                                                </select>
+                                                            </td>
+                                                            <td>
+                                                                <input name="variants[{{ $i }}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="{{ $v['commission_rate'] ?? '0' }}">
+                                                            </td>
+                                                        @endif
+                                                        <td class="text-center align-middle">
+                                                            <button type="button" class="btn btn-danger btn-sm"
+                                                                onclick="removeRow(this)">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            @endif
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
 
@@ -140,10 +187,37 @@
 @push('scripts')
     <script>
         let rowIndex = {{ old('variants') ? count(old('variants')) : 0 }};
+        const isFnB = {{ $isFnB ? 'true' : 'false' }};
 
         function addVariantRow() {
             const tbody = document.getElementById('variantBody');
             const i = rowIndex++;
+            
+            let fnbColumns = '';
+            if (isFnB) {
+                fnbColumns = `
+                <td>
+                    <select name="variants[${i}][track_stock]" class="form-select form-select-sm">
+                        <option value="1">Ya</option>
+                        <option value="0">Tidak</option>
+                    </select>
+                </td>
+                <td>
+                    <input name="variants[${i}][cost_price_manual]" class="form-control form-control-sm" type="number" min="0" value="0">
+                </td>
+                <td>
+                    <select name="variants[${i}][commission_type]" class="form-select form-select-sm">
+                        <option value="global">Global Tenant</option>
+                        <option value="percentage">Persentase</option>
+                        <option value="nominal">Nominal Flat</option>
+                    </select>
+                </td>
+                <td>
+                    <input name="variants[${i}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="0">
+                </td>
+                `;
+            }
+
             const row = `
             <tr>
                 <td>
@@ -158,6 +232,7 @@
                     <input name="variants[${i}][harga]" class="form-control"
                         type="number" min="0" placeholder="0">
                 </td>
+                ${fnbColumns}
                 <td class="text-center align-middle">
                     <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">
                         <i class="bi bi-trash"></i>

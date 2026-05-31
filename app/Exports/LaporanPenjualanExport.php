@@ -57,7 +57,7 @@ class LaporanPenjualanExport implements
     public function array(): array
     {
         $sales = Sale::with(['items' => function ($query) {
-            $query->with('batches')
+            $query->with(['batches', 'variant.product', 'fnbDetail'])
                 ->whereIn('status', ['sold', 'exchanged_in']);
         }, 'cashier'])
             ->whereNull('ref_sale_id')
@@ -66,14 +66,32 @@ class LaporanPenjualanExport implements
             ->orderBy('sale_date', 'asc')
             ->get();
 
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
         $rows = [];
         foreach ($sales as $i => $sale) {
             $cost = 0;
-            foreach ($sale->items as $item) {
-                foreach ($item->batches as $batch) {
-                    $qty = $batch->qty ?? 0;
-                    $costPrice = $batch->cost_price ?? ($batch->cost ?? 0);
-                    $cost += ($qty * $costPrice);
+            if ($isFnB) {
+                foreach ($sale->items as $item) {
+                    $variant = $item->variant;
+                    $tenantId = $variant && $variant->product ? $variant->product->tenant_id : null;
+                    $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                    if ($tenantId) {
+                        $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                        $costPrice = ($item->price - $commissionAmount) + $costPriceManual;
+                    } else {
+                        $costPrice = $costPriceManual;
+                    }
+                    $cost += ($item->qty * $costPrice);
+                }
+            } else {
+                foreach ($sale->items as $item) {
+                    foreach ($item->batches as $batch) {
+                        $qty = $batch->qty ?? 0;
+                        $costPrice = $batch->cost_price ?? ($batch->cost ?? 0);
+                        $cost += ($qty * $costPrice);
+                    }
                 }
             }
 

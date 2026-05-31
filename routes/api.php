@@ -22,8 +22,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pos/customers',             [PosController::class, 'apiCustomers']);
     Route::post('/pos/checkout',             [PosController::class, 'apiCheckout']);
     Route::get('/pos/sales',                 [PosController::class, 'apiSales']);
+    Route::get('/pos/sales/active-bills',    [PosController::class, 'apiActiveBills']);
+    Route::post('/pos/sales/{id}/change-table', [PosController::class, 'apiChangeTable']);
+    Route::post('/pos/sales/merge-bills',    [PosController::class, 'apiMergeBills']);
     Route::get('/pos/sales/{id}',            [PosController::class, 'apiSaleDetail']);
     Route::get('/pos/sales/{id}/receipt',    [PosController::class, 'apiReceipt']);
+    Route::post('/pos/sales/{id}/mark-kitchen-printed', [PosController::class, 'apiMarkKitchenPrinted']);
     Route::post('/pos/sales/{id}/void',      [PosController::class, 'apiVoid']);
     Route::post('/pos/sales/{id}/refund',    [PosController::class, 'apiRefund']);
     Route::post('/pos/sales/{id}/pay',       [PosController::class, 'apiPayDebt']);

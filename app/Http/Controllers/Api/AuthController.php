@@ -39,7 +39,7 @@ class AuthController extends Controller
         $stores = $user->stores()
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['stores.id', 'stores.name', 'stores.printer_type']);
+            ->get(['stores.id', 'stores.name', 'stores.printer_type', 'stores.business_type']);
 
         return response()->json([
             'token' => $token,

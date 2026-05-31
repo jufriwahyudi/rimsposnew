@@ -29,7 +29,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\StoreSelectionController;
 use App\Http\Controllers\VendorController;
+use App\Http\Controllers\TenantController;
 use App\Services\JournalFromCashTransactionService;
+use App\Http\Controllers\KitchenController;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
@@ -124,6 +126,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('expense-categories', ExpenseCategoryController::class)->except(['create', 'show']);
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
+        Route::resource('tenants', TenantController::class)->except(['create', 'show']);
     });
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {
@@ -211,6 +214,12 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/sales/{id}/rawbt-print/{paper?}', [PosController::class, 'printRawbtPage'])->name('sales.rawbt-print')
         ->where('paper', '58mm|80mm');
 
+    // Kitchen Display System (KDS)
+    Route::get('/kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
+    Route::get('/kitchen/orders', [KitchenController::class, 'orders'])->name('kitchen.orders');
+    Route::post('/kitchen/orders/{id}/ready', [KitchenController::class, 'markItemReady'])->name('kitchen.orders.ready');
+    Route::post('/kitchen/sales/{id}/ready', [KitchenController::class, 'markSaleReady'])->name('kitchen.sales.ready');
+
 
     Route::prefix('nse/distribusi')->group(function () {
         Route::get('/', [NseDistribusiController::class, 'index'])->name('nse.distribusi.index');
@@ -274,6 +283,9 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/laporan/harian', [LaporanController::class, 'harian'])->name('laporan.harian');
     Route::post('/laporan/harian/data', [LaporanController::class, 'getharian'])->name('laporan.harian.data');
     Route::get('/laporan/harian/export', [LaporanController::class, 'exportHarian'])->name('laporan.harian.export');
+    Route::get('/laporan/tenant', [LaporanController::class, 'tenantReport'])->name('laporan.tenant');
+    Route::post('/laporan/tenant/data', [LaporanController::class, 'getTenantReport'])->name('laporan.tenant.data');
+    Route::get('/laporan/tenant/export', [LaporanController::class, 'exportTenantReport'])->name('laporan.tenant.export');
     Route::get('/laporan/penerimaan-kas', [LaporanController::class, 'penerimaanKasFrontliner'])->name('laporan.penerimaan_kas');
     Route::post('/laporan/penerimaan-kas/data', [LaporanController::class, 'getPenerimaanKas'])->name('laporan.penerimaan_kas.data');
     Route::get('/laporan/penerimaan-kas/export', [LaporanController::class, 'exportPenerimaanKas'])->name('laporan.penerimaan_kas.export');

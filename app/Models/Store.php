@@ -19,6 +19,7 @@ class Store extends Model
         'is_active',
         'printer_type',
         'logo',
+        'business_type',
     ];
 
     protected $casts = [

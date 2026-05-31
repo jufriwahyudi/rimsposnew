@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Milon\Barcode\DNS1D;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Str;
+use App\Models\Store;
+use App\Models\Tenant;
 
 class ProdukController extends Controller
 {
@@ -48,26 +50,50 @@ class ProdukController extends Controller
     }
     public function create()
     {
-        return view('produk.create');
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+        $tenants = $isFnB ? Tenant::where('store_id', session('store_id'))->where('stts', 'Y')->get() : collect();
+
+        return view('produk.create', compact('isFnB', 'tenants'));
     }
     public function store(Request $request)
     {
-        $request->validate([
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $rules = [
             'kode'               => 'required|string|max:50|unique:products,kode_produk',
             'nama'               => 'required|string|max:150',
             'variants'           => 'nullable|array',
             'variants.*.nama'    => 'nullable|string|max:150',
             'variants.*.barcode' => 'nullable|string|max:100',
             'variants.*.harga'   => 'nullable|numeric|min:0',
-        ]);
+        ];
+
+        if ($isFnB) {
+            $rules['tenant_id'] = 'nullable|exists:tenants,id';
+            $rules['image'] = 'nullable|image|max:2048';
+            $rules['variants.*.track_stock'] = 'nullable|boolean';
+            $rules['variants.*.cost_price_manual'] = 'nullable|numeric|min:0';
+            $rules['variants.*.commission_type'] = 'nullable|in:global,percentage,nominal';
+            $rules['variants.*.commission_rate'] = 'nullable|numeric|min:0';
+        }
+
+        $request->validate($rules);
         try {
-            DB::transaction(function () use ($request) {
+            DB::transaction(function () use ($request, $isFnB) {
+                $imagePath = null;
+                if ($request->hasFile('image')) {
+                    $imagePath = $request->file('image')->store('products', 'public');
+                }
 
                 $product = Product::create([
                     'store_id'    => session('store_id'),
                     'kode_produk' => strtoupper($request->kode),
                     'nama_produk' => $request->nama,
                     'deskripsi'   => $request->deskripsi,
+                    'tenant_id'   => $request->tenant_id,
+                    'image'       => $imagePath,
                 ]);
 
                 $variants = $request->variants ?? [];
@@ -89,14 +115,23 @@ class ProdukController extends Controller
 
                     $sku = $product->kode_produk . '-' . str_pad($i + 1, 3, '0', STR_PAD_LEFT);
 
-                    $pv = ProductVariant::create([
+                    $variantData = [
                         'store_id'     => session('store_id'),
                         'product_id'   => $product->id,
                         'variant_name' => $v['nama'] ?? '',
                         'sku'          => $sku,
                         'barcode'      => $barcode,
                         'harga_jual'   => $v['harga'] ?? 0,
-                    ]);
+                    ];
+
+                    if ($isFnB) {
+                        $variantData['track_stock'] = isset($v['track_stock']) ? (bool)$v['track_stock'] : true;
+                        $variantData['cost_price_manual'] = $v['cost_price_manual'] ?? 0;
+                        $variantData['commission_type'] = $v['commission_type'] ?? 'global';
+                        $variantData['commission_rate'] = $v['commission_rate'] ?? 0;
+                    }
+
+                    $pv = ProductVariant::create($variantData);
 
                     $pv->barcodes()->create([
                         'barcode'   => $barcode,
@@ -155,7 +190,10 @@ class ProdukController extends Controller
             ]);
         }
         // dd(json_encode($product, JSON_PRETTY_PRINT));
-        return view('produk.show', compact('product', 'variantsByGroup', 'hasDivisi'));
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        return view('produk.show', compact('product', 'variantsByGroup', 'hasDivisi', 'isFnB'));
     }
     public function showVariantDetail(Product $product, ProductVariant $variant)
     {
@@ -195,6 +233,10 @@ class ProdukController extends Controller
             }
         ])->findOrFail($id);
 
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+        $tenants = $isFnB ? Tenant::where('store_id', session('store_id'))->where('stts', 'Y')->get() : collect();
+
         // 🔹 Cek apakah produk punya attribute Divisi
         $hasDivisi = $product->variants->contains(function ($variant) {
             return $variant->variantAttributes
@@ -232,22 +274,44 @@ class ProdukController extends Controller
             'attributes',
             'existingVariants',
             'variantsByGroup',
-            'hasDivisi'
+            'hasDivisi',
+            'isFnB',
+            'tenants'
         ));
     }
 
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
 
-        $request->validate([
+        $rules = [
             'nama' => 'required|string|max:150',
-        ]);
+        ];
 
-        $product->update([
+        if ($isFnB) {
+            $rules['tenant_id'] = 'nullable|exists:tenants,id';
+            $rules['image'] = 'nullable|image|max:2048';
+        }
+
+        $request->validate($rules);
+
+        $productData = [
             'nama_produk' => $request->nama,
             'deskripsi' => $request->deskripsi,
-        ]);
+        ];
+
+        if ($isFnB) {
+            $productData['tenant_id'] = $request->tenant_id;
+            if ($request->hasFile('image')) {
+                if ($product->image) {
+                    \Storage::disk('public')->delete($product->image);
+                }
+                $productData['image'] = $request->file('image')->store('products', 'public');
+            }
+        }
+$product->update($productData);
 
         return redirect()
             ->route('produk.edit', $product->id)
@@ -255,14 +319,27 @@ class ProdukController extends Controller
     }
     public function storeVariant(Request $request)
     {
-        $request->validate([
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $rules = [
             'product_id'          => 'required|exists:products,id',
             'variants'            => 'required|array|min:1',
             'variants.*.nama'     => 'required|string|max:150',
             'variants.*.harga_jual' => 'nullable|numeric|min:0',
-        ]);
+        ];
+
+        if ($isFnB) {
+            $rules['variants.*.track_stock'] = 'nullable|boolean';
+            $rules['variants.*.cost_price_manual'] = 'nullable|numeric|min:0';
+            $rules['variants.*.commission_type'] = 'nullable|in:global,percentage,nominal';
+            $rules['variants.*.commission_rate'] = 'nullable|numeric|min:0';
+        }
+
+        $request->validate($rules);
+
         try {
-            DB::transaction(function () use ($request) {
+            DB::transaction(function () use ($request, $isFnB) {
                 $product = Product::findOrFail($request->product_id);
                 $existingCount = $product->variants()->count();
 
@@ -273,14 +350,23 @@ class ProdukController extends Controller
 
                     $sku = $product->kode_produk . '-' . str_pad($existingCount + $i + 1, 3, '0', STR_PAD_LEFT);
 
-                    $pv = ProductVariant::create([
+                    $variantData = [
                         'store_id'     => session('store_id'),
                         'product_id'   => $product->id,
                         'variant_name' => $v['nama'],
                         'sku'          => $sku,
                         'barcode'      => $barcode,
                         'harga_jual'   => $v['harga_jual'] ?? 0,
-                    ]);
+                    ];
+
+                    if ($isFnB) {
+                        $variantData['track_stock'] = isset($v['track_stock']) ? (bool)$v['track_stock'] : true;
+                        $variantData['cost_price_manual'] = $v['cost_price_manual'] ?? 0;
+                        $variantData['commission_type'] = $v['commission_type'] ?? 'global';
+                        $variantData['commission_rate'] = $v['commission_rate'] ?? 0;
+                    }
+
+                    $pv = ProductVariant::create($variantData);
 
                     $pv->barcodes()->create([
                         'barcode'   => $barcode,
@@ -326,11 +412,24 @@ class ProdukController extends Controller
 
     public function updateHarga(Request $request)
     {
-        $request->validate([
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $rules = [
             'variant_id' => 'required',
             'barcode' => 'required|string|max:100',
             'harga_jual' => 'required|numeric|min:0',
-        ]);
+        ];
+
+        if ($isFnB) {
+            $rules['track_stock'] = 'nullable|boolean';
+            $rules['cost_price_manual'] = 'nullable|numeric|min:0';
+            $rules['commission_type'] = 'nullable|in:global,percentage,nominal';
+            $rules['commission_rate'] = 'nullable|numeric|min:0';
+        }
+
+        $request->validate($rules);
+
         // Cek barcode unik
         $existingVariant = ProductVariant::where('barcode', $request->barcode)
             ->where('id', '!=', $request->variant_id)
@@ -339,11 +438,20 @@ class ProdukController extends Controller
             return back()->withInput()->with('error', 'Barcode sudah digunakan pada variant lain.');
         }
 
+        $variantData = [
+            'barcode' => $request->barcode,
+            'harga_jual' => $request->harga_jual
+        ];
+
+        if ($isFnB) {
+            $variantData['track_stock'] = $request->boolean('track_stock');
+            $variantData['cost_price_manual'] = $request->cost_price_manual ?? 0;
+            $variantData['commission_type'] = $request->commission_type ?? 'global';
+            $variantData['commission_rate'] = $request->commission_rate ?? 0;
+        }
+
         ProductVariant::where('id', $request->variant_id)
-            ->update([
-                'barcode' => $request->barcode,
-                'harga_jual' => $request->harga_jual
-            ]);
+            ->update($variantData);
 
         return back()->with('success', 'Harga berhasil diperbarui');
     }

@@ -42,7 +42,23 @@
                         @endif
 
                         @if ($sale->payment_status)
-                            <br>Status Pembayaran: {{ ucfirst($sale->payment_status) }}
+                            <br>Status Pembayaran:
+                            @switch($sale->payment_status)
+                                @case('lunas')
+                                    <span class="badge bg-success">Lunas</span>
+                                    @break
+                                @case('hutang')
+                                    <span class="badge bg-danger">Hutang</span>
+                                    @break
+                                @case('unpaid')
+                                    <span class="badge bg-warning text-dark">Belum Bayar</span>
+                                    @break
+                                @default
+                                    <span class="badge bg-secondary">{{ ucfirst($sale->payment_status) }}</span>
+                            @endswitch
+                        @endif
+                        @if ($sale->table_number)
+                            <br>No. Meja: <strong>{{ $sale->table_number }}</strong>
                         @endif
                     </div>
                 </div>
@@ -54,8 +70,12 @@
                         @else
                             <h3><span class="badge bg-success">PAID</span></h3>
                         @endif
+                    @elseif ($sale->status == 'hold')
+                        <h3><span class="badge bg-warning text-dark">HOLD</span></h3>
+                    @elseif ($sale->status == 'void')
+                        <h3><span class="badge bg-danger">VOID</span></h3>
                     @else
-                        <h3><span class="badge bg-warning text-dark">VOID</span></h3>
+                        <h3><span class="badge bg-secondary">{{ strtoupper($sale->status) }}</span></h3>
                     @endif
                 </div>
             </div>
@@ -70,7 +90,9 @@
                         <th class="text-end">Harga</th>
                         <th class="text-end">Diskon</th>
                         <th class="text-end">Subtotal</th>
-                        <th class="text-center">Aksi</th>
+                        @if (empty($isFnB) || !$isFnB)
+                            <th class="text-center">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -97,6 +119,7 @@
                                 {{ $item->discount_amount > 0 ? '-' . number_format($item->discount_amount) : '-' }}
                             </td>
                             <td class="text-end">{{ number_format($item->subtotal) }}</td>
+                            @if (empty($isFnB) || !$isFnB)
                             <td class="text-center">
                                 {{-- Tombol Exchange --}}
                                 @if ($sale->status === 'paid' && in_array($item->status, ['sold', 'exchanged_in']))
@@ -115,6 +138,7 @@
                                     <span class="badge bg-secondary">DITUKAR</span>
                                 @endif
                             </td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>
@@ -189,6 +213,7 @@
 
         </div>
     </div>
+    @if (empty($isFnB) || !$isFnB)
     <!-- Exchange Modal -->
     <div class="modal fade" id="exchangeModal" tabindex="-1" aria-labelledby="exchangeModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -265,6 +290,7 @@
             </div>
         </div>
     </div>
+    @endif
 @endsection`
 @push('initial-scripts')
     {{-- <script src="https://cdn.jsdelivr.net/npm/qz-tray/qz-tray.js"></script> --}}

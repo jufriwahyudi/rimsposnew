@@ -28,6 +28,7 @@ class StoreController extends Controller
             'printer_type' => 'required|in:58mm,80mm',
             'is_active'    => 'nullable|boolean',
             'logo_data'    => 'nullable|string',
+            'bussiness_type' => 'required|in:retail,fnb',
         ]);
 
         $logoPath = $this->saveLogo($request->logo_data);
@@ -41,6 +42,7 @@ class StoreController extends Controller
             'printer_type' => $request->printer_type,
             'is_active'    => $request->boolean('is_active', true),
             'logo'         => $logoPath,
+            'business_type' => $request->bussiness_type,
         ]);
 
         Vendor::create([
@@ -73,6 +75,7 @@ class StoreController extends Controller
             'printer_type' => 'required|in:58mm,80mm',
             'is_active'    => 'nullable|boolean',
             'logo_data'    => 'nullable|string',
+            'bussiness_type' => 'required|in:retail,fnb',
         ]);
 
         $data = [
@@ -83,6 +86,7 @@ class StoreController extends Controller
             'phone'        => $request->phone,
             'printer_type' => $request->printer_type,
             'is_active'    => $request->boolean('is_active', true),
+            'business_type' => $request->bussiness_type,
         ];
 
         if ($request->filled('logo_data')) {

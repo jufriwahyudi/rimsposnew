@@ -57,7 +57,10 @@ class LaporanHarianExport implements
 
     public function array(): array
     {
-        $items = SaleItem::with(['variant', 'batches', 'sale'])
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $items = SaleItem::with(['variant.product', 'fnbDetail', 'batches', 'sale'])
             ->whereHas('sale', function ($q) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
@@ -66,12 +69,27 @@ class LaporanHarianExport implements
             ->whereIn('status', ['sold', 'exchanged_in'])
             ->get()
             ->groupBy('product_variant_id')
-            ->map(function ($items) {
+            ->map(function ($items) use ($isFnB) {
                 $first = $items->first();
                 $totalModal = 0;
-                foreach ($items as $item) {
-                    foreach ($item->batches as $batch) {
-                        $totalModal += ($batch->qty * $batch->cost_price);
+                if ($isFnB) {
+                    foreach ($items as $item) {
+                        $variant = $item->variant;
+                        $tenantId = $variant && $variant->product ? $variant->product->tenant_id : null;
+                        $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                        if ($tenantId) {
+                            $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                            $costPrice = ($item->price - $commissionAmount) + $costPriceManual;
+                        } else {
+                            $costPrice = $costPriceManual;
+                        }
+                        $totalModal += ($item->qty * $costPrice);
+                    }
+                } else {
+                    foreach ($items as $item) {
+                        foreach ($item->batches as $batch) {
+                            $totalModal += ($batch->qty * $batch->cost_price);
+                        }
                     }
                 }
 

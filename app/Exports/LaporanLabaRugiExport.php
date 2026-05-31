@@ -24,19 +24,36 @@ class LaporanLabaRugiExport implements FromArray, ShouldAutoSize, WithEvents
     {
         // ===== PENJUALAN =====
         $sales = Sale::with([
-            'items' => fn($q) => $q->with('batches')->whereIn('status', ['sold', 'exchanged_in']),
+            'items' => fn($q) => $q->with(['batches', 'variant.product.tenant', 'fnbDetail'])->whereIn('status', ['sold', 'exchanged_in']),
         ])
             ->whereNull('ref_sale_id')
             ->whereDoesntHave('refunds')
             ->whereBetween('sale_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59'])
             ->get();
 
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
         $omset = $sales->sum('grand_total');
         $hpp   = 0;
         foreach ($sales as $sale) {
             foreach ($sale->items as $item) {
-                foreach ($item->batches as $batch) {
-                    $hpp += $batch->qty * $batch->cost_price;
+                if ($isFnB) {
+                    $variant = $item->variant;
+                    $tenant = $variant->product->tenant ?? null;
+                    $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                    if ($tenant) {
+                        $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                        $commission = $commissionAmount * $item->qty;
+                        $tenantShare = ($item->price * $item->qty) - $commission;
+                        $hpp += $tenantShare + $costPriceManual * $item->qty;
+                    } else {
+                        $hpp += $costPriceManual * $item->qty;
+                    }
+                } else {
+                    foreach ($item->batches as $batch) {
+                        $hpp += $batch->qty * $batch->cost_price;
+                    }
                 }
             }
         }

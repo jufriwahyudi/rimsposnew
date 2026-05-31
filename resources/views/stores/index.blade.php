@@ -1,4 +1,4 @@
-﻿@extends('layouts.main.main')
+@extends('layouts.main.main')
 @section('title', 'Manage Toko')
 
 @section('breadcrumb')
@@ -115,6 +115,7 @@
                                             <th>Nama Toko</th>
                                             <th>Kota</th>
                                             <th>No. Telepon</th>
+                                            <th>Tipe Bisnis</th>
                                             <th>Printer</th>
                                             <th class="text-center">Status</th>
                                             <th class="text-center" width="12%">Aksi</th>
@@ -135,6 +136,11 @@
                                                 <td class="fw-semibold">{{ $store->name }}</td>
                                                 <td>{{ $store->city ?? '-' }}</td>
                                                 <td>{{ $store->phone ?? '-' }}</td>
+                                                <td>
+                                                    <span class="badge bg-{{ $store->business_type === 'fnb' ? 'warning text-dark' : 'info' }}">
+                                                        {{ $store->business_type === 'fnb' ? 'F&B' : 'Retail' }}
+                                                    </span>
+                                                </td>
                                                 <td>
                                                     <span class="badge bg-{{ $store->printer_type === '58mm' ? 'info' : 'primary' }}">
                                                         {{ $store->printer_type ?? '80mm' }}
@@ -248,7 +254,14 @@
                                 </div>
                                 <input type="file" id="logoFile" accept="image/*" style="display:none;">
                             </div>
-
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold">Tipe Bisnis <span class="text-danger">*</span></label>
+                                <select class="form-select" id="bussiness_type">
+                                    <option value="retail">Retail</option>
+                                    <option value="fnb">F&B</option>
+                                </select>
+                                <div class="invalid-feedback" id="err-bussiness_type"></div>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Nama Toko <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="name" placeholder="Contoh: Toko Pusat">
@@ -434,6 +447,7 @@
             document.getElementById('storeId').value   = '';
             document.getElementById('logo_data').value = '';
             document.getElementById('is_active').checked = true;
+            document.getElementById('bussiness_type').value = 'retail';
             document.getElementById('modalStoreLabel').textContent = 'Tambah Toko';
             setLogoPreview(null);
             clearErrors();
@@ -454,6 +468,7 @@
                     document.getElementById('printer_type').value = data.printer_type ?? '80mm';
                     document.getElementById('is_active').checked  = data.is_active == 1;
                     document.getElementById('logo_data').value    = '';
+                    document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
                     setLogoPreview(data.logo_url ?? null);
                     document.getElementById('modalStoreLabel').textContent = 'Edit Toko';
                     clearErrors();
@@ -475,6 +490,7 @@
                 printer_type:  document.getElementById('printer_type').value,
                 is_active:     document.getElementById('is_active').checked ? 1 : 0,
                 logo_data:     document.getElementById('logo_data').value || null,
+                bussiness_type:document.getElementById('bussiness_type').value,
                 _token:        '{{ csrf_token() }}',
             };
             if (isEdit) payload._method = 'PUT';

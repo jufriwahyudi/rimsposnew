@@ -138,19 +138,26 @@ class PosController extends Controller
             })
 
             ->addColumn('payment_status', function ($s) {
-                return $s->payment_status ? ucfirst($s->payment_status) : '-';
+                $ps = $s->payment_status ?? '-';
+                return match ($ps) {
+                    'lunas'  => '<span class="badge bg-success">Lunas</span>',
+                    'hutang' => '<span class="badge bg-danger">Hutang</span>',
+                    'unpaid' => '<span class="badge bg-warning text-dark">Belum Bayar</span>',
+                    default  => '<span class="badge bg-secondary">' . ucfirst($ps) . '</span>',
+                };
             })
 
             ->editColumn('status', function ($s) {
                 if ($s->refunds->count() > 0) {
-                    return '<span class="badge bg-warning text-dark">REFUND</span>';
+                    return '<span class="badge bg-info text-dark">REFUND</span>';
                 }
 
-                if ($s->status === 'void') {
-                    return '<span class="badge bg-danger">VOID</span>';
-                }
-
-                return '<span class="badge bg-success">PAID</span>';
+                return match ($s->status) {
+                    'void' => '<span class="badge bg-danger">VOID</span>',
+                    'hold' => '<span class="badge bg-warning text-dark">HOLD</span>',
+                    'paid' => '<span class="badge bg-success">PAID</span>',
+                    default => '<span class="badge bg-secondary">' . strtoupper($s->status ?? '-') . '</span>',
+                };
             })
 
 
@@ -163,7 +170,7 @@ class PosController extends Controller
                 ';
             })
 
-            ->rawColumns(['status', 'action'])
+            ->rawColumns(['payment_status', 'status', 'action'])
             ->make(true);
     }
     public function show(Sale $sale)
@@ -174,12 +181,17 @@ class PosController extends Controller
             'refunds',
             'cashier'
         ]);
-        // dd(json_encode($sale, JSON_PRETTY_PRINT));
-        $variants = ProductVariant::with('product')->get();
+
+        // Determine if current store is FnB to hide exchange feature
+        $storeId = session('store_id');
+        $store = $storeId ? Store::find($storeId) : null;
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $variants = $isFnB ? collect() : ProductVariant::with('product')->get();
         $akunkas = Rekening::all();
         $akunkasir = 0;
 
-        return view('pos.show', compact('sale', 'variants', 'akunkas', 'akunkasir'));
+        return view('pos.show', compact('sale', 'variants', 'akunkas', 'akunkasir', 'isFnB'));
     }
     /**
      * Endpoint pencarian produk (SKU / barcode / nama)
@@ -187,26 +199,40 @@ class PosController extends Controller
      */
     public function findProduct(Request $request)
     {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        // Set tenant context so StoreScope automatically filters variants & products
+        \App\Support\Tenant::set($storeId);
+
         $q = trim($request->query('q'));
 
         // helper biar tidak nulis berulang
         $format = function ($v) {
             return [
-                'id'         => $v->id,
-                'product_id' => $v->product_id,
-                'sku'        => $v->sku,
-                'name'       => $v->product->nama_produk,
-                'variant'    => $v->variant_label,
-                'price'      => (float) $v->harga_jual,
-                'stok'       => (int) $v->stok_store,
+                'id'          => $v->id,
+                'product_id'  => $v->product_id,
+                'sku'         => $v->sku,
+                'name'        => $v->product->nama_produk,
+                'variant'     => $v->variant_label,
+                'price'       => (float) $v->harga_jual,
+                'stok'        => (int) $v->stok_store,
+                'track_stock' => (bool) $v->track_stock,
+                'image_url'   => $v->product->image_url,
+                'tenant_id'   => $v->product->tenant_id,
+                'tenant_name' => $v->product->tenant?->nama_tenant ?? 'Umum',
             ];
         };
 
         // 1. Cek SKU / barcode aktif
-        $variant = ProductVariant::with(['product', 'variantAttributes.value', 'barcodeActive'])
-            ->where('sku', $q)
-            ->orWhereHas('barcodes', function ($q2) use ($q) {
-                $q2->where('barcode', $q);
+        $variant = ProductVariant::with(['product.tenant', 'variantAttributes.value', 'barcodeActive'])
+            ->where(function ($q2) use ($q) {
+                $q2->where('sku', $q)
+                    ->orWhereHas('barcodes', function ($q3) use ($q) {
+                        $q3->where('barcode', $q);
+                    });
             })
             ->first();
 
@@ -218,7 +244,7 @@ class PosController extends Controller
         }
 
         // 2. Search nama produk
-        $variants = ProductVariant::with(['product', 'variantAttributes.value'])
+        $variants = ProductVariant::with(['product.tenant', 'variantAttributes.value'])
             ->where(function ($q2) use ($q) {
                 $q2->where('variant_name', 'like', "%{$q}%")
                     ->orWhereHas('product', function ($q3) use ($q) {
@@ -432,12 +458,12 @@ class PosController extends Controller
                     $cart = json_decode($cart, true) ?? [];
                 }
 
-                $paymentMethod  = $cart['payment_method'];
-                $paidAmount     = $cart['paid_amount'];
+                $paymentMethod  = $cart['payment_method'] ?? 'cash';
+                $paidAmount     = $cart['paid_amount'] ?? 0;
                 $cashAmount     = $cart['cash_amount'] ?? 0;
                 $transferAmount = $cart['transfer_amount'] ?? 0;
                 $akunBank       = $cart['akun_bank'] ?? null;
-                $transactionDate = $cart['transaction_date']
+                $transactionDate = !empty($cart['transaction_date'])
                     ? $cart['transaction_date'] . ' ' . now()->format('H:i:s')
                     : now();
                 $customerName  = $cart['customer_name'] ?? 'Umum';
@@ -472,83 +498,217 @@ class PosController extends Controller
                     $paidAmount   = 0;
                 }
 
-                if ($paymentMethod !== 'hutang' && $paidAmount < $cart['total']) {
+                $cartTotal = $cart['total'] ?? 0;
+                if ($paymentMethod !== 'hold' && $paymentMethod !== 'hutang' && $paidAmount < $cartTotal) {
                     throw new \Exception('Pembayaran kurang dari total belanja');
                 }
 
-                $sale = Sale::create([
-                    'store_id'       => $storeId,
-                    'invoice_number' => $this->generateInvoice(),
-                    'sale_date'      => $transactionDate,
-                    'sale_type'      => 'retail',
-                    'customer_id'    => $customerId,
-                    'customer_name'  => $customerName,
-                    'customer_phone' => $customerPhone,
-                    'user_id'        => auth()->id(),
-                    'subtotal'       => $cart['subtotal'],
-                    'discount_total' => $cart['discount_total'],
-                    'trans_discount' => $cart['transaction_discount'] ?? 0,
-                    'tax_total'      => 0,
-                    'grand_total'    => $cart['total'],
-                    'paid_amount'    => $paidAmount,
-                    'change_amount'  => max(0, $cashAmount - $cart['total']),
-                    'status'         => 'paid',
-                    'payment_status' => $paymentMethod === 'hutang' ? 'hutang' : 'lunas',
-                ]);
+                $existingSaleId = $cart['existing_sale_id'] ?? null;
+                if ($existingSaleId) {
+                    $sale = Sale::with(['items.batches', 'items.fnbDetail'])->where('store_id', $storeId)->findOrFail($existingSaleId);
 
-                foreach ($cart['items'] as $item) {
-                    $saleItem = SaleItem::create([
-                        'sale_id'            => $sale->id,
-                        'product_id'         => $item['product_id'],
-                        'product_variant_id' => $item['variant_id'] ?? null,
-                        'sku'                => $item['sku'],
-                        'product_name'       => $item['variant'] ?? $item['name'],
-                        'price'              => $item['price'],
-                        'qty'                => $item['qty'],
-                        'discount_amount'    => $item['discount_amount'],
-                        'subtotal'           => $item['subtotal'],
+                    // ── Smart-merge items (preserve kds_status) ─────────────
+                    $incomingItems  = collect($cart['items'] ?? []);
+                    $existingItems  = $sale->items->keyBy('product_variant_id');
+
+                    // Build a map of incoming items keyed by variant_id
+                    $incomingByVariant = $incomingItems->keyBy(fn ($i) => $i['variant_id'] ?? 0);
+
+                    // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
+                    $removedItems = $existingItems->filter(fn ($ei) => !$incomingByVariant->has($ei->product_variant_id));
+
+                    // 2. Revert stock & delete ONLY removed items
+                    foreach ($removedItems as $removedItem) {
+                        foreach ($removedItem->batches as $batch) {
+                            StockBatch::where('id', $batch->stock_batch_id)
+                                ->increment('qty_sisa', $batch->qty);
+
+                            StockMovement::create([
+                                'product_variant_id' => $removedItem->product_variant_id,
+                                'stock_batch_id'     => $batch->stock_batch_id,
+                                'posisi'             => 'store',
+                                'tanggal'            => now(),
+                                'tipe'               => 'in',
+                                'direction'          => 'in',
+                                'qty'                => $batch->qty,
+                                'ref_type'           => 'SaleHoldUpdateRevert',
+                                'ref_id'             => $sale->id,
+                            ]);
+                        }
+                        $removedItem->batches()->delete();
+                        $removedItem->delete();
+                    }
+
+                    // 3. Update existing items or create new ones
+                    foreach ($incomingItems as $item) {
+                        $variantId = $item['variant_id'] ?? null;
+                        $newQty    = $item['qty'] ?? 0;
+                        $existing  = $variantId ? $existingItems->get($variantId) : null;
+
+                        if ($existing) {
+                            $oldQty = $existing->qty;
+                            $qtyDiff = $newQty - $oldQty;
+
+                            // Update item fields but PRESERVE kds_status
+                            $existing->update([
+                                'sku'                 => $item['sku'] ?? $existing->sku,
+                                'product_name'        => $item['variant'] ?? ($item['name'] ?? $existing->product_name),
+                                'price'               => $item['price'] ?? $existing->price,
+                                'qty'                 => $newQty,
+                                'kitchen_printed_qty' => min($existing->kitchen_printed_qty, $newQty),
+                                'discount_amount'     => $item['discount_amount'] ?? $existing->discount_amount,
+                                'subtotal'            => $item['subtotal'] ?? $existing->subtotal,
+                                // kds_status is NOT touched — it stays as-is
+                            ]);
+
+                            if ($qtyDiff != 0) {
+                                // Revert ALL existing stock batches for this item
+                                foreach ($existing->batches as $batch) {
+                                    StockBatch::where('id', $batch->stock_batch_id)
+                                        ->increment('qty_sisa', $batch->qty);
+
+                                    StockMovement::create([
+                                        'product_variant_id' => $existing->product_variant_id,
+                                        'stock_batch_id'     => $batch->stock_batch_id,
+                                        'posisi'             => 'store',
+                                        'tanggal'            => now(),
+                                        'tipe'               => 'in',
+                                        'direction'          => 'in',
+                                        'qty'                => $batch->qty,
+                                        'ref_type'           => 'SaleHoldUpdateRevert',
+                                        'ref_id'             => $sale->id,
+                                    ]);
+                                }
+                                $existing->batches()->delete();
+
+                                // Re-issue FIFO with new qty
+                                $this->issueFIFOWithBatchLog(
+                                    $transactionDate,
+                                    $variantId,
+                                    'store',
+                                    $newQty,
+                                    $existing
+                                );
+                            }
+                            // If qty unchanged, stock batches remain untouched
+                        } else {
+                            // Brand new item — create with default kds_status (pending)
+                            $saleItem = SaleItem::create([
+                                'sale_id'            => $sale->id,
+                                'product_id'         => $item['product_id'] ?? null,
+                                'product_variant_id' => $variantId,
+                                'sku'                => $item['sku'] ?? '',
+                                'product_name'       => $item['variant'] ?? ($item['name'] ?? ''),
+                                'price'              => $item['price'] ?? 0,
+                                'qty'                => $newQty,
+                                'discount_amount'    => $item['discount_amount'] ?? 0,
+                                'subtotal'           => $item['subtotal'] ?? 0,
+                            ]);
+
+                            $this->issueFIFOWithBatchLog(
+                                $transactionDate,
+                                $variantId,
+                                'store',
+                                $newQty,
+                                $saleItem
+                            );
+                        }
+                    }
+
+                    // Update Sale attributes
+                    $sale->update([
+                        'table_number'   => $cart['table_number'] ?? $sale->table_number,
+                        'customer_name'  => $customerName,
+                        'customer_phone' => $customerPhone,
+                        'subtotal'       => $cart['subtotal'] ?? 0,
+                        'discount_total' => $cart['discount_total'] ?? 0,
+                        'trans_discount' => $cart['transaction_discount'] ?? 0,
+                        'grand_total'    => $cartTotal,
+                        'paid_amount'    => $paymentMethod === 'hold' ? 0 : $paidAmount,
+                        'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
+                        'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
+                        'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
+                    ]);
+                } else {
+                    $sale = Sale::create([
+                        'store_id'       => $storeId,
+                        'invoice_number' => $this->generateInvoice(),
+                        'table_number'   => $cart['table_number'] ?? null,
+                        'sale_date'      => $transactionDate,
+                        'sale_type'      => 'retail',
+                        'customer_id'    => $customerId,
+                        'customer_name'  => $customerName,
+                        'customer_phone' => $customerPhone,
+                        'user_id'        => auth()->id(),
+                        'subtotal'       => $cart['subtotal'] ?? 0,
+                        'discount_total' => $cart['discount_total'] ?? 0,
+                        'trans_discount' => $cart['transaction_discount'] ?? 0,
+                        'tax_total'      => 0,
+                        'grand_total'    => $cartTotal,
+                        'paid_amount'    => $paymentMethod === 'hold' ? 0 : $paidAmount,
+                        'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
+                        'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
+                        'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
                     ]);
 
-                    $this->issueFIFOWithBatchLog(
-                        $transactionDate,
-                        $item['variant_id'],
-                        'store',
-                        $item['qty'],
-                        $saleItem
-                    );
+                    // Create items for new sale
+                    $items = $cart['items'] ?? [];
+                    foreach ($items as $item) {
+                        $saleItem = SaleItem::create([
+                            'sale_id'            => $sale->id,
+                            'product_id'         => $item['product_id'] ?? null,
+                            'product_variant_id' => $item['variant_id'] ?? null,
+                            'sku'                => $item['sku'] ?? '',
+                            'product_name'       => $item['variant'] ?? ($item['name'] ?? ''),
+                            'price'              => $item['price'] ?? 0,
+                            'qty'                => $item['qty'] ?? 0,
+                            'discount_amount'    => $item['discount_amount'] ?? 0,
+                            'subtotal'           => $item['subtotal'] ?? 0,
+                        ]);
+
+                        $this->issueFIFOWithBatchLog(
+                            $transactionDate,
+                            $item['variant_id'] ?? null,
+                            'store',
+                            $item['qty'] ?? 0,
+                            $saleItem
+                        );
+                    }
                 }
 
-                if ($cashAmount > 0) {
-                    CashTransaction::create([
-                        'store_id'         => $storeId,
-                        'ref_type'         => 'SalePos',
-                        'ref_id'           => $sale->id,
-                        'transaction_type' => 'sale',
-                        'payment_method'   => 'cash',
-                        'account_code'     => 0,
-                        'amount'           => min($cashAmount, $cart['total']),
-                        'direction'        => 'in',
-                        'transaction_date' => $transactionDate,
-                        'user_id'          => auth()->id(),
-                        'notes'            => 'POS Mobile (Cash) #' . $sale->invoice_number,
-                    ]);
-                }
+                if ($paymentMethod !== 'hold') {
+                    if ($cashAmount > 0) {
+                        CashTransaction::create([
+                            'store_id'         => $storeId,
+                            'ref_type'         => 'SalePos',
+                            'ref_id'           => $sale->id,
+                            'transaction_type' => 'sale',
+                            'payment_method'   => 'cash',
+                            'account_code'     => 0,
+                            'amount'           => min($cashAmount, $cartTotal),
+                            'direction'        => 'in',
+                            'transaction_date' => $transactionDate,
+                            'user_id'          => auth()->id(),
+                            'notes'            => 'POS Mobile (Cash) #' . $sale->invoice_number,
+                        ]);
+                    }
 
-                if ($transferAmount > 0) {
-                    CashTransaction::create([
-                        'store_id'         => $storeId,
-                        'ref_type'         => 'SalePos',
-                        'ref_id'           => $sale->id,
-                        'transaction_type' => 'sale',
-                        'payment_method'   => 'transfer',
-                        'account_code'     => $akunBank,
-                        'amount'           => min($transferAmount, $cart['total']),
-                        'direction'        => 'in',
-                        'transaction_date' => $transactionDate,
-                        'user_id'          => auth()->id(),
-                        'notes'            => 'POS Mobile (Transfer) #' . $sale->invoice_number,
-                        'bukti_bayar'      => $buktiBayarPath,
-                    ]);
+                    if ($transferAmount > 0) {
+                        CashTransaction::create([
+                            'store_id'         => $storeId,
+                            'ref_type'         => 'SalePos',
+                            'ref_id'           => $sale->id,
+                            'transaction_type' => 'sale',
+                            'payment_method'   => 'transfer',
+                            'account_code'     => $akunBank,
+                            'amount'           => min($transferAmount, $cartTotal),
+                            'direction'        => 'in',
+                            'transaction_date' => $transactionDate,
+                            'user_id'          => auth()->id(),
+                            'notes'            => 'POS Mobile (Transfer) #' . $sale->invoice_number,
+                            'bukti_bayar'      => $buktiBayarPath,
+                        ]);
+                    }
                 }
 
                 return $sale;
@@ -567,6 +727,195 @@ class PosController extends Controller
             }
             return response()->json([
                 'message' => 'Transaksi gagal: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Get active bills (hold orders) for FnB/Café.
+     * GET /api/pos/sales/active-bills?store_id=N
+     */
+    public function apiActiveBills(Request $request)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sales = Sale::with(['items.variant.product', 'items.fnbDetail'])
+            ->where('store_id', $storeId)
+            ->where('status', 'hold')
+            ->orderBy('sale_date', 'desc')
+            ->get();
+
+        $data = $sales->map(function ($sale) {
+            return [
+                'id' => $sale->id,
+                'invoice_number' => $sale->invoice_number,
+                'table_number' => $sale->table_number,
+                'sale_date' => $sale->sale_date->format('Y-m-d H:i:s'),
+                'customer_name' => $sale->customer_name,
+                'customer_phone' => $sale->customer_phone,
+                'subtotal' => (float)$sale->subtotal,
+                'discount_total' => (float)$sale->discount_total,
+                'trans_discount' => (float)$sale->trans_discount,
+                'grand_total' => (float)$sale->grand_total,
+                'status' => $sale->status,
+                'items' => $sale->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'variant_id' => $item->product_variant_id,
+                        'sku' => $item->sku,
+                        'name' => $item->product_name,
+                        'price' => (float)$item->price,
+                        'qty' => (int)$item->qty,
+                        'discount_amount' => (float)$item->discount_amount,
+                        'subtotal' => (float)$item->subtotal,
+                        'track_stock' => (bool)($item->variant?->track_stock ?? true),
+                        'image_url' => $item->variant?->product?->image_url,
+                    ];
+                }),
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * API: Change table number for a hold order.
+     * POST /api/pos/sales/{id}/change-table
+     */
+    public function apiChangeTable(Request $request, int $id)
+    {
+        $request->validate([
+            'table_number' => 'required|string',
+        ]);
+
+        $sale = Sale::findOrFail($id);
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $sale->store_id)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        if ($sale->status !== 'hold') {
+            return response()->json(['message' => 'Hanya pesanan yang ditangguhkan (hold) yang dapat diubah mejanya'], 422);
+        }
+
+        $sale->update([
+            'table_number' => $request->table_number,
+        ]);
+
+        return response()->json([
+            'message' => 'Meja berhasil diubah',
+            'data' => [
+                'id' => $sale->id,
+                'table_number' => $sale->table_number,
+            ]
+        ]);
+    }
+
+    /**
+     * API: Merge two hold bills.
+     * POST /api/pos/sales/merge-bills
+     */
+    public function apiMergeBills(Request $request)
+    {
+        $request->validate([
+            'store_id' => 'required|integer',
+            'source_sale_id' => 'required|integer',
+            'target_sale_id' => 'required|integer',
+        ]);
+
+        $storeId = $request->integer('store_id');
+        $sourceSaleId = $request->integer('source_sale_id');
+        $targetSaleId = $request->integer('target_sale_id');
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        try {
+            DB::transaction(function () use ($storeId, $sourceSaleId, $targetSaleId) {
+                $sourceSale = Sale::with('items.batches')
+                    ->where('store_id', $storeId)
+                    ->findOrFail($sourceSaleId);
+
+                $targetSale = Sale::with('items.batches')
+                    ->where('store_id', $storeId)
+                    ->findOrFail($targetSaleId);
+
+                if ($sourceSale->status !== 'hold' || $targetSale->status !== 'hold') {
+                    throw new \Exception('Hanya pesanan berstatus hold yang dapat digabungkan');
+                }
+
+                foreach ($sourceSale->items as $sourceItem) {
+                    $targetItem = $targetSale->items
+                        ->where('product_variant_id', $sourceItem->product_variant_id)
+                        ->first();
+
+                    if ($targetItem) {
+                        // Merge quantities and subtotals
+                        $targetItem->qty += $sourceItem->qty;
+                        $targetItem->discount_amount += $sourceItem->discount_amount;
+                        $targetItem->subtotal += $sourceItem->subtotal;
+                        $targetItem->save();
+
+                        // Link stock batch details to the target sale item
+                        SaleItemBatch::where('sale_item_id', $sourceItem->id)
+                            ->update(['sale_item_id' => $targetItem->id]);
+
+                        $sourceItem->delete();
+                    } else {
+                        // Just update the sale_id to the target sale
+                        $sourceItem->update([
+                            'sale_id' => $targetSale->id
+                        ]);
+                    }
+                }
+
+                // Recalculate target sale totals
+                $targetSale->load('items');
+                $subtotal = $targetSale->items->sum('subtotal');
+                $discountTotal = $targetSale->items->sum('discount_amount');
+                $grandTotal = $subtotal - $discountTotal - ($targetSale->trans_discount ?? 0);
+
+                $targetSale->update([
+                    'subtotal' => $subtotal,
+                    'discount_total' => $discountTotal,
+                    'grand_total' => $grandTotal,
+                ]);
+
+                // Delete source sale
+                $sourceSale->delete();
+            });
+
+            return response()->json([
+                'message' => 'Bill berhasil digabungkan',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menggabungkan bill: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -640,7 +989,11 @@ class PosController extends Controller
                 });
             })
             ->when($paymentStatusFilter, function ($q) use ($paymentStatusFilter) {
-                $q->where('payment_status', $paymentStatusFilter);
+                if ($paymentStatusFilter === 'hold') {
+                    $q->where('status', 'hold');
+                } else {
+                    $q->where('payment_status', $paymentStatusFilter);
+                }
             })
             ->orderByDesc('sale_date')
             ->paginate($perPage);
@@ -701,6 +1054,7 @@ class PosController extends Controller
     public function apiReceipt(Request $request, int $id)
     {
         $storeId = $request->integer('store_id');
+        $isChecklist = $request->boolean('checklist');
 
         if (!$storeId) {
             return response()->json(['message' => 'store_id diperlukan'], 422);
@@ -715,7 +1069,7 @@ class PosController extends Controller
             return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
-        $sale = Sale::with(['items', 'cashier'])
+        $sale = Sale::with(['items.fnbDetail', 'cashier'])
             ->where('store_id', $storeId)
             ->findOrFail($id);
 
@@ -726,16 +1080,41 @@ class PosController extends Controller
             $paper = '80mm';
         }
 
-        $items = $sale->items
-            ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
-            ->map(fn($item) => [
-                'name'  => $item->product_name,
-                'sku'   => $item->sku,
-                'qty'   => $item->qty,
-                'price' => round($item->price),
-            ])->values()->toArray();
+        if ($isChecklist) {
+            $items = $sale->items
+                ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
+                ->map(function ($item) {
+                    $unprinted = $item->qty - $item->kitchen_printed_qty;
+                    if ($unprinted <= 0) {
+                        return null;
+                    }
+                    return [
+                        'name'  => $item->product_name,
+                        'sku'   => $item->sku,
+                        'qty'   => $unprinted,
+                        'price' => round($item->price),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->toArray();
+
+            if (empty($items)) {
+                return response()->json(['message' => 'Semua item sudah dicetak ke dapur'], 400);
+            }
+        } else {
+            $items = $sale->items
+                ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
+                ->map(fn($item) => [
+                    'name'  => $item->product_name,
+                    'sku'   => $item->sku,
+                    'qty'   => $item->qty,
+                    'price' => round($item->price),
+                ])->values()->toArray();
+        }
 
         $data = [
+            'is_checklist' => $isChecklist,
             'store' => [
                 'name'    => $store->name ?? 'RimsPos',
                 'address' => $store->address,
@@ -750,6 +1129,7 @@ class PosController extends Controller
                 'customer' => $sale->customer_name ?? 'Umum',
                 'status'   => strtoupper($sale->status),
                 'payment_status' => strtoupper($sale->payment_status),
+                'table_number' => $sale->table_number,
             ],
             'items'   => $items,
             'summary' => [
@@ -767,6 +1147,45 @@ class PosController extends Controller
         return response()->json([
             'paper'  => $paper,
             'base64' => $base64,
+        ]);
+    }
+
+    /**
+     * POST /api/pos/sales/{id}/mark-kitchen-printed
+     *
+     * Mark all unprinted kitchen items as printed.
+     */
+    public function apiMarkKitchenPrinted(Request $request, int $id)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with('items.fnbDetail')->where('store_id', $storeId)->findOrFail($id);
+
+        DB::transaction(function () use ($sale) {
+            foreach ($sale->items as $item) {
+                if ($item->kitchen_printed_qty < $item->qty) {
+                    $item->update([
+                        'kitchen_printed_qty' => $item->qty
+                    ]);
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => 'Status cetak checklist berhasil diperbarui'
         ]);
     }
 
@@ -1331,6 +1750,11 @@ class PosController extends Controller
         SaleItem $saleItem,
         string $refType = 'SalePos'
     ) {
+        $variant = ProductVariant::find($variantId);
+        if ($variant && !$variant->track_stock) {
+            return;
+        }
+
         $batches = StockBatch::where('product_variant_id', $variantId)
             ->where('posisi', $posisi)
             ->where('qty_sisa', '>', 0)

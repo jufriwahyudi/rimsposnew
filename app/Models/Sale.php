@@ -15,6 +15,7 @@ class Sale extends Model
         'store_id',
         'ref_sale_id',
         'invoice_number',
+        'table_number',
         'sale_date',
         'sale_type',
         'customer_id',

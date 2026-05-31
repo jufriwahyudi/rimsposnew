@@ -49,7 +49,7 @@
                         </div>
                     @endif
 
-                    <form method="POST" action="{{ route('produk.update', $product->id) }}">
+                    <form method="POST" action="{{ route('produk.update', $product->id) }}" enctype="multipart/form-data">
                         @csrf
                         @method('PUT')
 
@@ -71,6 +71,32 @@
                                     <label>Deskripsi Produk</label>
                                     <textarea name="deskripsi" class="form-control" rows="3">{{ old('deskripsi', $product->deskripsi) }}</textarea>
                                 </div>
+
+                                @if ($isFnB)
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label fw-semibold">Tenant / Stelling Provider</label>
+                                            <select name="tenant_id" class="form-select">
+                                                <option value="">-- Tanpa Tenant (Umum) --</option>
+                                                @foreach ($tenants as $t)
+                                                    <option value="{{ $t->id }}" {{ old('tenant_id', $product->tenant_id) == $t->id ? 'selected' : '' }}>
+                                                        {{ $t->nama_tenant }} ({{ $t->kode_tenant }})
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label fw-semibold">Foto Produk</label>
+                                            <input type="file" name="image" class="form-control" accept="image/*">
+                                            <small class="text-muted">Maksimal 2MB, JPG atau PNG</small>
+                                            @if ($product->image)
+                                                <div class="mt-2">
+                                                    <img src="{{ asset('storage/' . $product->image) }}" alt="Foto Produk" style="max-height: 80px; border-radius: 8px;" class="border">
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                             <div class="card-footer py-3 text-end">
                                 <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
@@ -92,6 +118,11 @@
                                 <th width="10%" class="text-center">Harga</th>
                                 <th width="10%" class="text-center">Stok Gudang</th>
                                 <th width="10%" class="text-center">Stok Toko</th>
+                                @if ($isFnB)
+                                    <th width="10%" class="text-center">Track Stock</th>
+                                    <th width="10%" class="text-center">HPP Manual</th>
+                                    <th width="15%" class="text-center">Komisi</th>
+                                @endif
                                 <th width="10%" class="text-center">Status</th>
                                 <th width="8%" class="text-center">Aksi</th>
                             </tr>
@@ -133,7 +164,7 @@
                             @foreach ($variantsByGroup as $groupName => $variants)
                                 @if ($hasDivisi)
                                     <tr class="table-secondary">
-                                        <td colspan="7" class="fw-bold">
+                                        <td colspan="{{ $isFnB ? 10 : 7 }}" class="fw-bold">
                                             === DIVISI {{ strtoupper($groupName) }} ===
                                         </td>
                                     </tr>
@@ -158,6 +189,26 @@
                                         <td class="text-end">
                                             {{ $variant->stok_store ?? 0 }}
                                         </td>
+
+                                        @if ($isFnB)
+                                            <td class="text-center">
+                                                <span class="badge {{ $variant->track_stock ? 'bg-success' : 'bg-warning' }}">
+                                                    {{ $variant->track_stock ? 'Ya' : 'Tidak' }}
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                {{ number_format($variant->cost_price_manual) }}
+                                            </td>
+                                            <td class="text-center">
+                                                @if ($variant->commission_type === 'global')
+                                                    <span class="badge bg-info">Global Tenant</span>
+                                                @elseif ($variant->commission_type === 'percentage')
+                                                    <span class="badge bg-primary">{{ number_format($variant->commission_rate) }}%</span>
+                                                @else
+                                                    <span class="badge bg-success">Rp {{ number_format($variant->commission_rate) }}</span>
+                                                @endif
+                                            </td>
+                                        @endif
 
                                         <td class="text-center">
                                             <span class="badge {{ $variant->is_active ? 'bg-success' : 'bg-secondary' }}">
@@ -203,7 +254,13 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Nama Varian</th>
-                                    <th width="30%">Harga Jual</th>
+                                    <th width="20%">Harga Jual</th>
+                                    @if ($isFnB)
+                                        <th width="12%">Track Stock</th>
+                                        <th width="15%">Cost (Manual)</th>
+                                        <th width="15%">Tipe Komisi</th>
+                                        <th width="15%">Rate Komisi</th>
+                                    @endif
                                     <th width="8%" class="text-center">Hapus</th>
                                 </tr>
                             </thead>
@@ -291,9 +348,37 @@
     <script>
         let newVariantRowIndex = 0;
 
+        const isFnB = {{ $isFnB ? 'true' : 'false' }};
+
         function addNewVariantRow() {
             const tbody = document.getElementById('newVariantBody');
             const i = newVariantRowIndex++;
+            
+            let fnbColumns = '';
+            if (isFnB) {
+                fnbColumns = `
+                    <td>
+                        <select name="variants[${i}][track_stock]" class="form-select form-select-sm">
+                            <option value="1">Ya</option>
+                            <option value="0">Tidak</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input name="variants[${i}][cost_price_manual]" class="form-control form-control-sm" type="number" min="0" value="0">
+                    </td>
+                    <td>
+                        <select name="variants[${i}][commission_type]" class="form-select form-select-sm">
+                            <option value="global">Global Tenant</option>
+                            <option value="percentage">Persentase</option>
+                            <option value="nominal">Nominal Flat</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input name="variants[${i}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="0">
+                    </td>
+                `;
+            }
+
             const row = `
                 <tr>
                     <td>
@@ -304,6 +389,7 @@
                         <input name="variants[${i}][harga_jual]" class="form-control form-control-sm"
                             type="number" min="0" placeholder="0">
                     </td>
+                    ${fnbColumns}
                     <td class="text-center align-middle">
                         <button type="button" class="btn btn-danger btn-sm"
                             onclick="this.closest('tr').remove()">

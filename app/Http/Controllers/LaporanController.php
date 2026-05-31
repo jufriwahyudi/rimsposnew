@@ -37,7 +37,7 @@ class LaporanController extends Controller
 
         $query = Sale::with([
             'items' => function ($query) {
-                $query->with('batches')
+                $query->with(['batches', 'variant.product', 'fnbDetail'])
                     ->whereIn('status', ['sold', 'exchanged_in']);
             },
             'cashier'
@@ -49,14 +49,32 @@ class LaporanController extends Controller
         $sales = $query->orderBy('sale_date', 'asc')->get();
         // dd(json_encode($sales, JSON_PRETTY_PRINT));
 
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
         $rows = collect();
         foreach ($sales as $i => $sale) {
             $cost = 0;
-            foreach ($sale->items as $item) {
-                foreach ($item->batches as $batch) {
-                    $qty = $batch->qty ?? 0;
-                    $costPrice = $batch->cost_price ?? ($batch->cost ?? 0);
-                    $cost += ($qty * $costPrice);
+            if ($isFnB) {
+                foreach ($sale->items as $item) {
+                    $variant = $item->variant;
+                    $tenantId = $variant && $variant->product ? $variant->product->tenant_id : null;
+                    $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                    if ($tenantId) {
+                        $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                        $costPrice = ($item->price - $commissionAmount) + $costPriceManual;
+                    } else {
+                        $costPrice = $costPriceManual;
+                    }
+                    $cost += ($item->qty * $costPrice);
+                }
+            } else {
+                foreach ($sale->items as $item) {
+                    foreach ($item->batches as $batch) {
+                        $qty = $batch->qty ?? 0;
+                        $costPrice = $batch->cost_price ?? ($batch->cost ?? 0);
+                        $cost += ($qty * $costPrice);
+                    }
                 }
             }
 
@@ -356,7 +374,10 @@ class LaporanController extends Controller
     {
         $tanggal = $request->tanggal ?? now()->toDateString();
 
-        $rows = SaleItem::with(['variant', 'batches', 'sale'])
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $rows = SaleItem::with(['variant.product', 'fnbDetail', 'batches', 'sale'])
             ->whereHas('sale', function ($q) use ($tanggal) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
@@ -365,16 +386,31 @@ class LaporanController extends Controller
             ->whereIn('status', ['sold', 'exchanged_in'])
             ->get()
             ->groupBy('product_variant_id')
-            ->map(function ($items, $variantId) {
+            ->map(function ($items, $variantId) use ($isFnB) {
                 $first = $items->first();
                 $totalQty = $items->sum('qty');
                 $totalSubtotal = $items->sum('subtotal');
                 $totalDiscount = $items->sum('discount_amount');
                 $totalModal = 0;
 
-                foreach ($items as $item) {
-                    foreach ($item->batches as $batch) {
-                        $totalModal += ($batch->qty * $batch->cost_price);
+                if ($isFnB) {
+                    foreach ($items as $item) {
+                        $variant = $item->variant;
+                        $tenantId = $variant && $variant->product ? $variant->product->tenant_id : null;
+                        $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                        if ($tenantId) {
+                            $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                            $costPrice = ($item->price - $commissionAmount) + $costPriceManual;
+                        } else {
+                            $costPrice = $costPriceManual;
+                        }
+                        $totalModal += ($item->qty * $costPrice);
+                    }
+                } else {
+                    foreach ($items as $item) {
+                        foreach ($item->batches as $batch) {
+                            $totalModal += ($batch->qty * $batch->cost_price);
+                        }
                     }
                 }
 
@@ -608,7 +644,7 @@ class LaporanController extends Controller
 
         // ===== PENJUALAN =====
         $sales = Sale::with([
-            'items' => fn($q) => $q->with('batches')->whereIn('status', ['sold', 'exchanged_in']),
+            'items' => fn($q) => $q->with(['batches', 'variant.product.tenant', 'fnbDetail'])->whereIn('status', ['sold', 'exchanged_in']),
         ])
             ->where('status', 'paid')
             ->whereNull('ref_sale_id')
@@ -616,12 +652,29 @@ class LaporanController extends Controller
             ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
             ->get();
 
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
         $omset = $sales->sum('grand_total');
         $hpp   = 0;
         foreach ($sales as $sale) {
             foreach ($sale->items as $item) {
-                foreach ($item->batches as $batch) {
-                    $hpp += $batch->qty * $batch->cost_price;
+                if ($isFnB) {
+                    $variant = $item->variant;
+                    $tenant = $variant->product->tenant ?? null;
+                    $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                    if ($tenant) {
+                        $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                        $commission = $commissionAmount * $item->qty;
+                        $tenantShare = ($item->price * $item->qty) - $commission;
+                        $hpp += $tenantShare + $costPriceManual * $item->qty;
+                    } else {
+                        $hpp += $costPriceManual * $item->qty;
+                    }
+                } else {
+                    foreach ($item->batches as $batch) {
+                        $hpp += $batch->qty * $batch->cost_price;
+                    }
                 }
             }
         }
@@ -692,6 +745,82 @@ class LaporanController extends Controller
         return Excel::download(
             new LaporanStokExport($tanggal),
             'Laporan_Stok_' . $tanggal . '.xlsx'
+        );
+    }
+
+    public function tenantReport()
+    {
+        return view('laporan.tenant');
+    }
+
+    public function getTenantReport(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+
+        $items = SaleItem::with(['variant.product.tenant', 'fnbDetail', 'sale'])
+            ->whereHas('sale', function ($q) use ($mulai, $akhir) {
+                $q->where('status', 'paid')
+                    ->whereNull('ref_sale_id')
+                    ->whereDoesntHave('refunds')
+                    ->whereBetween('sale_date', [$mulai . " 00:00:00", $akhir . " 23:59:59"]);
+            })
+            ->whereIn('status', ['sold', 'exchanged_in'])
+            ->whereHas('variant.product', function ($q) {
+                $q->whereNotNull('tenant_id');
+            })
+            ->get();
+
+        $rows = $items->groupBy(function ($item) {
+            return $item->variant->product->tenant_id;
+        })->map(function ($tenantItems, $tenantId) {
+            $first = $tenantItems->first();
+            $tenant = $first->variant->product->tenant;
+
+            $totalQty = $tenantItems->sum('qty');
+            $grossSales = 0;
+            $totalCommission = 0;
+
+            foreach ($tenantItems as $item) {
+                $subtotal = $item->price * $item->qty;
+                $commissionAmount = $item->commission_amount ?? ($item->variant ? $item->variant->calculateCommission($item->price) : 0);
+                $commission = $commissionAmount * $item->qty;
+                $grossSales += $subtotal;
+                $totalCommission += $commission;
+            }
+
+            $tenantShare = $grossSales - $totalCommission;
+
+            return (object) [
+                'tenant_id'   => $tenantId,
+                'kode_tenant' => $tenant->kode_tenant ?? '-',
+                'nama_tenant' => $tenant->nama_tenant ?? 'Unknown Tenant',
+                'total_qty'   => $totalQty,
+                'gross_sales' => $grossSales,
+                'commission'  => $totalCommission,
+                'net_payout'  => $tenantShare,
+            ];
+        })->values();
+
+        $totalPenjualan = $rows->sum('gross_sales');
+        $totalKomisi = $rows->sum('commission');
+        $totalHakTenant = $rows->sum('net_payout');
+
+        if ($request->ajax()) {
+            return view('laporan.tenant_table', compact('rows', 'mulai', 'akhir', 'totalPenjualan', 'totalKomisi', 'totalHakTenant'));
+        }
+
+        return view('laporan.tenant', compact('rows', 'mulai', 'akhir', 'totalPenjualan', 'totalKomisi', 'totalHakTenant'));
+    }
+
+    public function exportTenantReport(Request $request)
+    {
+        $mulai = $request->mulai ?? now()->startOfMonth()->toDateString();
+        $akhir = $request->akhir ?? now()->toDateString();
+
+        return Excel::download(
+            new \App\Exports\LaporanTenantExport($mulai, $akhir),
+            'Laporan_Piutang_Tenant_' . $mulai . '_' . $akhir . '.xlsx'
         );
     }
 }

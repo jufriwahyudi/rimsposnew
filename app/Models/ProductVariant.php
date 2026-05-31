@@ -18,6 +18,10 @@ class ProductVariant extends Model
         'barcode',
         'harga_jual',
         'is_active',
+        'track_stock',
+        'cost_price_manual',
+        'commission_type',
+        'commission_rate',
     ];
 
     protected $appends = [
@@ -109,9 +113,25 @@ class ProductVariant extends Model
 
     public function getStokStoreAttribute()
     {
+        if (!$this->track_stock) {
+            return 999999;
+        }
         return $this->batches()
             ->where('posisi', 'store')
             ->sum('qty_sisa');
+    }
+
+    public function calculateCommission($sellPrice)
+    {
+        if ($this->commission_type === 'percentage') {
+            return $sellPrice * ($this->commission_rate / 100);
+        } elseif ($this->commission_type === 'nominal') {
+            return $this->commission_rate;
+        } else {
+            // default: global
+            $globalRate = $this->product->tenant->commission_rate ?? 0;
+            return $sellPrice * ($globalRate / 100);
+        }
     }
 
     public function getStokTotalAttribute()

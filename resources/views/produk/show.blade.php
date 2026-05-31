@@ -452,6 +452,11 @@
                             <th>SKU / Barcode</th>
                             <th class="text-center" style="width:90px;">Gudang</th>
                             <th class="text-center" style="width:90px;">Toko</th>
+                            @if ($isFnB)
+                                <th class="text-center" style="width:90px;">Track Stock</th>
+                                <th class="text-end" style="width:110px;">HPP Manual</th>
+                                <th class="text-center" style="width:130px;">Komisi</th>
+                            @endif
                             <th class="text-end" style="width:110px;">Harga</th>
                             <th class="text-center" style="width:90px;">Status</th>
                             <th class="text-center" style="width:120px;">Aksi</th>
@@ -461,7 +466,7 @@
                         @foreach ($variantsByGroup as $groupName => $variants)
                             @if ($hasDivisi)
                                 <tr class="group-header" data-group="{{ strtolower($groupName) }}">
-                                    <td colspan="7">
+                                    <td colspan="{{ $isFnB ? 10 : 7 }}">
                                         <i class="bi bi-folder2-open me-1"></i> DIVISI {{ strtoupper($groupName) }}
                                         <span class="ms-2 variant-count-badge">{{ $variants->count() }}</span>
                                     </td>
@@ -498,6 +503,25 @@
                                     </td>
                                     <td class="text-center fw-semibold">{{ number_format($v->stok_warehouse ?? 0) }}</td>
                                     <td class="text-center fw-semibold">{{ number_format($v->stok_store ?? 0) }}</td>
+                                    @if ($isFnB)
+                                        <td class="text-center">
+                                            <span class="badge {{ $v->track_stock ? 'bg-success' : 'bg-warning' }}">
+                                                {{ $v->track_stock ? 'Ya' : 'Tidak' }}
+                                            </span>
+                                        </td>
+                                        <td class="text-end fw-semibold text-truncate">
+                                            Rp {{ number_format($v->cost_price_manual, 0, ',', '.') }}
+                                        </td>
+                                        <td class="text-center">
+                                            @if ($v->commission_type === 'global')
+                                                <span class="badge bg-info">Global Tenant</span>
+                                            @elseif ($v->commission_type === 'percentage')
+                                                <span class="badge bg-primary">{{ number_format($v->commission_rate) }}%</span>
+                                            @else
+                                                <span class="badge bg-success">Rp {{ number_format($v->commission_rate, 0, ',', '.') }}</span>
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td class="text-end fw-semibold text-truncate">Rp
                                         {{ number_format($v->harga_jual, 0, ',', '.') }}
                                     </td>
@@ -517,7 +541,14 @@
                                                 data-bs-toggle="modal" data-bs-target="#modalEditHarga"
                                                 data-id="{{ $v->id }}" data-sku="{{ $v->sku }}"
                                                 data-barcode="{{ optional($v->barcodeActive)->barcode }}"
-                                                data-harga="{{ $v->harga_jual }}" title="Edit Harga">
+                                                data-harga="{{ $v->harga_jual }}"
+                                                @if ($isFnB)
+                                                    data-track-stock="{{ $v->track_stock ? 1 : 0 }}"
+                                                    data-cost-price-manual="{{ $v->cost_price_manual }}"
+                                                    data-commission-type="{{ $v->commission_type }}"
+                                                    data-commission-rate="{{ $v->commission_rate }}"
+                                                @endif
+                                                title="Edit Harga">
                                                 <i class="bi bi-pencil-square"></i>
                                             </button>
                                             <button class="btn-action barcode btn-barcode" data-bs-toggle="modal"
@@ -596,13 +627,41 @@
                             <input type="text" class="form-control rounded-3" id="variant_barcode" name="barcode">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold" style="font-size:0.85rem;">Harga Jual</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-transparent rounded-start-3">Rp</span>
-                                <input type="number" class="form-control rounded-end-3" name="harga_jual"
-                                    id="harga_jual" required>
-                            </div>
-                        </div>
+                             <label class="form-label fw-semibold" style="font-size:0.85rem;">Harga Jual</label>
+                             <div class="input-group">
+                                 <span class="input-group-text bg-transparent rounded-start-3">Rp</span>
+                                 <input type="number" class="form-control rounded-end-3" name="harga_jual"
+                                     id="harga_jual" required>
+                             </div>
+                         </div>
+                         @if ($isFnB)
+                             <div class="mb-3">
+                                 <label class="form-label fw-semibold" style="font-size:0.85rem;">Track Stock</label>
+                                 <select class="form-select rounded-3" name="track_stock" id="variant_track_stock">
+                                     <option value="1">Ya</option>
+                                     <option value="0">Tidak</option>
+                                 </select>
+                             </div>
+                             <div class="mb-3">
+                                 <label class="form-label fw-semibold" style="font-size:0.85rem;">HPP Manual (Cost)</label>
+                                 <div class="input-group">
+                                     <span class="input-group-text bg-transparent rounded-start-3">Rp</span>
+                                     <input type="number" class="form-control rounded-end-3" name="cost_price_manual" id="variant_cost_price_manual" min="0">
+                                 </div>
+                             </div>
+                             <div class="mb-3">
+                                 <label class="form-label fw-semibold" style="font-size:0.85rem;">Tipe Komisi</label>
+                                 <select class="form-select rounded-3" name="commission_type" id="variant_commission_type">
+                                     <option value="global">Global Tenant</option>
+                                     <option value="percentage">Persentase</option>
+                                     <option value="nominal">Nominal Flat</option>
+                                 </select>
+                             </div>
+                             <div class="mb-3">
+                                 <label class="form-label fw-semibold" style="font-size:0.85rem;">Rate Komisi</label>
+                                 <input type="number" class="form-control rounded-3" name="commission_rate" id="variant_commission_rate" min="0" step="any">
+                             </div>
+                         @endif
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-light rounded-3 px-4"
@@ -619,6 +678,8 @@
 
 @push('scripts')
     <script>
+        const isFnB = {{ $isFnB ? 'true' : 'false' }};
+
         document.addEventListener('DOMContentLoaded', function() {
             // === Filter Logic ===
             const searchInput = document.getElementById('filterSearch');
@@ -682,7 +743,7 @@
                         const tr = document.createElement('tr');
                         tr.id = 'noResultsRow';
                         tr.innerHTML =
-                            '<td colspan="7" class="no-results-row"><i class="bi bi-search"></i>Tidak ada varian yang cocok dengan filter</td>';
+                            `<td colspan="${isFnB ? 10 : 7}" class="no-results-row"><i class="bi bi-search"></i>Tidak ada varian yang cocok dengan filter</td>`;
                         tbody.appendChild(tr);
                     }
                     noResultsRow = document.getElementById('noResultsRow');
@@ -751,6 +812,13 @@
                 document.getElementById('harga_jual').value = parseInt(button.getAttribute('data-harga'));
                 document.getElementById('variant_sku').value = button.getAttribute('data-sku');
                 document.getElementById('variant_barcode').value = button.getAttribute('data-barcode');
+
+                if (isFnB) {
+                    document.getElementById('variant_track_stock').value = button.getAttribute('data-track-stock');
+                    document.getElementById('variant_cost_price_manual').value = button.getAttribute('data-cost-price-manual');
+                    document.getElementById('variant_commission_type').value = button.getAttribute('data-commission-type');
+                    document.getElementById('variant_commission_rate').value = button.getAttribute('data-commission-rate');
+                }
             });
 
             // === Modal Barcode ===

@@ -16,14 +16,51 @@ class Product extends Model
 
     protected $fillable = [
         'store_id',
+        'tenant_id',
         'kode_produk',
         'nama_produk',
         'deskripsi',
+        'image',
     ];
+
+    protected $appends = ['image_url'];
+
+    public function getImageUrlAttribute()
+    {
+        if (!$this->image) {
+            return null;
+        }
+
+        // If it's already a full URL, return it
+        if (filter_var($this->image, FILTER_VALIDATE_URL)) {
+            return $this->image;
+        }
+
+        $storageUrl = \Storage::url($this->image);
+
+        // If the URL is relative (starts with /), prepend the scheme and host of the current request if available
+        if (str_starts_with($storageUrl, '/')) {
+            return request() 
+                ? request()->schemeAndHttpHost() . $storageUrl 
+                : url($storageUrl);
+        }
+
+        // If the URL is absolute but points to localhost, and the current request came from another host (like mobile IP)
+        if (request() && str_contains($storageUrl, 'localhost')) {
+            return str_replace('http://localhost', request()->schemeAndHttpHost(), $storageUrl);
+        }
+
+        return $storageUrl;
+    }
 
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     public function variants()
