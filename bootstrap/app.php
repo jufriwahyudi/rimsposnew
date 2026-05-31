@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CheckStoreSubscription;
 use App\Http\Middleware\EnsureStoreSelected;
 use App\Http\Middleware\InjectUserDataToView;
 use App\Http\Middleware\RecoverUserSession;
@@ -17,10 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
-            'recoverSession' => RecoverUserSession::class,
-            'injectUserData' => InjectUserDataToView::class,
-            'role.type'      => RoleType::class,
-            'store.selected' => EnsureStoreSelected::class,
+            'recoverSession'   => RecoverUserSession::class,
+            'injectUserData'   => InjectUserDataToView::class,
+            'role.type'        => RoleType::class,
+            'store.selected'   => EnsureStoreSelected::class,
+            'check.subscription' => CheckStoreSubscription::class,
         ]);
 
         // Tambahkan recover ke group web (SETELAH StartSession dkk)

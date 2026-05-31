@@ -1,13 +1,8 @@
 ### Login
-POST http://192.168.100.8:8000/api/auth/login
+POST http://localhost:8000/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "bpstore@gmail.com",
+  "email": "rimsresto@gmail.com",
   "password": "bpstore!@#"
 }
-
-@token = QWERTYUIOPASDFGHJKLZXCVBNM1234567890
-### Get Detail Transaksi
-GET http://localhost:8000/api/pos/sales/8
-Authorization: Bearer {{token}}

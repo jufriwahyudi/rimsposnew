@@ -13,10 +13,11 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
+    Route::post('/fcm-token', [AuthController::class, 'updateFcmToken']);
 });
 
-// ── POS (protected) ──────────────────────────────────────────────────────────
-Route::middleware('auth:sanctum')->group(function () {
+// ── POS (protected + subscription check) ─────────────────────────────────────
+Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::get('/pos/product',               [PosController::class, 'findProduct']);
     Route::get('/pos/rekening',              [PosController::class, 'apiRekening']);
     Route::get('/pos/customers',             [PosController::class, 'apiCustomers']);

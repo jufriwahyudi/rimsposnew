@@ -38,4 +38,8 @@ return [
         'server' => env('SSO_BASE_URL'),
     ],
 
+    'fcm' => [
+        'server_key' => env('FCM_SERVER_KEY'),
+    ],
+
 ];

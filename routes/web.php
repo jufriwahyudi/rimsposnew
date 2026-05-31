@@ -5,6 +5,7 @@ use App\Http\Controllers\AttributeValueController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\RekeningController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\SubscribedBillingController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DailyAuditController;
@@ -41,40 +42,6 @@ Route::get('/', function () {
     return view('auth.login');
 });
 
-Route::get('/tes', function () {
-    return response()->json([
-        'store' => [
-            'name' => 'RAKAN MART',
-            'address' => 'Jl. Tgk Chik Di Tiro, Aceh',
-            'phone' => '0812-3456-7890',
-        ],
-        'transaction' => [
-            'invoice' => 'TRX-20260121-0001',
-            'date' => now()->format('d/m/Y H:i'),
-            'cashier' => 'Admin',
-        ],
-        'items' => [
-            [
-                'name' => 'Kopi Arabika Gayo 250gr',
-                'qty' => 2,
-                'price' => 35000,
-            ],
-            [
-                'name' => 'Teh Hijau Premium',
-                'qty' => 1,
-                'price' => 18000,
-            ],
-        ],
-        'summary' => [
-            'subtotal' => 88000,
-            'discount' => 8000,
-            'total' => 80000,
-            'paid' => 100000,
-            'change' => 20000,
-        ]
-    ]);
-});
-
 // Redirect ke SSO
 Route::get('/sso/login', [SSOController::class, 'redirectToSSO'])->name('sso.login');
 // Callback dari SSO
@@ -93,8 +60,17 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     // Menu Management
     Route::resource('menu', MenuListController::class);
     // Manage Store
-    Route::resource('stores', StoreController::class)->except(['create', 'show']);
+    Route::middleware('role.type:SUPERADMIN')->resource('stores', StoreController::class)->except(['create', 'show']);
     Route::post('/stores/{id}/restore', [StoreController::class, 'restore'])->name('stores.restore');
+
+    // SaaS Billing (SUPERADMIN only)
+    Route::middleware('role.type:SUPERADMIN')->group(function () {
+        Route::get('/subscribed-billing', [SubscribedBillingController::class, 'index'])->name('subscribed-billing.index');
+        Route::get('/subscribed-billing/{store}', [SubscribedBillingController::class, 'show'])->name('subscribed-billing.show');
+        Route::put('/subscribed-billing/{store}/subscription', [SubscribedBillingController::class, 'updateSubscription'])->name('subscribed-billing.update-subscription');
+        Route::post('/subscribed-billing/invoice', [SubscribedBillingController::class, 'storeInvoice'])->name('subscribed-billing.store-invoice');
+        Route::post('/subscribed-billing/payment', [SubscribedBillingController::class, 'storePayment'])->name('subscribed-billing.store-payment');
+    });
 
     // Manage User
     Route::controller(ManageUserController::class)->prefix('manage-users')->name('manage-users.')->group(function () {

@@ -31,4 +31,14 @@ class Store extends Model
         return $this->belongsToMany(User::class, 'store_user')
             ->withTimestamps();
     }
+
+    public function subscription()
+    {
+        return $this->hasOne(StoreSubscription::class);
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(SubscribedInvoice::class);
+    }
 }
