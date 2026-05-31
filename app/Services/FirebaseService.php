@@ -17,7 +17,7 @@ class FirebaseService
             $messaging = app('firebase.messaging');
 
             $message = CloudMessage::new()
-                ->withToken($fcmToken)
+                ->withTarget('token',$fcmToken)
                 ->withNotification(Notification::create($title, $body));
 
             if (!empty($data)) {
