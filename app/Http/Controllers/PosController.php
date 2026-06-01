@@ -1240,7 +1240,7 @@ class PosController extends Controller
                 // 1. Validasi item lama milik sale ini
                 $originalItem = SaleItem::with('batches')
                     ->where('sale_id', $sale->id)
-                    ->where('status', 'sold')
+                    ->whereIn('status', ['sold', 'exchanged_in']) // sold atau refunded
                     ->findOrFail($request->old_item_id);
 
                 if ($request->qty > $originalItem->qty) {
