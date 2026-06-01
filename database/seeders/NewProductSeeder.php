@@ -24,56 +24,68 @@ class NewProductSeeder extends Seeder
         // truncate seluruh tabel terkait untuk memastikan data benar-benar baru walaupun ada foreign key constraint
 
         // hapus sales batch → sales item → sales
-        DB::table('sale_item_batches')->delete();
-        DB::table('sale_items')->delete();
-        DB::table('sales')->delete();
+        $saleIds = DB::table('sales')->where('store_id', 1)->pluck('id');
+        $saleItemIds = DB::table('sale_items')->whereIn('sale_id', $saleIds)->pluck('id');
+        DB::table('sale_item_batches')->whereIn('sale_item_id', $saleItemIds)->delete();
+        DB::table('sale_items')->whereIn('sale_id', $saleIds)->delete();
+        DB::table('sales')->where('store_id', 1)->delete();
+
         //hapus stock adjustment item → stock adjustments
-        DB::table('stock_adjustment_items')->delete();
-        DB::table('stock_adjustments')->delete();
+        $adjustmentIds = DB::table('stock_adjustments')->where('store_id', 1)->pluck('id');
+        DB::table('stock_adjustment_items')->whereIn('stock_adjustment_id', $adjustmentIds)->delete();
+        DB::table('stock_adjustments')->where('store_id', 1)->delete();
+
         //hapus stock_opname items → stock opname -> stock opname periods
-        DB::table('stock_opname_items')->delete();
-        DB::table('stock_opnames')->delete();
-        DB::table('stock_opname_periods')->delete();
+        $opnameIds = DB::table('stock_opnames')->where('store_id', 1)->pluck('id');
+        DB::table('stock_opname_items')->whereIn('stock_opname_id', $opnameIds)->delete();
+        DB::table('stock_opnames')->where('store_id', 1)->delete();
+        DB::table('stock_opname_periods')->where('store_id', 1)->delete();
+
         // hapus goods receipt items → goods receipts
-        DB::table('goods_receipt_items')->delete();
-        DB::table('goods_receipts')->delete();
+        $receiptIds = DB::table('goods_receipts')->where('store_id', 1)->pluck('id');
+        DB::table('goods_receipt_items')->whereIn('goods_receipt_id', $receiptIds)->delete();
+        DB::table('goods_receipts')->where('store_id', 1)->delete();
+
         // hapus purchase order items → purchase orders
-        DB::table('purchase_order_items')->delete();
-        DB::table('purchase_orders')->delete();
+        $poIds = DB::table('purchase_orders')->where('store_id', 1)->pluck('id');
+        DB::table('purchase_order_items')->whereIn('purchase_order_id', $poIds)->delete();
+        DB::table('purchase_orders')->where('store_id', 1)->delete();
+
         // hapus relasi dulu
-        DB::table('variant_attributes')->delete();
-        DB::table('product_variant_barcodes')->delete();
+        $variantIds = DB::table('product_variants')->where('store_id', 1)->pluck('id');
+        DB::table('variant_attributes')->whereIn('product_variant_id', $variantIds)->delete();
+        DB::table('product_variant_barcodes')->whereIn('product_variant_id', $variantIds)->delete();
 
         // hapus nilai atribut lalu atribut
-        DB::table('attribute_values')->delete();
-        DB::table('attributes')->where('kode', 'varian')->delete();
+        DB::table('attribute_values')->where('store_id', 1)->delete();
+        DB::table('attributes')->where('store_id', 1)->where('kode', 'varian')->delete();
 
         // hapus product variants & products
-        DB::table('stock_movements')->delete();
-        DB::table('stock_batches')->delete();
-        DB::table('product_variants')->delete();
-        DB::table('products')->delete();
+        DB::table('stock_movements')->whereIn('product_variant_id', $variantIds)->delete();
+        DB::table('stock_batches')->whereIn('product_variant_id', $variantIds)->delete();
+        DB::table('product_variants')->where('store_id', 1)->delete();
+        DB::table('products')->where('store_id', 1)->delete();
 
         // reset AUTO_INCREMENT (opsional)
-        DB::statement('ALTER TABLE sale_item_batches AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE sale_items AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE sales AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_adjustment_items AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_adjustments AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_opname_items AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_opnames AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_opname_periods AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE goods_receipt_items AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE goods_receipts AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE purchase_order_items AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE purchase_orders AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE variant_attributes AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE attribute_values AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE attributes AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_movements AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE stock_batches AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE product_variants AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE products AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE sale_item_batches AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE sale_items AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE sales AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_adjustment_items AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_adjustments AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_opname_items AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_opnames AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_opname_periods AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE goods_receipt_items AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE goods_receipts AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE purchase_order_items AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE purchase_orders AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE variant_attributes AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE attribute_values AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE attributes AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_movements AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE stock_batches AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE product_variants AUTO_INCREMENT = 1');
+        // DB::statement('ALTER TABLE products AUTO_INCREMENT = 1');
 
         // return; // comment baris ini jika ingin menjalankan seeder
 
