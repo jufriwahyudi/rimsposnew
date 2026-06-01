@@ -217,6 +217,12 @@
                                         </td>
 
                                         <td class="text-center">
+                                            <button type="button" class="btn btn-warning btn-sm me-1 btn-edit-variant"
+                                                data-id="{{ $variant->id }}"
+                                                data-name="{{ $variant->variant_name ?: $variant->variant_label }}"
+                                                data-harga="{{ (int)$variant->harga_jual }}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
                                             <button type="button" class="btn btn-danger btn-sm"
                                                 onclick="removeVariantRow(this)" data-id="{{ $variant->id }}">
                                                 <i class="bi bi-trash"></i>
@@ -280,6 +286,37 @@
                     </button>
                 </div>
 
+            </div>
+        </div>
+    </div>
+
+    {{-- Modal Edit Varian --}}
+    <div class="modal fade" id="modalEditVariant" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Varian</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formEditVariant">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="variant_id" id="edit_variant_id">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nama Varian</label>
+                            <input type="text" name="variant_name" id="edit_variant_name" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Harga Jual</label>
+                            <input type="number" name="harga_jual" id="edit_variant_harga" class="form-control" min="0" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -425,6 +462,51 @@
                 },
                 success: function(res) {
                     Swal.fire('Response', res.message, res.icon)
+                        .then(() => {
+                            if (res.success)
+                                location.reload();
+                        });
+                },
+                error: function(xhr) {
+                    Swal.fire(
+                        'Gagal',
+                        xhr.responseJSON?.message || 'Terjadi kesalahan',
+                        'error'
+                    );
+                }
+            });
+        });
+    </script>
+    <script>
+        $(document).on('click', '.btn-edit-variant', function() {
+            var id = $(this).data('id');
+            var name = $(this).data('name');
+            var harga = $(this).data('harga');
+
+            $('#edit_variant_id').val(id);
+            $('#edit_variant_name').val(name);
+            $('#edit_variant_harga').val(harga);
+
+            $('#modalEditVariant').modal('show');
+        });
+
+        $('#formEditVariant').on('submit', function(e) {
+            e.preventDefault();
+
+            $.ajax({
+                url: "{{ route('produk.variants.update') }}",
+                method: 'POST',
+                data: $(this).serialize(),
+                dataType: 'json',
+                beforeSend: function() {
+                    Swal.fire({
+                        title: 'Menyimpan...',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+                },
+                success: function(res) {
+                    Swal.fire('Response', res.message, 'success')
                         .then(() => {
                             if (res.success)
                                 location.reload();

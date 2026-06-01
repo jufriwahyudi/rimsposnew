@@ -121,6 +121,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('produk/{product}/variants/{variant}', [ProdukController::class, 'showVariantDetail'])->name('produk.variants.detail');
     Route::delete('produk/variants/{variant}', [ProdukController::class, 'destroyVariant'])->name('produk.variants.destroy');
     Route::put('/produk/variant/update-harga', [ProdukController::class, 'updateHarga'])->name('produk.variants.updateHarga');
+    Route::put('/produk/variant/update', [ProdukController::class, 'updateVariant'])->name('produk.variants.update');
     Route::post('/produk/variant/store', [ProdukController::class, 'storeVariant'])->name('produk.variants.store');
     Route::get('/barcode/image/{barcode}', [ProdukController::class, 'barcodeImage'])->name('barcode.image');
     Route::get('/barcode/download/{barcode}', [ProdukController::class, 'barcodeDownload'])->name('barcode.download');

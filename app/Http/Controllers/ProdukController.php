@@ -456,6 +456,35 @@ $product->update($productData);
         return back()->with('success', 'Harga berhasil diperbarui');
     }
 
+    public function updateVariant(Request $request)
+    {
+        $rules = [
+            'variant_id'   => 'required|exists:product_variants,id',
+            'variant_name' => 'required|string|max:150',
+            'harga_jual'   => 'required|numeric|min:0',
+        ];
+
+        $request->validate($rules);
+
+        try {
+            $variant = ProductVariant::findOrFail($request->variant_id);
+            $variant->update([
+                'variant_name' => $request->variant_name,
+                'harga_jual'   => $request->harga_jual,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Varian berhasil diperbarui.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function barcodeImage($barcode)
     {
         $dns = new DNS1D();
