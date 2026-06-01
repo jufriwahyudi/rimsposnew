@@ -1301,7 +1301,7 @@ class PosController extends Controller
                     'product_id'         => $variantNew->product_id,
                     'product_variant_id' => $variantNew->id,
                     'sku'                => $variantNew->sku,
-                    'product_name'       => $variantNew->product->nama_produk,
+                    'product_name'       => $variantNew->variant_name,
                     'price'              => $variantNew->harga_jual,
                     'qty'                => $exchangeQty,
                     'discount_amount'    => 0,
