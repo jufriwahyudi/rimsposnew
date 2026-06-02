@@ -271,6 +271,94 @@ class PosController extends Controller
         return response()->json(['message' => 'Produk tidak ditemukan'], 404);
     }
 
+    /**
+     * API to associate a barcode with a product variant.
+     * POST /api/pos/product/register-barcode
+     */
+    public function apiRegisterBarcode(Request $request)
+    {
+        $storeId = $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        // Verify store access
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $request->validate([
+            'variant_id' => 'required|integer|exists:product_variants,id',
+            'barcode' => 'required|string|max:100',
+        ]);
+
+        $variantId = $request->input('variant_id');
+        $barcode = strtoupper(trim($request->input('barcode')));
+
+        // Find the variant within the store
+        $variant = ProductVariant::where('store_id', $storeId)->find($variantId);
+        if (!$variant) {
+            return response()->json(['message' => 'Varian produk tidak ditemukan di toko Anda'], 404);
+        }
+
+        // 1. Check if the barcode is already registered to the SAME product variant
+        $existSameVariant = \App\Models\ProductVariantBarcode::where('product_variant_id', $variantId)
+            ->where('barcode', $barcode)
+            ->first();
+
+        if ($existSameVariant) {
+            // Already registered to this variant. Let's make sure it is set as active, but don't fail!
+            if ($existSameVariant->is_active !== 'Y') {
+                $existSameVariant->update(['is_active' => 'Y']);
+            }
+            return response()->json([
+                'success' => true,
+                'message' => 'Barcode sudah terdaftar pada produk ini'
+            ]);
+        }
+
+        // 2. Check if the barcode is registered to ANOTHER product variant (any store/any variant)
+        $existOtherVariant = \App\Models\ProductVariantBarcode::where('barcode', $barcode)
+            ->where('product_variant_id', '!=', $variantId)
+            ->exists();
+
+        if ($existOtherVariant) {
+            return response()->json([
+                'message' => 'Barcode sudah digunakan pada produk lain'
+            ], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($variant, $barcode) {
+                // Add new barcode entry (keep other existing barcodes intact as multiple barcodes are allowed!)
+                \App\Models\ProductVariantBarcode::create([
+                    'product_variant_id' => $variant->id,
+                    'barcode' => $barcode,
+                    'is_active' => 'Y'
+                ]);
+
+                // Also update the fallback barcode field on product_variants table if it is currently empty
+                if (empty($variant->barcode)) {
+                    $variant->update(['barcode' => $barcode]);
+                }
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Barcode berhasil didaftarkan ke produk'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mendaftarkan barcode: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     /**
      * Checkout (placeholder)

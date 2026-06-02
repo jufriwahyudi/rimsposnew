@@ -161,7 +161,7 @@ class EscPosReceiptService
     protected function printChecklistFooter(): void
     {
         $this->separator();
-        $this->printer->feed(2);
+        $this->printer->feed(3);
         $this->printer->cut();
     }
 
