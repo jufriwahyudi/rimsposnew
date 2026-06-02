@@ -38,6 +38,19 @@ class EnsureStoreSelected
         if ($selectedRole) {
             $role = \App\Models\RoleMaster::find($selectedRole);
             if ($role && $role->role_type === 'SUPERADMIN') {
+                if (!session()->has('store_id')) {
+                    session([
+                        'store_id' => null,
+                        'store_name' => 'Super Admin Access'
+                    ]);
+                }
+
+                if (session('is_impersonating') && session('store_id')) {
+                    Tenant::set(session('store_id'));
+                } else {
+                    Tenant::set(null);
+                }
+
                 return $next($request);
             }
         }

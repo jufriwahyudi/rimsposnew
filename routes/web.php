@@ -28,6 +28,7 @@ use App\Http\Controllers\MasterSeragamController;
 use App\Http\Controllers\ManageUserController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\SuperadminDashboardController;
 use App\Http\Controllers\StoreSelectionController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\TenantController;
@@ -70,6 +71,16 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::put('/subscribed-billing/{store}/subscription', [SubscribedBillingController::class, 'updateSubscription'])->name('subscribed-billing.update-subscription');
         Route::post('/subscribed-billing/invoice', [SubscribedBillingController::class, 'storeInvoice'])->name('subscribed-billing.store-invoice');
         Route::post('/subscribed-billing/payment', [SubscribedBillingController::class, 'storePayment'])->name('subscribed-billing.store-payment');
+
+        // Superadmin Custom Pages
+        Route::prefix('superadmin')->name('superadmin.')->group(function () {
+            Route::get('/impersonate/{store}', [SuperadminDashboardController::class, 'impersonate'])->name('impersonate');
+            Route::get('/stop-impersonate', [SuperadminDashboardController::class, 'stopImpersonate'])->name('stop-impersonate');
+            Route::get('/activity-logs', [SuperadminDashboardController::class, 'activityLogs'])->name('activity-logs');
+            Route::get('/consolidated-reports', [SuperadminDashboardController::class, 'consolidatedReports'])->name('consolidated-reports');
+            Route::post('/consolidated-reports/laba-rugi', [SuperadminDashboardController::class, 'getConsolidatedLabaRugi'])->name('consolidated-reports.laba-rugi');
+            Route::post('/consolidated-reports/stok-kritis', [SuperadminDashboardController::class, 'getConsolidatedStokKritis'])->name('consolidated-reports.stok-kritis');
+        });
     });
 
     // Manage User

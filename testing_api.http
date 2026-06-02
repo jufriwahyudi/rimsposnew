@@ -1,8 +1,12 @@
 ### Login
-POST http://localhost:8000/api/auth/login
+POST https://pos.rimsdev.com/api/auth/login
 Content-Type: application/json
 
 {
-  "email": "rimsresto@gmail.com",
-  "password": "bpstore!@#"
+  "email": "kasir@gmail.com",
+  "password": "Kasir321"
 }
+
+### Get Produk
+GET https://pos.rimsdev.com/api/pos/product?store_id=1&q=skintifik serum
+Authorization: Bearer 45|74uS5H8DW0ctf71SF46pqgPBdAzXXmA2ZQsgDz8Qf094e4a3

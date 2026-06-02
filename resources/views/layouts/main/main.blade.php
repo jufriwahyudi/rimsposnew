@@ -56,6 +56,20 @@
         {{-- Main Content --}}
         <main class="main-wrapper">
             <div class="main-content">
+                @if(session('is_impersonating'))
+                    <div class="alert alert-warning border-0 bg-warning-subtle alert-dismissible fade show d-flex align-items-center justify-content-between p-3 mb-4 rounded-3 shadow-sm" role="alert">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="material-icons-outlined text-warning fs-3">warning_amber</i>
+                            <div>
+                                <span class="fw-semibold text-warning-emphasis">Mode Impersonasi:</span> Anda sedang mengakses toko <strong>{{ session('store_name') }}</strong> sebagai Superadmin.
+                            </div>
+                        </div>
+                        <a href="{{ route('superadmin.stop-impersonate') }}" class="btn btn-warning btn-sm fw-bold px-3 rounded-2 shadow-sm">
+                            Kembali ke Superadmin Dashboard
+                        </a>
+                    </div>
+                @endif
+
                 {{-- Breadcrumb (opsional) --}}
                 @yield('breadcrumb')
 

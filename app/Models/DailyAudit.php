@@ -29,4 +29,9 @@ class DailyAudit extends Model
     {
         return $this->hasMany(DailyAuditDetail::class);
     }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
 }
