@@ -34,4 +34,12 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::post('/pos/sales/{id}/refund',    [PosController::class, 'apiRefund']);
     Route::post('/pos/sales/{id}/pay',       [PosController::class, 'apiPayDebt']);
     Route::post('/pos/sales/{id}/exchange',  [PosController::class, 'apiExchange']);
+
+    // ── Self-Service (POS Control) ───────────────────────────────────────────
+    Route::get('/pos/self-service/pending', [PosController::class, 'apiPendingSelfService']);
+    Route::post('/pos/self-service/{id}/confirm', [PosController::class, 'apiConfirmSelfService']);
+    Route::post('/pos/self-service/{id}/decline', [PosController::class, 'apiDeclineSelfService']);
 });
+
+// ── Self-Service Status (public fallback) ─────────────────────────────────────
+Route::get('/order/status/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'statusApi']);

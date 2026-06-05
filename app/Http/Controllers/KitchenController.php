@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use Illuminate\Http\Request;
+use App\Services\FirestoreService;
 
 class KitchenController extends Controller
 {
@@ -26,10 +27,11 @@ class KitchenController extends Controller
         $role = activeRole();
         $isStelling = $role && $role->role_type === 'STELLING';
 
-        // Find sales with 'hold' status for current store
+        // Find sales with 'hold' status for current store that have been approved (user_id is not null)
         $query = Sale::with(['items.variant.product', 'items.fnbDetail'])
             ->where('store_id', session('store_id'))
-            ->where('status', 'hold');
+            ->where('status', 'hold')
+            ->whereNotNull('user_id');
 
         $sales = $query->orderBy('sale_date', 'asc')->get();
 
@@ -59,6 +61,7 @@ class KitchenController extends Controller
                         'name' => $item->product_name,
                         'qty' => $item->qty,
                         'kds_status' => $item->kds_status,
+                        'notes' => $item->notes,
                     ];
                 })->values()->toArray(),
             ];
@@ -82,6 +85,18 @@ class KitchenController extends Controller
         $item->update([
             'kds_status' => $status
         ]);
+
+        $sale = $item->sale;
+        if ($sale) {
+            try {
+                $store = $sale->store;
+                if ($store && $store->business_type === 'fnb' && $store->addon_self_service) {
+                    app(FirestoreService::class)->syncOrder($sale);
+                }
+            } catch (\Throwable $e) {
+                \Log::error("Failed to sync sale #{$sale->id} to Firestore from KDS item ready: " . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'message' => 'Status item berhasil diperbarui',
@@ -112,6 +127,15 @@ class KitchenController extends Controller
         
         $saleItemIds = $query->pluck('id')->toArray();
         \App\Models\SaleItemFnBDetail::whereIn('sale_item_id', $saleItemIds)->update(['kds_status' => 'ready']);
+
+        try {
+            $store = $sale->store;
+            if ($store && $store->business_type === 'fnb' && $store->addon_self_service) {
+                app(FirestoreService::class)->syncOrder($sale);
+            }
+        } catch (\Throwable $e) {
+            \Log::error("Failed to sync sale #{$sale->id} to Firestore from KDS sale ready: " . $e->getMessage());
+        }
 
         return response()->json([
             'message' => 'Semua pesanan meja ini berhasil ditandai selesai',

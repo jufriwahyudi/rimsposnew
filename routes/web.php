@@ -40,7 +40,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::get('/', function () {
-    return view('auth.login');
+    return view('landing');
 });
 
 // Redirect ke SSO
@@ -114,6 +114,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
+        
+        // QR Code Generator
+        Route::get('/qr-generator', [\App\Http\Controllers\CustomerSelfServiceController::class, 'generateQrCode'])->name('settings.qr-generator');
+        Route::get('/qr-generator/sign', [\App\Http\Controllers\CustomerSelfServiceController::class, 'sign'])->name('settings.qr-generator.sign');
     });
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {
@@ -203,10 +207,12 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         ->where('paper', '58mm|80mm');
 
     // Kitchen Display System (KDS)
-    Route::get('/kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
-    Route::get('/kitchen/orders', [KitchenController::class, 'orders'])->name('kitchen.orders');
-    Route::post('/kitchen/orders/{id}/ready', [KitchenController::class, 'markItemReady'])->name('kitchen.orders.ready');
-    Route::post('/kitchen/sales/{id}/ready', [KitchenController::class, 'markSaleReady'])->name('kitchen.sales.ready');
+    Route::middleware('addon:kds')->group(function () {
+        Route::get('/kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
+        Route::get('/kitchen/orders', [KitchenController::class, 'orders'])->name('kitchen.orders');
+        Route::post('/kitchen/orders/{id}/ready', [KitchenController::class, 'markItemReady'])->name('kitchen.orders.ready');
+        Route::post('/kitchen/sales/{id}/ready', [KitchenController::class, 'markSaleReady'])->name('kitchen.sales.ready');
+    });
 
 
     Route::prefix('nse/distribusi')->group(function () {
@@ -342,6 +348,12 @@ Route::post('/jadwalnse/search', [NseDistribusiController::class, 'searchSiswaPu
 Route::post('/jadwalnse/aktif', [NseDistribusiController::class, 'jadwalAktif'])->name('nse.distribusi.jadwal.aktif');
 Route::post('/jadwalnse/book', [NseDistribusiController::class, 'jadwalBook'])->name('nse.distribusi.jadwal.book');
 
+// ── Customer Self-Service Portal (Public Web) ──────────────────────────────────
+Route::middleware('addon:self_service')->group(function () {
+    Route::get('/order', [\App\Http\Controllers\CustomerSelfServiceController::class, 'index'])->name('order.index');
+    Route::post('/order/submit', [\App\Http\Controllers\CustomerSelfServiceController::class, 'submitOrder'])->name('order.submit');
+});
+Route::get('/order/status/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'status'])->name('order.status');
 
 Route::middleware('auth')->get('/unauthorized', function () {
     return view('unauthorized');

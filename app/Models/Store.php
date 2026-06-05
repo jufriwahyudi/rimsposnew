@@ -20,11 +20,26 @@ class Store extends Model
         'printer_type',
         'logo',
         'business_type',
+        'addon_self_service',
+        'addon_kds',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'addon_self_service' => 'boolean',
+        'addon_kds' => 'boolean',
     ];
+
+    protected static function booted()
+    {
+        static::saved(function ($store) {
+            try {
+                app(\App\Services\FirestoreService::class)->syncStore($store);
+            } catch (\Throwable $e) {
+                \Log::error("Failed to sync store #{$store->id} to Firestore: " . $e->getMessage());
+            }
+        });
+    }
 
     public function users()
     {

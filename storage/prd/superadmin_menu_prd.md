@@ -81,6 +81,12 @@ Untuk memperjelas perbedaan antara dashboard standar toko dengan dashboard khusu
 *   **Drill-Down / Impersonasi**:
     *   Tombol "Akses Toko" (*Impersonate*) pada setiap baris toko. Jika diklik, sistem akan mengeset sementara `session('store_id')` ke toko tersebut dan mengarahkan Superadmin ke antarmuka toko agar bisa melakukan pengecekan mendalam.
     *   Di bagian atas antarmuka toko akan muncul banner: `"Anda sedang mengakses toko [Nama Toko] sebagai Superadmin. [Kembali ke Superadmin Dashboard]"`.
+*   **Manajemen Fitur Add-on (FnB Only)**:
+    *   Untuk toko dengan tipe bisnis FnB (`business_type = 'fnb'`), tampilkan tombol/aksi **"Kelola Add-on"**.
+    *   Di dalam modal/halaman kelola, Superadmin dapat mengaktifkan atau menonaktifkan fitur:
+        1. **Customer Self-Service (QR Order)**: Toggles `addon_self_service` flag.
+        2. **Kitchen Display System (KDS)**: Toggles `addon_kds` flag.
+    *   Perubahan status add-on akan secara otomatis tersinkronisasi ke Firestore root document `stores/{store_id}` untuk memvalidasi akses real-time.
 
 ### 5.3. Menu Laporan Konsolidasi (Consolidated Reports)
 *   **Laba Rugi Gabungan**: Laporan laba rugi bulanan yang menyandingkan kolom antar toko berdampingan untuk pembandingan performa finansial langsung.
@@ -124,6 +130,61 @@ Untuk menerapkan sistem ini, beberapa komponen backend Laravel perlu disesuaikan
 *   Dashboard Superadmin menggunakan desain modern dengan visualisasi data interaktif menggunakan library chart (seperti Chart.js atau ApexCharts).
 *   Gunakan palet warna profesional (misalnya nuansa indigo/navy/slate) untuk membedakannya dengan dashboard retail standar (hijau/biru terang).
 *   Layout responsif dengan grid sistem yang optimal untuk pemantauan layar tablet maupun desktop/monitor kantor.
+
+### 6.4. Skema Database Add-on & Sinkronisasi Firestore
+*   **Tabel `stores` (Database Relasional Laravel)**:
+    Menambahkan kolom status addon pada tabel `stores`:
+    ```sql
+    ALTER TABLE stores ADD COLUMN addon_self_service BOOLEAN DEFAULT FALSE AFTER business_type;
+    ALTER TABLE stores ADD COLUMN addon_kds BOOLEAN DEFAULT FALSE AFTER addon_self_service;
+    ```
+*   **Eloquent Model `Store.php`**:
+    Daftarkan kedua kolom baru ke dalam array `$casts` agar bernilai boolean otomatis:
+    ```php
+    protected $casts = [
+        'addon_self_service' => 'boolean',
+        'addon_kds' => 'boolean',
+    ];
+    ```
+*   **Sinkronisasi Firestore Otomatis (Observer / Event)**:
+    Setiap kali model `Store` diperbarui (khususnya kolom addon), sistem Laravel memicu Firebase Admin SDK untuk memperbarui dokumen di path `stores/{store_id}`:
+    ```php
+    // StoreObserver.php atau di event update Store
+    $firestore->database()->collection('stores')->document($store->id)->set([
+        'addon_self_service' => $store->addon_self_service,
+        'addon_kds' => $store->addon_kds,
+        'business_type' => $store->business_type,
+        'name' => $store->name,
+    ], ['merge' => true]);
+    ```
+
+### 6.5. Middleware Proteksi Add-on di Laravel (API & Web)
+*   Membuat middleware baru `EnsureAddonEnabled` untuk memproteksi endpoint API, rute web customer portal, dan rute KDS:
+    ```php
+    // EnsureAddonEnabled.php
+    public function handle($request, Closure $next, $addonName)
+    {
+        $storeId = session('store_id') ?? $request->header('X-Store-ID') ?? $request->input('store_id');
+        $store = Store::find($storeId);
+        
+        if (!$store || $store->business_type !== 'fnb') {
+            abort(403, 'Akses ditolak. Fitur hanya untuk tipe bisnis FnB.');
+        }
+        
+        if ($addonName === 'self_service' && !$store->addon_self_service) {
+            abort(403, 'Fitur Add-on Customer Self-Service tidak aktif untuk toko ini.');
+        }
+        
+        if ($addonName === 'kds' && !$store->addon_kds) {
+            abort(403, 'Fitur Add-on Kitchen Display System (KDS) tidak aktif untuk toko ini.');
+        }
+        
+        return $next($request);
+    }
+    ```
+*   Penerapan rute pada `routes/web.php` dan `routes/api.php`:
+    *   Rute Web Order pelanggan: `/order` -> `middleware('addon:self_service')`
+    *   Rute KDS Dapur (untuk steling koki): `/kitchen` -> `middleware('addon:kds')`
 
 ---
 

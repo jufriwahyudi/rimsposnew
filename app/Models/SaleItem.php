@@ -20,6 +20,7 @@ class SaleItem extends Model
         'subtotal',
         'status',
         'ref_sale_item_id',
+        'notes',
         
         // Virtual/Delegated fields for FnB details
         'kitchen_printed_qty',

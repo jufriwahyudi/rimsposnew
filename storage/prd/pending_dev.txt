@@ -1,0 +1,1 @@
+untuk Fnb produk dengan track_stok false bisa di setting available atau not availabe untuk di pesan

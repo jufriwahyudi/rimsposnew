@@ -137,9 +137,19 @@
                                                 <td>{{ $store->city ?? '-' }}</td>
                                                 <td>{{ $store->phone ?? '-' }}</td>
                                                 <td>
-                                                    <span class="badge bg-{{ $store->business_type === 'fnb' ? 'warning text-dark' : 'info' }}">
+                                                    <span class="badge bg-{{ $store->business_type === 'fnb' ? 'warning text-dark' : 'info' }} d-block mb-1">
                                                         {{ $store->business_type === 'fnb' ? 'F&B' : 'Retail' }}
                                                     </span>
+                                                    @if($store->business_type === 'fnb')
+                                                        <div style="font-size: 10px;" class="mt-1 d-flex flex-column gap-1">
+                                                            <span class="badge bg-{{ $store->addon_self_service ? 'success' : 'secondary' }}" style="font-size: 9px;">
+                                                                Self-Service: {{ $store->addon_self_service ? 'Aktif' : 'Non-aktif' }}
+                                                            </span>
+                                                            <span class="badge bg-{{ $store->addon_kds ? 'success' : 'secondary' }}" style="font-size: 9px;">
+                                                                KDS: {{ $store->addon_kds ? 'Aktif' : 'Non-aktif' }}
+                                                            </span>
+                                                        </div>
+                                                    @endif
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-{{ $store->printer_type === '58mm' ? 'info' : 'primary' }}">
@@ -261,6 +271,25 @@
                                     <option value="fnb">F&B</option>
                                 </select>
                                 <div class="invalid-feedback" id="err-bussiness_type"></div>
+                            </div>
+                            <div class="col-md-12" id="addonFields" style="display: none;">
+                                <label class="form-label fw-semibold text-primary">Fitur Add-on (Khusus F&B)</label>
+                                <div class="row g-2 p-2 border rounded-3 bg-light">
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_self_service">
+                                            <label class="form-check-label fw-bold" for="addon_self_service">Customer Self-Service</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Pemesanan QR Meja mandiri pelanggan</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_kds">
+                                            <label class="form-check-label fw-bold" for="addon_kds">Kitchen Display System (KDS)</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Monitor antrean pesanan di dapur koki</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Nama Toko <span class="text-danger">*</span></label>
@@ -448,6 +477,9 @@
             document.getElementById('logo_data').value = '';
             document.getElementById('is_active').checked = true;
             document.getElementById('bussiness_type').value = 'retail';
+            document.getElementById('addon_self_service').checked = false;
+            document.getElementById('addon_kds').checked = false;
+            document.getElementById('addonFields').style.display = 'none';
             document.getElementById('modalStoreLabel').textContent = 'Tambah Toko';
             setLogoPreview(null);
             clearErrors();
@@ -469,6 +501,9 @@
                     document.getElementById('is_active').checked  = data.is_active == 1;
                     document.getElementById('logo_data').value    = '';
                     document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
+                    document.getElementById('addon_self_service').checked = data.addon_self_service == 1;
+                    document.getElementById('addon_kds').checked = data.addon_kds == 1;
+                    document.getElementById('addonFields').style.display = data.business_type === 'fnb' ? 'block' : 'none';
                     setLogoPreview(data.logo_url ?? null);
                     document.getElementById('modalStoreLabel').textContent = 'Edit Toko';
                     clearErrors();
@@ -491,6 +526,8 @@
                 is_active:     document.getElementById('is_active').checked ? 1 : 0,
                 logo_data:     document.getElementById('logo_data').value || null,
                 bussiness_type:document.getElementById('bussiness_type').value,
+                addon_self_service: document.getElementById('addon_self_service').checked ? 1 : 0,
+                addon_kds:          document.getElementById('addon_kds').checked ? 1 : 0,
                 _token:        '{{ csrf_token() }}',
             };
             if (isEdit) payload._method = 'PUT';
@@ -550,5 +587,15 @@
                 if (data.success) setTimeout(() => location.reload(), 800);
             });
         }
+
+        // ── business type change listener ────────────────────────────────────────
+        document.getElementById('bussiness_type').addEventListener('change', function() {
+            const isFnB = this.value === 'fnb';
+            document.getElementById('addonFields').style.display = isFnB ? 'block' : 'none';
+            if (!isFnB) {
+                document.getElementById('addon_self_service').checked = false;
+                document.getElementById('addon_kds').checked = false;
+            }
+        });
     </script>
 @endpush

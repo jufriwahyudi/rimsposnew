@@ -248,7 +248,7 @@
     </main>
 
     <!-- Audio Element for alert -->
-    <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav" preload="auto"></audio>
+    <audio id="alertSound" src="{{ asset('assets/sounds/notification.wav') }}" preload="auto"></audio>
 
     <!-- Bootstrap + JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -375,15 +375,18 @@
                     }
 
                     html += `
-                        <div class="item-row">
-                            <div class="d-flex align-items-center">
-                                <span class="item-qty">${item.qty}x</span>
-                                <span class="item-name">${item.name}</span>
+                        <div class="item-row flex-column align-items-start border-bottom py-2">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <span class="item-qty">${item.qty}x</span>
+                                    <span class="item-name">${item.name}</span>
+                                </div>
+                                <div class="text-end">
+                                    ${statusBadge}
+                                    ${actionBtn}
+                                </div>
                             </div>
-                            <div class="text-end">
-                                ${statusBadge}
-                                ${actionBtn}
-                            </div>
+                            ${item.notes ? `<div class="text-warning small ms-5 mt-1" style="font-style: italic;">* ${item.notes}</div>` : ''}
                         </div>
                     `;
                 });

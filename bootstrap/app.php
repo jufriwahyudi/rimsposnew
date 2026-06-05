@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role.type'        => RoleType::class,
             'store.selected'   => EnsureStoreSelected::class,
             'check.subscription' => CheckStoreSubscription::class,
+            'addon'            => \App\Http\Middleware\EnsureAddonEnabled::class,
         ]);
 
         // Tambahkan recover ke group web (SETELAH StartSession dkk)

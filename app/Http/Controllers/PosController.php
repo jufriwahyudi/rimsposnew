@@ -646,6 +646,7 @@ class PosController extends Controller
                                 'kitchen_printed_qty' => min($existing->kitchen_printed_qty, $newQty),
                                 'discount_amount'     => $item['discount_amount'] ?? $existing->discount_amount,
                                 'subtotal'            => $item['subtotal'] ?? $existing->subtotal,
+                                'notes'               => $item['notes'] ?? $existing->notes,
                                 // kds_status is NOT touched — it stays as-is
                             ]);
 
@@ -691,6 +692,7 @@ class PosController extends Controller
                                 'qty'                => $newQty,
                                 'discount_amount'    => $item['discount_amount'] ?? 0,
                                 'subtotal'           => $item['subtotal'] ?? 0,
+                                'notes'              => $item['notes'] ?? null,
                             ]);
 
                             $this->issueFIFOWithBatchLog(
@@ -752,6 +754,7 @@ class PosController extends Controller
                             'qty'                => $item['qty'] ?? 0,
                             'discount_amount'    => $item['discount_amount'] ?? 0,
                             'subtotal'           => $item['subtotal'] ?? 0,
+                            'notes'              => $item['notes'] ?? null,
                         ]);
 
                         $this->issueFIFOWithBatchLog(
@@ -843,7 +846,77 @@ class PosController extends Controller
         $sales = Sale::with(['items.variant.product', 'items.fnbDetail'])
             ->where('store_id', $storeId)
             ->where('status', 'hold')
+            ->where(function ($query) {
+                $query->where('invoice_number', 'not like', 'QR-%')
+                      ->orWhereNotNull('user_id');
+            })
             ->orderBy('sale_date', 'desc')
+            ->get();
+
+        $data = $sales->map(function ($sale) {
+            return [
+                'id' => $sale->id,
+                'invoice_number' => $sale->invoice_number,
+                'table_number' => $sale->table_number,
+                'sale_date' => $sale->sale_date->format('Y-m-d H:i:s'),
+                'customer_name' => $sale->customer_name,
+                'customer_phone' => $sale->customer_phone,
+                'subtotal' => (float)$sale->subtotal,
+                'discount_total' => (float)$sale->discount_total,
+                'trans_discount' => (float)$sale->trans_discount,
+                'grand_total' => (float)$sale->grand_total,
+                'status' => $sale->status,
+                'items' => $sale->items->groupBy(function ($item) {
+                    return $item->product_variant_id ?? ('null_' . $item->id);
+                })->map(function ($group) {
+                    $first = $group->first();
+                    return [
+                        'id' => $first->id,
+                        'product_id' => $first->product_id,
+                        'variant_id' => $first->product_variant_id,
+                        'sku' => $first->sku,
+                        'name' => $first->product_name,
+                        'price' => (float)$first->price,
+                        'qty' => (int)$group->sum('qty'),
+                        'discount_amount' => (float)$group->sum('discount_amount'),
+                        'subtotal' => (float)$group->sum('subtotal'),
+                        'track_stock' => (bool)($first->variant?->track_stock ?? true),
+                        'image_url' => $first->variant?->product?->image_url,
+                    ];
+                })->values()->toArray(),
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * API: Get pending self-service orders for FnB/Café.
+     * GET /api/pos/self-service/pending?store_id=N
+     */
+    public function apiPendingSelfService(Request $request)
+    {
+        $storeId = $request->integer('store_id');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sales = Sale::with(['items.variant.product', 'items.fnbDetail'])
+            ->where('store_id', $storeId)
+            ->where('status', 'hold')
+            ->where('invoice_number', 'like', 'QR-%')
+            ->whereNull('user_id')
+            ->orderBy('created_at', 'desc')
             ->get();
 
         $data = $sales->map(function ($sale) {
@@ -1181,6 +1254,7 @@ class PosController extends Controller
                         'sku'   => $item->sku,
                         'qty'   => $unprinted,
                         'price' => round($item->price),
+                        'notes' => $item->notes,
                     ];
                 })
                 ->filter()
@@ -1193,12 +1267,20 @@ class PosController extends Controller
         } else {
             $items = $sale->items
                 ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
-                ->map(fn($item) => [
-                    'name'  => $item->product_name,
-                    'sku'   => $item->sku,
-                    'qty'   => $item->qty,
-                    'price' => round($item->price),
-                ])->values()->toArray();
+                ->groupBy(function ($item) {
+                    return $item->product_variant_id ?? ('null_' . $item->id);
+                })
+                ->map(function ($group) {
+                    $first = $group->first();
+                    $notes = $group->pluck('notes')->filter()->map(fn($n) => trim($n))->filter()->unique()->implode(', ');
+                    return [
+                        'name'  => $first->product_name,
+                        'sku'   => $first->sku,
+                        'qty'   => $group->sum('qty'),
+                        'price' => round($first->price),
+                        'notes' => $notes !== '' ? $notes : null,
+                    ];
+                })->values()->toArray();
         }
 
         $data = [
@@ -1527,6 +1609,144 @@ class PosController extends Controller
     }
 
     /**
+     * POST /api/pos/self-service/{id}/confirm
+     * Confirm a self-service order (cashier accepts it).
+     */
+    public function apiConfirmSelfService(Request $request, $id)
+    {
+        $storeId = $request->integer('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        // Verify store access
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::where('store_id', $storeId)->findOrFail($id);
+
+        try {
+            DB::transaction(function () use ($sale) {
+                // Update cashier user_id when confirmed. KDS status remains 'pending' by default.
+                $sale->update(['user_id' => auth()->id()]);
+            });
+
+            // Sync updated status to Firestore
+            app(\App\Services\FirestoreService::class)->syncOrder($sale);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pesanan berhasil dikonfirmasi dan dikirim ke dapur.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengkonfirmasi pesanan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/pos/self-service/{id}/decline
+     * Decline / reject a self-service order.
+     */
+    public function apiDeclineSelfService(Request $request, $id)
+    {
+        $storeId = $request->integer('store_id');
+        $reason = $request->input('reason', 'Ditolak oleh kasir');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        // Verify store access
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items.batches'])->where('store_id', $storeId)->findOrFail($id);
+
+        if ($sale->status === 'void') {
+            return response()->json(['message' => 'Transaksi sudah dibatalkan'], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($sale) {
+                // 1. Revert stock
+                foreach ($sale->items as $item) {
+                    foreach ($item->batches as $batch) {
+                        StockBatch::where('id', $batch->stock_batch_id)
+                            ->increment('qty_sisa', $batch->qty);
+
+                        StockMovement::create([
+                            'product_variant_id' => $item->product_variant_id,
+                            'stock_batch_id'     => $batch->stock_batch_id,
+                            'posisi'             => 'store',
+                            'tanggal'            => now(),
+                            'tipe'               => 'in',
+                            'direction'          => 'in',
+                            'qty'                => $batch->qty,
+                            'ref_type'           => 'SaleQRDecline',
+                            'ref_id'             => $sale->id,
+                        ]);
+                    }
+                    $item->update(['status' => 'voided']);
+                }
+
+                // 2. Void sale in SQL
+                $sale->update(['status' => 'void']);
+            });
+
+            // Update Firestore document status to 'cancelled'
+            $credentials = config('firebase.projects.app.credentials');
+            if (!file_exists($credentials)) {
+                $credentials = base_path($credentials);
+            }
+            $json = json_decode(file_get_contents($credentials), true);
+            $projectId = $json['project_id'] ?? 'rimspos';
+
+            $scopes = ['https://www.googleapis.com/auth/datastore'];
+            $creds = new \Google\Auth\Credentials\ServiceAccountCredentials($scopes, $credentials);
+            $token = $creds->fetchAuthToken();
+            $accessToken = $token['access_token'] ?? null;
+
+            if ($accessToken) {
+                $payload = [
+                    'fields' => [
+                        'status' => ['stringValue' => 'cancelled'],
+                        'status_reason' => ['stringValue' => $reason],
+                        'updated_at' => ['stringValue' => now()->toIso8601String()]
+                    ]
+                ];
+                $url = "https://firestore.googleapis.com/v1/projects/{$projectId}/databases/(default)/documents/stores/{$sale->store_id}/self_service_orders/{$sale->invoice_number}?updateMask.fieldPaths=status&updateMask.fieldPaths=status_reason&updateMask.fieldPaths=updated_at";
+                
+                \Illuminate\Support\Facades\Http::withHeaders([
+                    'Authorization' => "Bearer {$accessToken}",
+                    'Content-Type' => 'application/json'
+                ])->patch($url, $payload);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pesanan berhasil ditolak.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menolak pesanan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * POST /api/pos/sales/{id}/refund?store_id=N
      * Refund transaksi yang sudah lewat hari ini.
      */
@@ -1768,19 +1988,22 @@ class PosController extends Controller
             ->where('user_id', auth()->id())
             ->findOrFail($id);
 
-        $items = $sale->items->map(function ($item) {
+        $items = $sale->items->groupBy(function ($item) {
+            return $item->product_variant_id ?? ('null_' . $item->id);
+        })->map(function ($group) {
+            $first = $group->first();
             return [
-                'id'              => $item->id,
-                'sku'             => $item->sku,
-                'product_name'    => $item->product_name,
-                'price'           => (float) $item->price,
-                'qty'             => (int) $item->qty,
-                'discount_amount' => (float) $item->discount_amount,
-                'subtotal'        => (float) $item->subtotal,
-                'status'          => $item->status,
-                'ref_sale_item_id' => $item->ref_sale_item_id,
+                'id'              => $first->id,
+                'sku'             => $first->sku,
+                'product_name'    => $first->product_name,
+                'price'           => (float) $first->price,
+                'qty'             => (int) $group->sum('qty'),
+                'discount_amount' => (float) $group->sum('discount_amount'),
+                'subtotal'        => (float) $group->sum('subtotal'),
+                'status'          => $first->status,
+                'ref_sale_item_id' => $first->ref_sale_item_id,
             ];
-        });
+        })->values()->toArray();
 
         $payments = $sale->payments->map(function ($p) {
             return [

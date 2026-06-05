@@ -131,6 +131,7 @@ class EscPosReceiptService
         foreach ($items as $item) {
             $name     = (string) ($item['name']  ?? '');
             $qty      = (int)    ($item['qty']   ?? 0);
+            $notes    = (string) ($item['notes'] ?? '');
 
             $strQty = '[ ] ' . $qty . ' x ';
 
@@ -146,6 +147,10 @@ class EscPosReceiptService
                         $this->writeLine(str_repeat(' ', 8) . $chunk);
                     }
                 }
+
+                if ($notes !== '') {
+                    $this->writeLine(str_repeat(' ', 8) . '* Catatan: ' . $notes);
+                }
             } else {
                 // 58mm
                 $qtyCol = $strQty;
@@ -153,6 +158,10 @@ class EscPosReceiptService
                 $firstLine = $qtyCol . $name;
                 foreach ($this->wrapText($firstLine, $this->width) as $chunk) {
                     $this->writeLine($chunk);
+                }
+
+                if ($notes !== '') {
+                    $this->writeLine('    * Catatan: ' . $notes);
                 }
             }
         }
@@ -257,7 +266,8 @@ class EscPosReceiptService
             $this->separator();
             $this->printer->setJustification(Printer::JUSTIFY_CENTER);
             $this->printer->setEmphasis(true);
-            $this->writeLine('*** ' . $status . ' ***');
+            $statusLabel = ($status === 'HOLD') ? 'TAGIHAN (PRE-BILL)' : $status;
+            $this->writeLine('*** ' . $statusLabel . ' ***');
             $this->printer->setEmphasis(false);
             $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         } else {
@@ -274,6 +284,7 @@ class EscPosReceiptService
             $qty      = (int)    ($item['qty']   ?? 0);
             $price    = (int)    ($item['price'] ?? 0);
             $subtotal = $qty * $price;
+            $notes    = (string) ($item['notes'] ?? '');
 
             $strDetail   = $qty . ' x ' . $this->rupiah($price);
             $strSubtotal = $this->rupiah($subtotal);
@@ -293,6 +304,10 @@ class EscPosReceiptService
                         $this->writeLine('  ' . $chunk);
                     }
                 }
+
+                if ($notes !== '') {
+                    $this->writeLine('  * Catatan: ' . $notes);
+                }
             } else {
                 // ── 58mm: dua baris per item ───────────────────────────────
                 // Baris 1: nama (wrap)
@@ -303,6 +318,10 @@ class EscPosReceiptService
                 $lineDetail = '  ' . $strDetail;
                 $spaces     = $this->width - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
                 $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
+
+                if ($notes !== '') {
+                    $this->writeLine('    * Catatan: ' . $notes);
+                }
             }
         }
     }

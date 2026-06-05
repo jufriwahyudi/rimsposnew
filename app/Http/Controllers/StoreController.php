@@ -29,6 +29,8 @@ class StoreController extends Controller
             'is_active'    => 'nullable|boolean',
             'logo_data'    => 'nullable|string',
             'bussiness_type' => 'required|in:retail,fnb',
+            'addon_self_service' => 'nullable|boolean',
+            'addon_kds'          => 'nullable|boolean',
         ]);
 
         $logoPath = $this->saveLogo($request->logo_data);
@@ -43,6 +45,8 @@ class StoreController extends Controller
             'is_active'    => $request->boolean('is_active', true),
             'logo'         => $logoPath,
             'business_type' => $request->bussiness_type,
+            'addon_self_service' => $request->boolean('addon_self_service', false),
+            'addon_kds'          => $request->boolean('addon_kds', false),
         ]);
 
         Vendor::create([
@@ -76,6 +80,8 @@ class StoreController extends Controller
             'is_active'    => 'nullable|boolean',
             'logo_data'    => 'nullable|string',
             'bussiness_type' => 'required|in:retail,fnb',
+            'addon_self_service' => 'nullable|boolean',
+            'addon_kds'          => 'nullable|boolean',
         ]);
 
         $data = [
@@ -87,6 +93,8 @@ class StoreController extends Controller
             'printer_type' => $request->printer_type,
             'is_active'    => $request->boolean('is_active', true),
             'business_type' => $request->bussiness_type,
+            'addon_self_service' => $request->boolean('addon_self_service', false),
+            'addon_kds'          => $request->boolean('addon_kds', false),
         ];
 
         if ($request->filled('logo_data')) {

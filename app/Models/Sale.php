@@ -40,6 +40,25 @@ class Sale extends Model
         'sale_date' => 'datetime',
     ];
 
+    protected static function booted()
+    {
+        static::saved(function ($sale) {
+            try {
+                // Only sync self-service orders (invoice starts with 'QR-')
+                if (!str_starts_with($sale->invoice_number, 'QR-')) {
+                    return;
+                }
+
+                $store = $sale->store;
+                if ($store && $store->business_type === 'fnb' && $store->addon_self_service) {
+                    app(\App\Services\FirestoreService::class)->syncOrder($sale);
+                }
+            } catch (\Throwable $e) {
+                \Log::error("Failed to sync sale #{$sale->id} to Firestore: " . $e->getMessage());
+            }
+        });
+    }
+
     public function items()
     {
         return $this->hasMany(SaleItem::class);

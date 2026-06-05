@@ -140,6 +140,9 @@ foreach ($sale->items as $item) {
 Untuk café/FnB, baik **kertas print struk** maupun **KDS digital** akan digunakan secara bersamaan dengan peran masing-masing:
 
 ### A. KDS (Kitchen Display System - Layar Digital di Dapur)
+> [!NOTE]
+> Fitur ini merupakan **Add-on Premium (FnB Only)** yang harus diaktifkan oleh Superadmin. Jika add-on `addon_kds` dinonaktifkan, akses ke halaman/routing KDS (`/kitchen`) akan diblokir dengan pesan error "Fitur Add-on KDS Tidak Aktif".
+
 KDS dipasang di dapur untuk menggantikan tiket kertas koki:
 - Layar KDS memuat antrean pesanan masuk secara real-time (status `hold`).
 - Koki dapat menandai status makanan/minuman yang sedang dimasak atau telah selesai dimasak.
