@@ -17,6 +17,7 @@ class ProductVariant extends Model
         'sku',
         'barcode',
         'harga_jual',
+        'reward_points',
         'is_active',
         'track_stock',
         'cost_price_manual',

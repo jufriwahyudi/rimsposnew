@@ -54,7 +54,11 @@ class ProdukController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
         $tenants = $isFnB ? Tenant::where('store_id', session('store_id'))->where('stts', 'Y')->get() : collect();
 
-        return view('produk.create', compact('isFnB', 'tenants'));
+        $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+        $pointSettings = $loyaltyService->getSettings(session('store_id'));
+        $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+
+        return view('produk.create', compact('isFnB', 'tenants', 'showRewardPoints'));
     }
     public function store(Request $request)
     {
@@ -68,6 +72,7 @@ class ProdukController extends Controller
             'variants.*.nama'    => 'nullable|string|max:150',
             'variants.*.barcode' => 'nullable|string|max:100',
             'variants.*.harga'   => 'nullable|numeric|min:0',
+            'variants.*.reward_points' => 'nullable|integer|min:0',
         ];
 
         if ($isFnB) {
@@ -98,7 +103,7 @@ class ProdukController extends Controller
 
                 $variants = $request->variants ?? [];
                 if (empty($variants)) {
-                    $variants = [['nama' => '', 'barcode' => '', 'harga' => 0]];
+                    $variants = [['nama' => '', 'barcode' => '', 'harga' => 0, 'reward_points' => 0]];
                 }
 
                 foreach ($variants as $i => $v) {
@@ -122,6 +127,7 @@ class ProdukController extends Controller
                         'sku'          => $sku,
                         'barcode'      => $barcode,
                         'harga_jual'   => $v['harga'] ?? 0,
+                        'reward_points' => $v['reward_points'] ?? 0,
                     ];
 
                     if ($isFnB) {
@@ -193,7 +199,11 @@ class ProdukController extends Controller
         $store = Store::find(session('store_id'));
         $isFnB = $store && $store->business_type === 'fnb';
 
-        return view('produk.show', compact('product', 'variantsByGroup', 'hasDivisi', 'isFnB'));
+        $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+        $pointSettings = $loyaltyService->getSettings(session('store_id'));
+        $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+
+        return view('produk.show', compact('product', 'variantsByGroup', 'hasDivisi', 'isFnB', 'showRewardPoints'));
     }
     public function showVariantDetail(Product $product, ProductVariant $variant)
     {
@@ -237,6 +247,10 @@ class ProdukController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
         $tenants = $isFnB ? Tenant::where('store_id', session('store_id'))->where('stts', 'Y')->get() : collect();
 
+        $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+        $pointSettings = $loyaltyService->getSettings(session('store_id'));
+        $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+
         // 🔹 Cek apakah produk punya attribute Divisi
         $hasDivisi = $product->variants->contains(function ($variant) {
             return $variant->variantAttributes
@@ -276,7 +290,8 @@ class ProdukController extends Controller
             'variantsByGroup',
             'hasDivisi',
             'isFnB',
-            'tenants'
+            'tenants',
+            'showRewardPoints'
         ));
     }
 
@@ -327,6 +342,7 @@ $product->update($productData);
             'variants'            => 'required|array|min:1',
             'variants.*.nama'     => 'required|string|max:150',
             'variants.*.harga_jual' => 'nullable|numeric|min:0',
+            'variants.*.reward_points' => 'nullable|integer|min:0',
         ];
 
         if ($isFnB) {
@@ -357,6 +373,7 @@ $product->update($productData);
                         'sku'          => $sku,
                         'barcode'      => $barcode,
                         'harga_jual'   => $v['harga_jual'] ?? 0,
+                        'reward_points' => $v['reward_points'] ?? 0,
                     ];
 
                     if ($isFnB) {
@@ -419,6 +436,7 @@ $product->update($productData);
             'variant_id' => 'required',
             'barcode' => 'required|string|max:100',
             'harga_jual' => 'required|numeric|min:0',
+            'reward_points' => 'nullable|integer|min:0',
         ];
 
         if ($isFnB) {
@@ -440,7 +458,8 @@ $product->update($productData);
 
         $variantData = [
             'barcode' => $request->barcode,
-            'harga_jual' => $request->harga_jual
+            'harga_jual' => $request->harga_jual,
+            'reward_points' => $request->reward_points ?? 0,
         ];
 
         if ($isFnB) {
@@ -458,20 +477,42 @@ $product->update($productData);
 
     public function updateVariant(Request $request)
     {
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
         $rules = [
             'variant_id'   => 'required|exists:product_variants,id',
             'variant_name' => 'required|string|max:150',
             'harga_jual'   => 'required|numeric|min:0',
+            'reward_points' => 'nullable|integer|min:0',
         ];
+
+        if ($isFnB) {
+            $rules['track_stock'] = 'nullable|boolean';
+            $rules['cost_price_manual'] = 'nullable|numeric|min:0';
+            $rules['commission_type'] = 'nullable|in:global,percentage,nominal';
+            $rules['commission_rate'] = 'nullable|numeric|min:0';
+        }
 
         $request->validate($rules);
 
         try {
             $variant = ProductVariant::findOrFail($request->variant_id);
-            $variant->update([
+            
+            $variantData = [
                 'variant_name' => $request->variant_name,
                 'harga_jual'   => $request->harga_jual,
-            ]);
+                'reward_points' => $request->reward_points ?? 0,
+            ];
+
+            if ($isFnB) {
+                $variantData['track_stock'] = $request->boolean('track_stock');
+                $variantData['cost_price_manual'] = $request->cost_price_manual ?? 0;
+                $variantData['commission_type'] = $request->commission_type ?? 'global';
+                $variantData['commission_rate'] = $request->commission_rate ?? 0;
+            }
+
+            $variant->update($variantData);
 
             return response()->json([
                 'success' => true,

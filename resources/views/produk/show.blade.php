@@ -433,138 +433,156 @@
         </div>
     </div>
 
-    {{-- Variants Table --}}
-    <div class="card variant-table-card">
-        <div class="card-body p-0">
-            <div class="d-flex align-items-center justify-content-between px-4 py-3 border-bottom"
-                style="border-color:#f3f4f6 !important;">
+    {{-- Variants Grid --}}
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center justify-content-between mb-4">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-grid-3x3-gap text-primary"></i>
-                    <span class="fw-semibold">Daftar Varian</span>
+                    <i class="bi bi-grid-3x3-gap-fill text-primary" style="font-size: 1.25rem;"></i>
+                    <span class="fw-bold text-dark" style="font-size: 1.1rem;">Daftar Varian</span>
                     <span class="variant-count-badge" id="filteredCount">{{ $product->variants->count() }} varian</span>
                 </div>
             </div>
-            <div class="table-responsive">
-                <table class="table variant-table mb-0" id="variantTable">
-                    <thead>
-                        <tr>
-                            <th style="min-width:200px;">Varian</th>
-                            <th>SKU / Barcode</th>
-                            <th class="text-center" style="width:90px;">Gudang</th>
-                            <th class="text-center" style="width:90px;">Toko</th>
-                            @if ($isFnB)
-                                <th class="text-center" style="width:90px;">Track Stock</th>
-                                <th class="text-end" style="width:110px;">HPP Manual</th>
-                                <th class="text-center" style="width:130px;">Komisi</th>
-                            @endif
-                            <th class="text-end" style="width:110px;">Harga</th>
-                            <th class="text-center" style="width:90px;">Status</th>
-                            <th class="text-center" style="width:120px;">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($variantsByGroup as $groupName => $variants)
-                            @if ($hasDivisi)
-                                <tr class="group-header" data-group="{{ strtolower($groupName) }}">
-                                    <td colspan="{{ $isFnB ? 10 : 7 }}">
-                                        <i class="bi bi-folder2-open me-1"></i> DIVISI {{ strtoupper($groupName) }}
-                                        <span class="ms-2 variant-count-badge">{{ $variants->count() }}</span>
-                                    </td>
-                                </tr>
-                            @endif
-                            @foreach ($variants as $v)
-                                @php
-                                    $variantAttrData = [];
-                                    foreach ($v->variantAttributes->sortBy(fn($va) => $va->attribute->urutan) as $va) {
-                                        $variantAttrData[] = [
-                                            'attr' => $va->attribute->nama,
-                                            'value' => $va->value->nama,
-                                            'kode' => $va->value->kode,
-                                        ];
-                                    }
-                                @endphp
-                                <tr class="variant-row" data-sku="{{ strtolower($v->sku) }}"
-                                    data-barcode="{{ strtolower(optional($v->barcodeActive)->barcode) }}"
-                                    data-status="{{ $v->is_active }}" data-attrs='@json($variantAttrData)'
-                                    data-search="{{ strtolower($v->sku . ' ' . optional($v->barcodeActive)->barcode . ' ' . $v->variant_name . ' ' . collect($variantAttrData)->pluck('value')->join(' ') . ' ' . collect($variantAttrData)->pluck('kode')->join(' ')) }}"
-                                    @if ($hasDivisi) data-group="{{ strtolower(collect($variantAttrData)->firstWhere('attr', 'Divisi')['value'] ?? 'lainnya') }}" @endif>
-                                    <td>
-                                        @if ($v->variant_label)
-                                            <span class="badge-attr">{{ $v->variant_label }}</span>
-                                        @else
-                                            <span class="text-muted fst-italic" style="font-size:0.8rem;">-</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div class="badge-sku text-truncate">{{ $v->sku }}</div>
-                                        <div class="badge-barcode mt-1"><i
-                                                class="bi bi-upc me-1"></i>{{ optional($v->barcodeActive)->barcode ?? '-' }}
-                                        </div>
-                                    </td>
-                                    <td class="text-center fw-semibold">{{ number_format($v->stok_warehouse ?? 0) }}</td>
-                                    <td class="text-center fw-semibold">{{ number_format($v->stok_store ?? 0) }}</td>
-                                    @if ($isFnB)
-                                        <td class="text-center">
-                                            <span class="badge {{ $v->track_stock ? 'bg-success' : 'bg-warning' }}">
-                                                {{ $v->track_stock ? 'Ya' : 'Tidak' }}
-                                            </span>
-                                        </td>
-                                        <td class="text-end fw-semibold text-truncate">
-                                            Rp {{ number_format($v->cost_price_manual, 0, ',', '.') }}
-                                        </td>
-                                        <td class="text-center">
-                                            @if ($v->commission_type === 'global')
-                                                <span class="badge bg-info">Global Tenant</span>
-                                            @elseif ($v->commission_type === 'percentage')
-                                                <span class="badge bg-primary">{{ number_format($v->commission_rate) }}%</span>
+
+            <div id="variantListContainer" class="row g-3">
+                @foreach ($variantsByGroup as $groupName => $variants)
+                    @if ($hasDivisi)
+                        <div class="col-12 mt-4 mb-2 group-header" data-group="{{ strtolower($groupName) }}">
+                            <div class="px-3 py-2 bg-light rounded-3 fw-bold text-primary" style="font-size: 0.9rem; border-left: 4px solid #7c3aed;">
+                                <i class="bi bi-folder2-open me-1"></i> DIVISI: {{ strtoupper($groupName) }}
+                                <span class="ms-2 variant-count-badge bg-white text-primary">{{ $variants->count() }}</span>
+                            </div>
+                        </div>
+                    @endif
+                    @foreach ($variants as $v)
+                        @php
+                            $variantAttrData = [];
+                            foreach ($v->variantAttributes->sortBy(fn($va) => $va->attribute->urutan) as $va) {
+                                $variantAttrData[] = [
+                                    'attr' => $va->attribute->nama,
+                                    'value' => $va->value->nama,
+                                    'kode' => $va->value->kode,
+                                ];
+                            }
+                        @endphp
+                        <div class="col-md-6 col-lg-4 variant-row" data-sku="{{ strtolower($v->sku) }}"
+                            data-barcode="{{ strtolower(optional($v->barcodeActive)->barcode) }}"
+                            data-status="{{ $v->is_active }}" data-attrs='@json($variantAttrData)'
+                            data-search="{{ strtolower($v->sku . ' ' . optional($v->barcodeActive)->barcode . ' ' . $v->variant_name . ' ' . collect($variantAttrData)->pluck('value')->join(' ') . ' ' . collect($variantAttrData)->pluck('kode')->join(' ')) }}"
+                            @if ($hasDivisi) data-group="{{ strtolower(collect($variantAttrData)->firstWhere('attr', 'Divisi')['value'] ?? 'lainnya') }}" @endif>
+                            
+                            <div class="card h-100 border-0 rounded-4 shadow-sm" style="border: 1px solid #e2e8f0 !important; background-color: #ffffff;">
+                                <!-- Card Header: Title and Status -->
+                                <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-start gap-2">
+                                    <div class="text-truncate">
+                                        <h6 class="fw-bold text-dark mb-0 text-truncate" title="{{ $v->variant_label ?: '-' }}">
+                                            @if ($v->variant_label)
+                                                <span class="badge bg-light text-primary border" style="font-size: 0.8rem; font-weight: 600;">{{ $v->variant_label }}</span>
                                             @else
-                                                <span class="badge bg-success">Rp {{ number_format($v->commission_rate, 0, ',', '.') }}</span>
+                                                <span class="text-muted fst-italic" style="font-size:0.8rem;">Varian Utama</span>
                                             @endif
-                                        </td>
-                                    @endif
-                                    <td class="text-end fw-semibold text-truncate">Rp
-                                        {{ number_format($v->harga_jual, 0, ',', '.') }}
-                                    </td>
-                                    <td class="text-center text-truncate">
-                                        <span class="badge-status {{ $v->is_active == 'Y' ? 'active' : 'inactive' }}">
-                                            <i
-                                                class="bi {{ $v->is_active == 'Y' ? 'bi-check-circle' : 'bi-x-circle' }} me-1"></i>{{ $v->is_active == 'Y' ? 'Aktif' : 'Nonaktif' }}
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="d-flex align-items-center justify-content-center gap-1">
-                                            <a href="{{ route('produk.variants.detail', [$product, $v]) }}"
-                                                class="btn-action view" title="Lihat Detail">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <button type="button" class="btn-action edit btn-edit-harga"
-                                                data-bs-toggle="modal" data-bs-target="#modalEditHarga"
-                                                data-id="{{ $v->id }}" data-sku="{{ $v->sku }}"
-                                                data-barcode="{{ optional($v->barcodeActive)->barcode }}"
-                                                data-harga="{{ $v->harga_jual }}"
-                                                @if ($isFnB)
-                                                    data-track-stock="{{ $v->track_stock ? 1 : 0 }}"
-                                                    data-cost-price-manual="{{ $v->cost_price_manual }}"
-                                                    data-commission-type="{{ $v->commission_type }}"
-                                                    data-commission-rate="{{ $v->commission_rate }}"
-                                                @endif
-                                                title="Edit Harga">
-                                                <i class="bi bi-pencil-square"></i>
-                                            </button>
-                                            <button class="btn-action barcode btn-barcode" data-bs-toggle="modal"
-                                                data-bs-target="#barcodeModal" data-sku="{{ $v->sku }}"
-                                                data-id="{{ $v->id }}"
-                                                data-barcode="{{ optional($v->barcodeActive)->barcode }}"
-                                                data-variant="{{ $v->variant_label }}" title="Barcode">
-                                                <i class="bi bi-upc-scan"></i>
-                                            </button>
+                                        </h6>
+                                        <div class="badge-sku mt-2" style="font-size: 0.8rem;">SKU: {{ $v->sku }}</div>
+                                        <div class="badge-barcode mt-1" style="font-size: 0.75rem; color: #6b7280;">
+                                            <i class="bi bi-upc me-1"></i>Barcode: {{ optional($v->barcodeActive)->barcode ?? '-' }}
                                         </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        @endforeach
-                    </tbody>
-                </table>
+                                    </div>
+                                    <span class="badge-status {{ $v->is_active == 'Y' ? 'active' : 'inactive' }}" style="font-size: 0.7rem; padding: 4px 10px; border-radius: 20px;">
+                                        <i class="bi {{ $v->is_active == 'Y' ? 'bi-check-circle' : 'bi-x-circle' }} me-1"></i>{{ $v->is_active == 'Y' ? 'Aktif' : 'Nonaktif' }}
+                                    </span>
+                                </div>
+
+                                <!-- Card Body: Details Grid -->
+                                <div class="card-body py-2">
+                                    <div class="row g-2">
+                                        <!-- Pricing and Reward -->
+                                        <div class="col-6">
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Harga Jual</small>
+                                            <span class="fw-bold text-primary" style="font-size: 0.9rem;">Rp {{ number_format($v->harga_jual, 0, ',', '.') }}</span>
+                                        </div>
+                                        @if ($showRewardPoints)
+                                            <div class="col-6">
+                                                <small class="text-muted d-block" style="font-size: 0.7rem;">Reward Poin</small>
+                                                <span class="fw-bold text-warning" style="font-size: 0.9rem;"><i class="bi bi-star-fill me-1"></i>{{ number_format($v->reward_points) }}</span>
+                                            </div>
+                                        @endif
+                                        
+                                        <!-- Inventory -->
+                                        <div class="col-6 border-top pt-2">
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Toko</small>
+                                            <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($v->stok_store ?? 0) }}</span>
+                                        </div>
+                                        <div class="col-6 border-top pt-2">
+                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Gudang</small>
+                                            <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($v->stok_warehouse ?? 0) }}</span>
+                                        </div>
+
+                                        <!-- FnB Specific Details -->
+                                        @if ($isFnB)
+                                            <div class="col-12 border-top pt-2 mt-2">
+                                                <div class="p-2 bg-light rounded-3" style="font-size: 0.75rem;">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Track Stock:</span>
+                                                        <span class="fw-bold {{ $v->track_stock ? 'text-success' : 'text-warning' }}">
+                                                            {{ $v->track_stock ? 'Ya' : 'Tidak' }}
+                                                        </span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">HPP Manual:</span>
+                                                        <span class="fw-bold text-dark">Rp {{ number_format($v->cost_price_manual, 0, ',', '.') }}</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between">
+                                                        <span class="text-muted">Komisi:</span>
+                                                        <span class="fw-bold text-info">
+                                                            @if ($v->commission_type === 'global')
+                                                                Global Tenant
+                                                            @elseif ($v->commission_type === 'percentage')
+                                                                {{ number_format($v->commission_rate) }}%
+                                                            @else
+                                                                Rp {{ number_format($v->commission_rate, 0, ',', '.') }}
+                                                            @endif
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <!-- Card Footer: Actions -->
+                                <div class="card-footer bg-white border-top-0 pt-0 pb-3 d-flex justify-content-end gap-1">
+                                    <a href="{{ route('produk.variants.detail', [$product, $v]) }}"
+                                        class="btn btn-outline-info btn-sm rounded-3 px-3" title="Lihat Detail">
+                                        <i class="bi bi-eye me-1"></i> Detail
+                                    </a>
+                                    <button type="button" class="btn btn-outline-success btn-sm rounded-3 px-3 btn-edit-harga"
+                                        data-bs-toggle="modal" data-bs-target="#modalEditHarga"
+                                        data-id="{{ $v->id }}" data-sku="{{ $v->sku }}"
+                                        data-barcode="{{ optional($v->barcodeActive)->barcode }}"
+                                        data-harga="{{ $v->harga_jual }}"
+                                        data-reward-points="{{ (int)$v->reward_points }}"
+                                        @if ($isFnB)
+                                            data-track-stock="{{ $v->track_stock ? 1 : 0 }}"
+                                            data-cost-price-manual="{{ $v->cost_price_manual }}"
+                                            data-commission-type="{{ $v->commission_type }}"
+                                            data-commission-rate="{{ $v->commission_rate }}"
+                                        @endif
+                                        title="Edit Harga">
+                                        <i class="bi bi-pencil-square me-1"></i> Edit
+                                    </button>
+                                    <button class="btn btn-outline-primary btn-sm rounded-3 px-3 btn-barcode" data-bs-toggle="modal"
+                                        data-bs-target="#barcodeModal" data-sku="{{ $v->sku }}"
+                                        data-id="{{ $v->id }}"
+                                        data-barcode="{{ optional($v->barcodeActive)->barcode }}"
+                                        data-variant="{{ $v->variant_label }}" title="Barcode">
+                                        <i class="bi bi-upc-scan me-1"></i> Barcode
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    @endforeach
+                @endforeach
             </div>
         </div>
     </div>
@@ -634,6 +652,12 @@
                                      id="harga_jual" required>
                              </div>
                          </div>
+                         @if ($showRewardPoints)
+                             <div class="mb-3">
+                                 <label class="form-label fw-semibold" style="font-size:0.85rem;">Reward Poin</label>
+                                 <input type="number" name="reward_points" id="reward_points" class="form-control rounded-3" min="0">
+                             </div>
+                         @endif
                          @if ($isFnB)
                              <div class="mb-3">
                                  <label class="form-label fw-semibold" style="font-size:0.85rem;">Track Stock</label>
@@ -739,12 +763,12 @@
                 let noResultsRow = document.getElementById('noResultsRow');
                 if (visibleCount === 0) {
                     if (!noResultsRow) {
-                        const tbody = document.querySelector('#variantTable tbody');
-                        const tr = document.createElement('tr');
-                        tr.id = 'noResultsRow';
-                        tr.innerHTML =
-                            `<td colspan="${isFnB ? 10 : 7}" class="no-results-row"><i class="bi bi-search"></i>Tidak ada varian yang cocok dengan filter</td>`;
-                        tbody.appendChild(tr);
+                        const container = document.getElementById('variantListContainer');
+                        const div = document.createElement('div');
+                        div.id = 'noResultsRow';
+                        div.className = 'col-12 text-center py-5 text-muted';
+                        div.innerHTML = `<i class="bi bi-search" style="font-size: 2rem; display: block; margin-bottom: 8px;"></i>Tidak ada varian yang cocok dengan filter`;
+                        container.appendChild(div);
                     }
                     noResultsRow = document.getElementById('noResultsRow');
                     noResultsRow.style.display = '';
@@ -808,10 +832,15 @@
             const modalEditHarga = document.getElementById('modalEditHarga');
             modalEditHarga.addEventListener('show.bs.modal', function(event) {
                 const button = event.relatedTarget;
+                const showRewardPoints = {{ $showRewardPoints ? 'true' : 'false' }};
                 document.getElementById('variant_id').value = button.getAttribute('data-id');
                 document.getElementById('harga_jual').value = parseInt(button.getAttribute('data-harga'));
                 document.getElementById('variant_sku').value = button.getAttribute('data-sku');
                 document.getElementById('variant_barcode').value = button.getAttribute('data-barcode');
+
+                if (showRewardPoints) {
+                    document.getElementById('reward_points').value = button.getAttribute('data-reward-points') ? parseInt(button.getAttribute('data-reward-points')) : 0;
+                }
 
                 if (isFnB) {
                     document.getElementById('variant_track_stock').value = button.getAttribute('data-track-stock');

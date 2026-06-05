@@ -133,7 +133,14 @@
                                                     @endif
                                                 </td>
                                                 <td><span class="badge bg-secondary">{{ $store->code }}</span></td>
-                                                <td class="fw-semibold">{{ $store->name }}</td>
+                                                <td>
+                                                    <div class="fw-semibold">{{ $store->name }}</div>
+                                                    @if($store->business)
+                                                        <small class="text-muted" style="font-size: 11px;">
+                                                            <i class="bi bi-building"></i> {{ $store->business->name }}
+                                                        </small>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $store->city ?? '-' }}</td>
                                                 <td>{{ $store->phone ?? '-' }}</td>
                                                 <td>
@@ -202,7 +209,14 @@
                                             <tr>
                                                 <td>{{ $i + 1 }}</td>
                                                 <td><span class="badge bg-secondary">{{ $store->code }}</span></td>
-                                                <td class="fw-semibold text-muted">{{ $store->name }}</td>
+                                                <td>
+                                                    <div class="fw-semibold text-muted">{{ $store->name }}</div>
+                                                    @if($store->business)
+                                                        <small class="text-muted" style="font-size: 11px;">
+                                                            <i class="bi bi-building"></i> {{ $store->business->name }}
+                                                        </small>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $store->deleted_at->format('d-m-Y H:i') }}</td>
                                                 <td class="text-center">
                                                     <button class="btn btn-sm btn-outline-success"
@@ -263,6 +277,16 @@
                                     </div>
                                 </div>
                                 <input type="file" id="logoFile" accept="image/*" style="display:none;">
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold">Pilih Bisnis Induk <span class="text-danger">*</span></label>
+                                <select class="form-select" id="business_id">
+                                    <option value="new">Bisnis Utama (Buat Baru Sesuai Kode & Nama Toko)</option>
+                                    @foreach($businesses as $biz)
+                                        <option value="{{ $biz->id }}">{{ $biz->name }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback" id="err-business_id"></div>
                             </div>
                             <div class="col-md-12">
                                 <label class="form-label fw-semibold">Tipe Bisnis <span class="text-danger">*</span></label>
@@ -476,6 +500,7 @@
             document.getElementById('storeId').value   = '';
             document.getElementById('logo_data').value = '';
             document.getElementById('is_active').checked = true;
+            document.getElementById('business_id').selectedIndex = 0;
             document.getElementById('bussiness_type').value = 'retail';
             document.getElementById('addon_self_service').checked = false;
             document.getElementById('addon_kds').checked = false;
@@ -500,6 +525,7 @@
                     document.getElementById('printer_type').value = data.printer_type ?? '80mm';
                     document.getElementById('is_active').checked  = data.is_active == 1;
                     document.getElementById('logo_data').value    = '';
+                    document.getElementById('business_id').value  = data.business_id ?? '';
                     document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
                     document.getElementById('addon_self_service').checked = data.addon_self_service == 1;
                     document.getElementById('addon_kds').checked = data.addon_kds == 1;
@@ -517,6 +543,7 @@
             const id     = document.getElementById('storeId').value;
             const isEdit = !!id;
             const payload = {
+                business_id:   document.getElementById('business_id').value,
                 name:          document.getElementById('name').value,
                 code:          document.getElementById('code').value,
                 city:          document.getElementById('city').value,

@@ -11,6 +11,7 @@ class Store extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'business_id',
         'name',
         'code',
         'address',
@@ -39,6 +40,16 @@ class Store extends Model
                 \Log::error("Failed to sync store #{$store->id} to Firestore: " . $e->getMessage());
             }
         });
+    }
+
+    public function business()
+    {
+        return $this->belongsTo(Business::class);
+    }
+
+    public function pointSetting()
+    {
+        return $this->hasOne(PointSetting::class);
     }
 
     public function users()

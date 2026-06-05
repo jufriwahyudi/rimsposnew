@@ -104,136 +104,129 @@
                         </div>
                     </form>
 
-                    <div class="d-flex justify-content-end mb-3">
-                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal"
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-secondary mb-0"><i class="bi bi-grid-3x3-gap-fill text-primary me-1"></i> Daftar Varian Produk</h6>
+                        <button type="button" class="btn btn-primary btn-sm rounded-3 px-3" data-bs-toggle="modal"
                             data-bs-target="#modalAddVariant">
-                            <i class="bi bi-plus-circle"></i> Tambah Varian
+                            <i class="bi bi-plus-circle-fill me-1"></i> Tambah Varian
                         </button>
                     </div>
-                    <table class="table" id="variantTable">
-                        <thead>
-                            <tr>
-                                <th>Varian</th>
-                                <th>SKU</th>
-                                <th width="10%" class="text-center">Harga</th>
-                                <th width="10%" class="text-center">Stok Gudang</th>
-                                <th width="10%" class="text-center">Stok Toko</th>
-                                @if ($isFnB)
-                                    <th width="10%" class="text-center">Track Stock</th>
-                                    <th width="10%" class="text-center">HPP Manual</th>
-                                    <th width="15%" class="text-center">Komisi</th>
-                                @endif
-                                <th width="10%" class="text-center">Status</th>
-                                <th width="8%" class="text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        {{-- <tbody>
-                            @foreach ($product->variants as $variant)
-                                <tr>
-                                    <td>
-                                        @foreach ($variant->variantAttributes as $va)
-                                            {{ $va->attribute->nama }}: {{ $va->value->nama }}
-                                            ({{ $va->value->kode }})
-                                            <br>
-                                        @endforeach
-                                    </td>
-                                    <td>{{ $variant->sku }}</td>
-                                    <td class="text-end">{{ number_format($variant->harga_jual) }}</td>
-                                    <td class="text-end">{{ $variant->stok_warehouse }}</td>
-                                    <td class="text-end">{{ $variant->stok_store }}</td>
-                                    <td class="text-center">
-                                        @if ($variant->is_active)
-                                            <span class="badge bg-success">Aktif</span>
-                                        @else
-                                            <span class="badge bg-secondary">Nonaktif</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">
-                                        <button type="button" class="btn btn-warning btn-sm"
-                                            onclick="editVariant({{ $variant->id }})"><i
-                                                class="bi bi-pencil"></i></button>
-                                        <button type="button" class="btn btn-danger btn-sm"
-                                            onclick="removeVariantRow(this)" data-id="{{ $variant->id }}"><i
-                                                class="bi bi-trash"></i></button>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody> --}}
-                        <tbody>
 
-                            @foreach ($variantsByGroup as $groupName => $variants)
-                                @if ($hasDivisi)
-                                    <tr class="table-secondary">
-                                        <td colspan="{{ $isFnB ? 10 : 7 }}" class="fw-bold">
-                                            === DIVISI {{ strtoupper($groupName) }} ===
-                                        </td>
-                                    </tr>
-                                @endif
+                    <div id="variantListContainer" class="row g-3 mb-4">
+                        @foreach ($variantsByGroup as $groupName => $variants)
+                            @if ($hasDivisi)
+                                <div class="col-12 mt-4 mb-2">
+                                    <div class="px-3 py-2 bg-light rounded-3 fw-bold text-primary" style="font-size: 0.9rem; border-left: 4px solid #7c3aed;">
+                                        DIVISI: {{ strtoupper($groupName) }}
+                                    </div>
+                                </div>
+                            @endif
 
-                                @foreach ($variants as $variant)
-                                    <tr>
-                                        <td>
-                                            {{ $variant->variant_label ?: '-' }}
-                                        </td>
-
-                                        <td>{{ $variant->sku }}</td>
-
-                                        <td class="text-end">
-                                            {{ number_format($variant->harga_jual) }}
-                                        </td>
-
-                                        <td class="text-end">
-                                            {{ $variant->stok_warehouse ?? 0 }}
-                                        </td>
-
-                                        <td class="text-end">
-                                            {{ $variant->stok_store ?? 0 }}
-                                        </td>
-
-                                        @if ($isFnB)
-                                            <td class="text-center">
-                                                <span class="badge {{ $variant->track_stock ? 'bg-success' : 'bg-warning' }}">
-                                                    {{ $variant->track_stock ? 'Ya' : 'Tidak' }}
-                                                </span>
-                                            </td>
-                                            <td class="text-end">
-                                                {{ number_format($variant->cost_price_manual) }}
-                                            </td>
-                                            <td class="text-center">
-                                                @if ($variant->commission_type === 'global')
-                                                    <span class="badge bg-info">Global Tenant</span>
-                                                @elseif ($variant->commission_type === 'percentage')
-                                                    <span class="badge bg-primary">{{ number_format($variant->commission_rate) }}%</span>
-                                                @else
-                                                    <span class="badge bg-success">Rp {{ number_format($variant->commission_rate) }}</span>
-                                                @endif
-                                            </td>
-                                        @endif
-
-                                        <td class="text-center">
-                                            <span class="badge {{ $variant->is_active ? 'bg-success' : 'bg-secondary' }}">
-                                                {{ $variant->is_active ? 'Aktif' : 'Nonaktif' }}
+                            @foreach ($variants as $variant)
+                                <div class="col-md-6 col-lg-4 variant-card-container">
+                                    <div class="card h-100 border-0 rounded-4 shadow-sm" style="border: 1px solid #e2e8f0 !important; background-color: #ffffff;">
+                                        <!-- Card Header: Title and Status -->
+                                        <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-start gap-2">
+                                            <div class="text-truncate">
+                                                <h6 class="fw-bold text-dark mb-0 text-truncate" title="{{ $variant->variant_label ?: '-' }}">
+                                                    {{ $variant->variant_label ?: 'Varian Utama' }}
+                                                </h6>
+                                                <small class="text-muted font-monospace" style="font-size: 0.75rem;">SKU: {{ $variant->sku }}</small>
+                                            </div>
+                                            <span class="badge {{ $variant->is_active === 'Y' ? 'bg-success' : 'bg-secondary' }} rounded-pill" style="font-size: 0.7rem; padding: 4px 10px;">
+                                                {{ $variant->is_active === 'Y' ? 'Aktif' : 'Nonaktif' }}
                                             </span>
-                                        </td>
+                                        </div>
 
-                                        <td class="text-center">
-                                            <button type="button" class="btn btn-warning btn-sm me-1 btn-edit-variant"
+                                        <!-- Card Body: Details Grid -->
+                                        <div class="card-body py-2">
+                                            <div class="row g-2">
+                                                <!-- Pricing and Reward -->
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Harga Jual</small>
+                                                    <span class="fw-bold text-primary" style="font-size: 0.9rem;">Rp {{ number_format($variant->harga_jual, 0, ',', '.') }}</span>
+                                                </div>
+                                                @if ($showRewardPoints)
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block" style="font-size: 0.7rem;">Reward Poin</small>
+                                                        <span class="fw-bold text-warning" style="font-size: 0.9rem;"><i class="bi bi-star-fill me-1"></i>{{ number_format($variant->reward_points) }}</span>
+                                                    </div>
+                                                @endif
+                                                
+                                                <!-- Inventory -->
+                                                <div class="col-6 border-top pt-2">
+                                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Toko</small>
+                                                    <span class="fw-semibold text-dark" style="font-size: 0.85rem;">
+                                                        @if (!$variant->track_stock && $isFnB)
+                                                            <span class="badge bg-light text-muted">Unlimited</span>
+                                                        @else
+                                                            {{ number_format($variant->stok_store ?? 0) }}
+                                                        @endif
+                                                    </span>
+                                                </div>
+                                                <div class="col-6 border-top pt-2">
+                                                    <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Gudang</small>
+                                                    <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($variant->stok_warehouse ?? 0) }}</span>
+                                                </div>
+
+                                                <!-- FnB Specific Details -->
+                                                @if ($isFnB)
+                                                    <div class="col-12 border-top pt-2 mt-2">
+                                                        <div class="p-2 bg-light rounded-3" style="font-size: 0.75rem;">
+                                                            <div class="d-flex justify-content-between mb-1">
+                                                                <span class="text-muted">Track Stock:</span>
+                                                                <span class="fw-bold {{ $variant->track_stock ? 'text-success' : 'text-warning' }}">
+                                                                    {{ $variant->track_stock ? 'Ya' : 'Tidak' }}
+                                                                </span>
+                                                            </div>
+                                                            <div class="d-flex justify-content-between mb-1">
+                                                                <span class="text-muted">HPP Manual:</span>
+                                                                <span class="fw-bold text-dark">Rp {{ number_format($variant->cost_price_manual, 0, ',', '.') }}</span>
+                                                            </div>
+                                                            <div class="d-flex justify-content-between">
+                                                                <span class="text-muted">Komisi:</span>
+                                                                <span class="fw-bold text-info">
+                                                                    @if ($variant->commission_type === 'global')
+                                                                        Global Tenant
+                                                                    @elseif ($variant->commission_type === 'percentage')
+                                                                        {{ number_format($variant->commission_rate) }}%
+                                                                    @else
+                                                                        Rp {{ number_format($variant->commission_rate, 0, ',', '.') }}
+                                                                    @endif
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <!-- Card Footer: Actions -->
+                                        <div class="card-footer bg-white border-top-0 pt-0 pb-3 d-flex justify-content-end gap-2">
+                                            <button type="button" class="btn btn-outline-warning btn-sm rounded-3 px-3 btn-edit-variant"
                                                 data-id="{{ $variant->id }}"
                                                 data-name="{{ $variant->variant_name ?: $variant->variant_label }}"
-                                                data-harga="{{ (int)$variant->harga_jual }}">
-                                                <i class="bi bi-pencil"></i>
+                                                data-harga="{{ (int)$variant->harga_jual }}"
+                                                data-reward-points="{{ (int)$variant->reward_points }}"
+                                                @if ($isFnB)
+                                                    data-track-stock="{{ $variant->track_stock ? 1 : 0 }}"
+                                                    data-cost-price-manual="{{ (int)$variant->cost_price_manual }}"
+                                                    data-commission-type="{{ $variant->commission_type }}"
+                                                    data-commission-rate="{{ (int)$variant->commission_rate }}"
+                                                @endif>
+                                                <i class="bi bi-pencil me-1"></i> Edit
                                             </button>
-                                            <button type="button" class="btn btn-danger btn-sm"
+                                            <button type="button" class="btn btn-outline-danger btn-sm rounded-3 px-3"
                                                 onclick="removeVariantRow(this)" data-id="{{ $variant->id }}">
-                                                <i class="bi bi-trash"></i>
+                                                <i class="bi bi-trash me-1"></i> Hapus
                                             </button>
-                                        </td>
-                                    </tr>
-                                @endforeach
+                                        </div>
+                                    </div>
+                                </div>
                             @endforeach
+                        @endforeach
+                    </div>
 
-                        </tbody>
-                    </table>
                     <div class="text-end">
                         <a href="{{ route('produk.index') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i>
                             Kembali</a>
@@ -242,6 +235,8 @@
             </div>
         </div>
     </div>
+
+    {{-- Modal Tambah Varian --}}
     <div class="modal fade" id="modalAddVariant" tabindex="-1">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
@@ -256,25 +251,10 @@
                         @csrf
                         <input type="hidden" name="product_id" value="{{ $product->id }}">
 
-                        <table class="table table-sm table-bordered" id="newVariantTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Nama Varian</th>
-                                    <th width="20%">Harga Jual</th>
-                                    @if ($isFnB)
-                                        <th width="12%">Track Stock</th>
-                                        <th width="15%">Cost (Manual)</th>
-                                        <th width="15%">Tipe Komisi</th>
-                                        <th width="15%">Rate Komisi</th>
-                                    @endif
-                                    <th width="8%" class="text-center">Hapus</th>
-                                </tr>
-                            </thead>
-                            <tbody id="newVariantBody"></tbody>
-                        </table>
+                        <div id="newVariantContainer" class="d-flex flex-column gap-3 mb-3" style="max-height: 60vh; overflow-y: auto;"></div>
 
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="addNewVariantRow()">
-                            <i class="bi bi-plus-circle"></i> Tambah Baris
+                            <i class="bi bi-plus-circle"></i> Tambah Varian Baru
                         </button>
                     </form>
                 </div>
@@ -288,38 +268,77 @@
 
             </div>
         </div>
-    </div>
+     </div>
 
-    {{-- Modal Edit Varian --}}
-    <div class="modal fade" id="modalEditVariant" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Varian</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form id="formEditVariant">
-                    @csrf
-                    @method('PUT')
-                    <input type="hidden" name="variant_id" id="edit_variant_id">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Nama Varian</label>
-                            <input type="text" name="variant_name" id="edit_variant_name" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Harga Jual</label>
-                            <input type="number" name="harga_jual" id="edit_variant_harga" class="form-control" min="0" required>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+     {{-- Modal Edit Varian --}}
+     <div class="modal fade" id="modalEditVariant" tabindex="-1">
+         <div class="modal-dialog">
+             <div class="modal-content">
+                 <div class="modal-header">
+                     <h5 class="modal-title">Edit Varian</h5>
+                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                 </div>
+                 <form id="formEditVariant">
+                     @csrf
+                     @method('PUT')
+                     <input type="hidden" name="variant_id" id="edit_variant_id">
+                     <div class="modal-body">
+                         <div class="mb-3">
+                             <label class="form-label">Nama Varian</label>
+                             <input type="text" name="variant_name" id="edit_variant_name" class="form-control" required>
+                         </div>
+                         <div class="mb-3">
+                             <label class="form-label">Harga Jual</label>
+                             <input type="number" name="harga_jual" id="edit_variant_harga" class="form-control" min="0" required>
+                         </div>
+                         @if ($showRewardPoints)
+                             <div class="mb-3">
+                                 <label class="form-label">Reward Poin</label>
+                                 <input type="number" name="reward_points" id="edit_variant_reward_points" class="form-control" min="0" required>
+                             </div>
+                         @endif
+
+                         @if ($isFnB)
+                             <hr class="my-3">
+                             <h6 class="fw-bold text-success mb-3" style="font-size: 0.85rem;"><i class="bi bi-gear-fill me-1"></i> Pengaturan FnB (Stok & Komisi)</h6>
+                             <div class="row g-3">
+                                 <div class="col-md-6 mb-3">
+                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Track Stock</label>
+                                     <select name="track_stock" id="edit_variant_track_stock" class="form-select">
+                                         <option value="1">Ya</option>
+                                         <option value="0">Tidak</option>
+                                     </select>
+                                 </div>
+                                 <div class="col-md-6 mb-3">
+                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">HPP Manual (Cost)</label>
+                                     <div class="input-group">
+                                         <span class="input-group-text">Rp</span>
+                                         <input type="number" name="cost_price_manual" id="edit_variant_cost_price_manual" class="form-control" min="0">
+                                     </div>
+                                 </div>
+                                 <div class="col-md-6 mb-3">
+                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Tipe Komisi</label>
+                                     <select name="commission_type" id="edit_variant_commission_type" class="form-select">
+                                         <option value="global">Global Tenant</option>
+                                         <option value="percentage">Persentase (%)</option>
+                                         <option value="nominal">Nominal Flat (Rp)</option>
+                                     </select>
+                                 </div>
+                                 <div class="col-md-6 mb-3">
+                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Rate Komisi</label>
+                                     <input type="number" name="commission_rate" id="edit_variant_commission_rate" class="form-control" min="0">
+                                 </div>
+                             </div>
+                         @endif
+                     </div>
+                     <div class="modal-footer">
+                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                         <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                     </div>
+                 </form>
+             </div>
+         </div>
+     </div>
 
 @endsection
 @push('scripts')
@@ -362,15 +381,21 @@
                                     response.message,
                                     response.icon
                                 ).then(() => {
-                                    if (response.success)
-                                        $(button).closest('tr').remove();
+                                    if (response.success) {
+                                        const card = $(button).closest('.variant-card-container');
+                                        if (card.length) {
+                                            card.remove();
+                                        } else {
+                                            $(button).closest('tr').remove();
+                                        }
+                                    }
                                 });
                             },
                             error: function(xhr) {
                                 Swal.fire(
                                     'Gagal!',
-                                    xhr.responseJSON.message,
-                                    xjhr.responseJSON.icon
+                                    xhr.responseJSON?.message || 'Terjadi kesalahan',
+                                    'error'
                                 );
                             }
                         });
@@ -378,7 +403,12 @@
                 });
             } else {
                 // Jika varian belum disimpan di database, cukup hapus barisnya
-                $(button).closest('tr').remove();
+                const card = $(button).closest('.variant-card-container');
+                if (card.length) {
+                    card.remove();
+                } else {
+                    $(button).closest('tr').remove();
+                }
             }
         }
     </script>
@@ -386,62 +416,101 @@
         let newVariantRowIndex = 0;
 
         const isFnB = {{ $isFnB ? 'true' : 'false' }};
+        const showRewardPoints = {{ $showRewardPoints ? 'true' : 'false' }};
 
         function addNewVariantRow() {
-            const tbody = document.getElementById('newVariantBody');
+            const container = document.getElementById('newVariantContainer');
             const i = newVariantRowIndex++;
             
-            let fnbColumns = '';
-            if (isFnB) {
-                fnbColumns = `
-                    <td>
-                        <select name="variants[${i}][track_stock]" class="form-select form-select-sm">
-                            <option value="1">Ya</option>
-                            <option value="0">Tidak</option>
-                        </select>
-                    </td>
-                    <td>
-                        <input name="variants[${i}][cost_price_manual]" class="form-control form-control-sm" type="number" min="0" value="0">
-                    </td>
-                    <td>
-                        <select name="variants[${i}][commission_type]" class="form-select form-select-sm">
-                            <option value="global">Global Tenant</option>
-                            <option value="percentage">Persentase</option>
-                            <option value="nominal">Nominal Flat</option>
-                        </select>
-                    </td>
-                    <td>
-                        <input name="variants[${i}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="0">
-                    </td>
+            let rewardPointsField = '';
+            if (showRewardPoints) {
+                rewardPointsField = `
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Reward Poin</label>
+                    <input name="variants[${i}][reward_points]" class="form-control form-control-sm" type="number" min="0" value="0">
+                </div>
                 `;
             }
 
-            const row = `
-                <tr>
-                    <td>
-                        <input name="variants[${i}][nama]" class="form-control form-control-sm"
-                            placeholder="Nama varian" required>
-                    </td>
-                    <td>
-                        <input name="variants[${i}][harga_jual]" class="form-control form-control-sm"
-                            type="number" min="0" placeholder="0">
-                    </td>
-                    ${fnbColumns}
-                    <td class="text-center align-middle">
-                        <button type="button" class="btn btn-danger btn-sm"
-                            onclick="this.closest('tr').remove()">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>`;
-            tbody.insertAdjacentHTML('beforeend', row);
+            const card = `
+            <div class="card border-0 rounded-4 mb-3 variant-card position-relative shadow-sm" style="border: 1px solid #e2e8f0 !important;">
+                <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-secondary" style="font-size: 0.9rem;">
+                        <i class="bi bi-tag-fill me-1 text-primary"></i> Varian Baru
+                    </span>
+                    <button type="button" class="btn-close text-danger" onclick="this.closest('.variant-card').remove()" style="font-size: 0.75rem;" title="Hapus Varian"></button>
+                </div>
+                <div class="card-body pt-2 pb-3">
+                    <div class="row g-3">
+                        <!-- Left Panel: General Info -->
+                        <div class="col-md-${isFnB ? '6' : '12'} ${isFnB ? 'border-end pe-3' : ''}">
+                            <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
+                                    <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Nama varian" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Harga Jual</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Rp</span>
+                                        <input name="variants[${i}][harga_jual]" class="form-control" type="number" min="0" placeholder="0" required>
+                                    </div>
+                                </div>
+                                ${rewardPointsField}
+                            </div>
+                        </div>
+                        
+                        <!-- Right Panel: FnB Settings -->
+                        ${isFnB ? `
+                        <div class="col-md-6 ps-3">
+                            <h6 class="fw-semibold text-success mb-3" style="font-size: 0.85rem;"><i class="bi bi-gear-fill me-1"></i> Pengaturan FnB (Stok & Komisi)</h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Track Stock</label>
+                                    <select name="variants[${i}][track_stock]" class="form-select form-select-sm">
+                                        <option value="1">Ya</option>
+                                        <option value="0">Tidak</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">HPP Manual (Cost)</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Rp</span>
+                                        <input name="variants[${i}][cost_price_manual]" class="form-control" type="number" min="0" value="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Tipe Komisi</label>
+                                    <select name="variants[${i}][commission_type]" class="form-select form-select-sm">
+                                        <option value="global">Global Tenant</option>
+                                        <option value="percentage">Persentase (%)</option>
+                                        <option value="nominal">Nominal Flat (Rp)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Rate Komisi</label>
+                                    <input name="variants[${i}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>`;
+            container.insertAdjacentHTML('beforeend', card);
         }
 
         // Saat modal dibuka, reset dan tambah 1 baris kosong
-        document.getElementById('modalAddVariant').addEventListener('show.bs.modal', function() {
-            newVariantRowIndex = 0;
-            document.getElementById('newVariantBody').innerHTML = '';
-            addNewVariantRow();
+        $(document).ready(function() {
+            const modalAdd = document.getElementById('modalAddVariant');
+            if (modalAdd) {
+                modalAdd.addEventListener('show.bs.modal', function() {
+                    newVariantRowIndex = 0;
+                    document.getElementById('newVariantContainer').innerHTML = '';
+                    addNewVariantRow();
+                });
+            }
         });
     </script>
     <script>
@@ -482,10 +551,27 @@
             var id = $(this).data('id');
             var name = $(this).data('name');
             var harga = $(this).data('harga');
+            var rewardPoints = $(this).data('reward-points');
 
             $('#edit_variant_id').val(id);
             $('#edit_variant_name').val(name);
             $('#edit_variant_harga').val(harga);
+            
+            if (showRewardPoints) {
+                $('#edit_variant_reward_points').val(rewardPoints);
+            }
+
+            if (isFnB) {
+                var trackStock = $(this).data('track-stock');
+                var costPrice = $(this).data('cost-price-manual');
+                var commissionType = $(this).data('commission-type');
+                var commissionRate = $(this).data('commission-rate');
+
+                $('#edit_variant_track_stock').val(trackStock);
+                $('#edit_variant_cost_price_manual').val(costPrice);
+                $('#edit_variant_commission_type').val(commissionType);
+                $('#edit_variant_commission_rate').val(commissionRate);
+            }
 
             $('#modalEditVariant').modal('show');
         });

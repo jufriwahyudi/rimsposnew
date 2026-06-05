@@ -90,7 +90,7 @@
                             </div>
                         </div>
 
-                        {{-- Tabel Varian --}}
+                        {{-- Daftar Varian --}}
                         <div class="card mb-3">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <span class="fw-semibold">Daftar Varian</span>
@@ -98,75 +98,88 @@
                                     <i class="bi bi-plus-circle"></i> Tambah Varian
                                 </button>
                             </div>
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-bordered mb-0" id="variantTable">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Nama Varian <small class="text-muted fw-normal">(contoh: Merah L, XL Hitam)</small></th>
-                                                <th width="15%">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></th>
-                                                <th width="12%">Harga Jual</th>
-                                                @if ($isFnB)
-                                                    <th width="11%">Track Stock</th>
-                                                    <th width="13%">Cost (Manual)</th>
-                                                    <th width="13%">Tipe Komisi</th>
-                                                    <th width="13%">Rate Komisi</th>
-                                                @endif
-                                                <th width="7%" class="text-center">Hapus</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="variantBody">
-                                            {{-- baris lama (old input) --}}
-                                            @if (old('variants'))
-                                                @foreach (old('variants') as $i => $v)
-                                                    <tr>
-                                                        <td>
-                                                            <input name="variants[{{ $i }}][nama]"
-                                                                class="form-control" value="{{ $v['nama'] ?? '' }}"
-                                                                placeholder="Nama varian">
-                                                        </td>
-                                                        <td>
-                                                            <input name="variants[{{ $i }}][barcode]"
-                                                                class="form-control barcode-input"
-                                                                value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
-                                                        </td>
-                                                        <td>
-                                                            <input name="variants[{{ $i }}][harga]"
-                                                                class="form-control" type="number" min="0"
-                                                                value="{{ $v['harga'] ?? '' }}" placeholder="0">
-                                                        </td>
+                            <div class="card-body">
+                                <div id="variantContainer" class="d-flex flex-column gap-3">
+                                    {{-- Old Input Variants --}}
+                                    @if (old('variants'))
+                                        @foreach (old('variants') as $i => $v)
+                                            <div class="card border-0 rounded-4 mb-3 variant-card position-relative shadow-sm" style="border: 1px solid #e2e8f0 !important;">
+                                                <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                                                    <span class="fw-bold text-secondary" style="font-size: 0.9rem;">
+                                                        <i class="bi bi-tag-fill me-1 text-primary"></i> Varian #{{ $i + 1 }}
+                                                    </span>
+                                                    <button type="button" class="btn-close text-danger" 
+                                                        onclick="removeRow(this)" style="font-size: 0.75rem;" title="Hapus Varian"></button>
+                                                </div>
+                                                <div class="card-body pt-2 pb-3">
+                                                    <div class="row g-3">
+                                                        <!-- Left Panel: General Info -->
+                                                        <div class="col-md-{{ $isFnB ? '6' : '12' }} {{ $isFnB ? 'border-end pe-3' : '' }}">
+                                                            <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
+                                                            <div class="row g-2">
+                                                                <div class="col-md-6">
+                                                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
+                                                                    <input name="variants[{{ $i }}][nama]" class="form-control form-control-sm" value="{{ $v['nama'] ?? '' }}" placeholder="Nama varian" required>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></label>
+                                                                    <input name="variants[{{ $i }}][barcode]" class="form-control form-control-sm" value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Harga Jual</label>
+                                                                    <div class="input-group input-group-sm">
+                                                                        <span class="input-group-text">Rp</span>
+                                                                        <input name="variants[{{ $i }}][harga]" class="form-control" type="number" min="0" value="{{ $v['harga'] ?? '' }}" placeholder="0" required>
+                                                                    </div>
+                                                                </div>
+                                                                @if ($showRewardPoints)
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">Reward Poin</label>
+                                                                        <input name="variants[{{ $i }}][reward_points]" class="form-control form-control-sm" type="number" min="0" value="{{ $v['reward_points'] ?? '0' }}">
+                                                                    </div>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Right Panel: FnB Settings -->
                                                         @if ($isFnB)
-                                                            <td>
-                                                                <select name="variants[{{ $i }}][track_stock]" class="form-select form-select-sm">
-                                                                    <option value="1" {{ ($v['track_stock'] ?? '1') == '1' ? 'selected' : '' }}>Ya</option>
-                                                                    <option value="0" {{ ($v['track_stock'] ?? '1') == '0' ? 'selected' : '' }}>Tidak</option>
-                                                                </select>
-                                                            </td>
-                                                            <td>
-                                                                <input name="variants[{{ $i }}][cost_price_manual]" class="form-control form-control-sm" type="number" min="0" value="{{ $v['cost_price_manual'] ?? '0' }}">
-                                                            </td>
-                                                            <td>
-                                                                <select name="variants[{{ $i }}][commission_type]" class="form-select form-select-sm">
-                                                                    <option value="global" {{ ($v['commission_type'] ?? 'global') == 'global' ? 'selected' : '' }}>Global Tenant</option>
-                                                                    <option value="percentage" {{ ($v['commission_type'] ?? 'global') == 'percentage' ? 'selected' : '' }}>Persentase</option>
-                                                                    <option value="nominal" {{ ($v['commission_type'] ?? 'global') == 'nominal' ? 'selected' : '' }}>Nominal Flat</option>
-                                                                </select>
-                                                            </td>
-                                                            <td>
-                                                                <input name="variants[{{ $i }}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="{{ $v['commission_rate'] ?? '0' }}">
-                                                            </td>
+                                                            <div class="col-md-6 ps-3">
+                                                                <h6 class="fw-semibold text-success mb-3" style="font-size: 0.85rem;"><i class="bi bi-gear-fill me-1"></i> Pengaturan FnB (Stok & Komisi)</h6>
+                                                                <div class="row g-2">
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">Track Stock</label>
+                                                                        <select name="variants[{{ $i }}][track_stock]" class="form-select form-select-sm">
+                                                                            <option value="1" {{ ($v['track_stock'] ?? '1') == '1' ? 'selected' : '' }}>Ya</option>
+                                                                            <option value="0" {{ ($v['track_stock'] ?? '1') == '0' ? 'selected' : '' }}>Tidak</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">HPP Manual (Cost)</label>
+                                                                        <div class="input-group input-group-sm">
+                                                                            <span class="input-group-text">Rp</span>
+                                                                            <input name="variants[{{ $i }}][cost_price_manual]" class="form-control" type="number" min="0" value="{{ $v['cost_price_manual'] ?? '0' }}">
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">Tipe Komisi</label>
+                                                                        <select name="variants[{{ $i }}][commission_type]" class="form-select form-select-sm">
+                                                                            <option value="global" {{ ($v['commission_type'] ?? 'global') == 'global' ? 'selected' : '' }}>Global Tenant</option>
+                                                                            <option value="percentage" {{ ($v['commission_type'] ?? 'global') == 'percentage' ? 'selected' : '' }}>Persentase (%)</option>
+                                                                            <option value="nominal" {{ ($v['commission_type'] ?? 'global') == 'nominal' ? 'selected' : '' }}>Nominal Flat (Rp)</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-md-6">
+                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">Rate Komisi</label>
+                                                                        <input name="variants[{{ $i }}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="{{ $v['commission_rate'] ?? '0' }}">
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         @endif
-                                                        <td class="text-center align-middle">
-                                                            <button type="button" class="btn btn-danger btn-sm"
-                                                                onclick="removeRow(this)">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                @endforeach
-                                            @endif
-                                        </tbody>
-                                    </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -188,75 +201,109 @@
     <script>
         let rowIndex = {{ old('variants') ? count(old('variants')) : 0 }};
         const isFnB = {{ $isFnB ? 'true' : 'false' }};
+        const showRewardPoints = {{ $showRewardPoints ? 'true' : 'false' }};
 
         function addVariantRow() {
-            const tbody = document.getElementById('variantBody');
+            const container = document.getElementById('variantContainer');
             const i = rowIndex++;
             
-            let fnbColumns = '';
-            if (isFnB) {
-                fnbColumns = `
-                <td>
-                    <select name="variants[${i}][track_stock]" class="form-select form-select-sm">
-                        <option value="1">Ya</option>
-                        <option value="0">Tidak</option>
-                    </select>
-                </td>
-                <td>
-                    <input name="variants[${i}][cost_price_manual]" class="form-control form-control-sm" type="number" min="0" value="0">
-                </td>
-                <td>
-                    <select name="variants[${i}][commission_type]" class="form-select form-select-sm">
-                        <option value="global">Global Tenant</option>
-                        <option value="percentage">Persentase</option>
-                        <option value="nominal">Nominal Flat</option>
-                    </select>
-                </td>
-                <td>
-                    <input name="variants[${i}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="0">
-                </td>
+            let rewardPointsField = '';
+            if (showRewardPoints) {
+                rewardPointsField = `
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Reward Poin</label>
+                    <input name="variants[${i}][reward_points]" class="form-control form-control-sm" type="number" min="0" value="0">
+                </div>
                 `;
             }
 
-            const row = `
-            <tr>
-                <td>
-                    <input name="variants[${i}][nama]" class="form-control"
-                        placeholder="Nama varian" required>
-                </td>
-                <td>
-                    <input name="variants[${i}][barcode]" class="form-control barcode-input"
-                        placeholder="Auto-generate">
-                </td>
-                <td>
-                    <input name="variants[${i}][harga]" class="form-control"
-                        type="number" min="0" placeholder="0">
-                </td>
-                ${fnbColumns}
-                <td class="text-center align-middle">
-                    <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            </tr>`;
-            tbody.insertAdjacentHTML('beforeend', row);
+            const card = `
+            <div class="card border-0 rounded-4 mb-3 variant-card position-relative shadow-sm" style="border: 1px solid #e2e8f0 !important;">
+                <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-secondary" style="font-size: 0.9rem;">
+                        <i class="bi bi-tag-fill me-1 text-primary"></i> Varian Baru
+                    </span>
+                    <button type="button" class="btn-close text-danger" onclick="removeRow(this)" style="font-size: 0.75rem;" title="Hapus Varian"></button>
+                </div>
+                <div class="card-body pt-2 pb-3">
+                    <div class="row g-3">
+                        <!-- Left Panel: General Info -->
+                        <div class="col-md-${isFnB ? '6' : '12'} \${isFnB ? 'border-end pe-3' : ''}">
+                            <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
+                                    <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Nama varian" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></label>
+                                    <input name="variants[${i}][barcode]" class="form-control form-control-sm barcode-input" placeholder="Auto-generate">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Harga Jual</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Rp</span>
+                                        <input name="variants[${i}][harga]" class="form-control" type="number" min="0" placeholder="0" required>
+                                    </div>
+                                </div>
+                                \${rewardPointsField}
+                            </div>
+                        </div>
+                        
+                        <!-- Right Panel: FnB Settings -->
+                        \${isFnB ? `
+                        <div class="col-md-6 ps-3">
+                            <h6 class="fw-semibold text-success mb-3" style="font-size: 0.85rem;"><i class="bi bi-gear-fill me-1"></i> Pengaturan FnB (Stok & Komisi)</h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Track Stock</label>
+                                    <select name="variants[${i}][track_stock]" class="form-select form-select-sm">
+                                        <option value="1">Ya</option>
+                                        <option value="0">Tidak</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">HPP Manual (Cost)</label>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">Rp</span>
+                                        <input name="variants[${i}][cost_price_manual]" class="form-control" type="number" min="0" value="0">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Tipe Komisi</label>
+                                    <select name="variants[${i}][commission_type]" class="form-select form-select-sm">
+                                        <option value="global">Global Tenant</option>
+                                        <option value="percentage">Persentase (%)</option>
+                                        <option value="nominal">Nominal Flat (Rp)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Rate Komisi</label>
+                                    <input name="variants[${i}][commission_rate]" class="form-control form-control-sm" type="number" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>`;
+            container.insertAdjacentHTML('beforeend', card);
         }
 
         function removeRow(btn) {
-            const row = btn.closest('tr');
-            // Minimal 1 baris
-            const tbody = document.getElementById('variantBody');
-            if (tbody.querySelectorAll('tr').length <= 1) {
+            const card = btn.closest('.variant-card');
+            const container = document.getElementById('variantContainer');
+            if (container.querySelectorAll('.variant-card').length <= 1) {
                 Swal.fire('Perhatian', 'Minimal harus ada 1 varian.', 'warning');
                 return;
             }
-            row.remove();
+            card.remove();
         }
 
         // Tambah 1 baris kosong jika belum ada old input
         document.addEventListener('DOMContentLoaded', function() {
-            const tbody = document.getElementById('variantBody');
-            if (tbody.querySelectorAll('tr').length === 0) {
+            const container = document.getElementById('variantContainer');
+            if (container.querySelectorAll('.variant-card').length === 0) {
                 addVariantRow();
             }
         });

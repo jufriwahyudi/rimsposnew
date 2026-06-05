@@ -14,12 +14,16 @@ class StoreController extends Controller
     {
         $stores = Store::orderBy('name')->get();
         $trashed = Store::onlyTrashed()->orderBy('name')->get();
-        return view('stores.index', compact('stores', 'trashed'));
+        $businesses = \App\Models\Business::orderBy('name')->get();
+        return view('stores.index', compact('stores', 'trashed', 'businesses'));
     }
 
     public function store(Request $request)
     {
-        $request->validate([
+        $isNewBusiness = $request->business_id === 'new';
+
+        $rules = [
+            'business_id'  => 'required',
             'name'         => 'required|string|max:255',
             'code'         => 'required|string|max:50|unique:stores,code',
             'address'      => 'nullable|string',
@@ -31,11 +35,29 @@ class StoreController extends Controller
             'bussiness_type' => 'required|in:retail,fnb',
             'addon_self_service' => 'nullable|boolean',
             'addon_kds'          => 'nullable|boolean',
-        ]);
+        ];
+
+        if (!$isNewBusiness) {
+            $rules['business_id'] = 'required|exists:businesses,id';
+        } else {
+            $rules['code'] .= '|unique:businesses,code';
+        }
+
+        $request->validate($rules);
+
+        $businessId = $request->business_id;
+        if ($isNewBusiness) {
+            $business = \App\Models\Business::create([
+                'name' => $request->name,
+                'code' => strtoupper($request->code),
+            ]);
+            $businessId = $business->id;
+        }
 
         $logoPath = $this->saveLogo($request->logo_data);
 
         $store = Store::create([
+            'business_id'  => $businessId,
             'name'         => $request->name,
             'code'         => strtoupper($request->code),
             'address'      => $request->address,
@@ -51,7 +73,7 @@ class StoreController extends Controller
 
         Vendor::create([
             'store_id' => $store->id,
-            'kode_vendor' => '001',
+            'kode_vendor' => 'TS-'.(strtoupper($store->code ?? $store->id) . '-001'),
             'nama_vendor' => 'Tanpa Supplier',
             'telepon' => '-',
             'alamat' => '-'
@@ -70,7 +92,10 @@ class StoreController extends Controller
 
     public function update(Request $request, Store $store)
     {
-        $request->validate([
+        $isNewBusiness = $request->business_id === 'new';
+
+        $rules = [
+            'business_id'  => 'required',
             'name'         => 'required|string|max:255',
             'code'         => 'required|string|max:50|unique:stores,code,' . $store->id,
             'address'      => 'nullable|string',
@@ -82,9 +107,27 @@ class StoreController extends Controller
             'bussiness_type' => 'required|in:retail,fnb',
             'addon_self_service' => 'nullable|boolean',
             'addon_kds'          => 'nullable|boolean',
-        ]);
+        ];
+
+        if (!$isNewBusiness) {
+            $rules['business_id'] = 'required|exists:businesses,id';
+        } else {
+            $rules['code'] .= '|unique:businesses,code';
+        }
+
+        $request->validate($rules);
+
+        $businessId = $request->business_id;
+        if ($isNewBusiness) {
+            $business = \App\Models\Business::create([
+                'name' => $request->name,
+                'code' => strtoupper($request->code),
+            ]);
+            $businessId = $business->id;
+        }
 
         $data = [
+            'business_id'  => $businessId,
             'name'         => $request->name,
             'code'         => strtoupper($request->code),
             'address'      => $request->address,

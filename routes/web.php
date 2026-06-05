@@ -32,6 +32,8 @@ use App\Http\Controllers\SuperadminDashboardController;
 use App\Http\Controllers\StoreSelectionController;
 use App\Http\Controllers\VendorController;
 use App\Http\Controllers\TenantController;
+use App\Http\Controllers\PointSettingController;
+use App\Http\Controllers\MemberController;
 use App\Services\JournalFromCashTransactionService;
 use App\Http\Controllers\KitchenController;
 
@@ -115,10 +117,18 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
         
+        // Loyalty Points Settings
+        Route::get('/points', [PointSettingController::class, 'index'])->name('settings.points');
+        Route::post('/points', [PointSettingController::class, 'update'])->name('settings.points.update');
+        
         // QR Code Generator
         Route::get('/qr-generator', [\App\Http\Controllers\CustomerSelfServiceController::class, 'generateQrCode'])->name('settings.qr-generator');
         Route::get('/qr-generator/sign', [\App\Http\Controllers\CustomerSelfServiceController::class, 'sign'])->name('settings.qr-generator.sign');
     });
+
+    // Member Loyalty Management
+    Route::resource('members', MemberController::class);
+    Route::get('/members/{member}/history', [MemberController::class, 'history'])->name('members.history');
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {
         Route::get('/', [AttributeValueController::class, 'index'])->name('attribute-nilai.index');

@@ -1,1 +1,3 @@
 untuk Fnb produk dengan track_stok false bisa di setting available atau not availabe untuk di pesan
+member loyalty fitur add on
+status stok di pelanggan self service jangan undefined tapi avail/not

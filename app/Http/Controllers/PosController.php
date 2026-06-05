@@ -59,6 +59,68 @@ class PosController extends Controller
         return response()->json(['data' => $customers]);
     }
 
+    /**
+     * GET /api/pos/members?store_id=N&search=query
+     * Returns matching active loyalty members with their point balances.
+     */
+    public function apiMembers(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->integer('store_id');
+        $search  = $request->string('search');
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $store = Store::find($storeId);
+        if (!$store) {
+            return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+        }
+
+        $businessId = $store->business_id ?: 1;
+
+        $members = \App\Models\Member::where('business_id', $businessId)
+            ->where('is_active', true)
+            ->when($search, fn($q) => $q->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', '%' . $search . '%')
+                    ->orWhere('phone', 'LIKE', '%' . $search . '%');
+            }))
+            ->orderBy('name')
+            ->limit(10)
+            ->get();
+
+        $data = $members->map(function ($member) {
+            $isBirthday = false;
+            if ($member->birth_date) {
+                $isBirthday = (now()->format('m-d') === $member->birth_date->format('m-d'));
+            }
+            return [
+                'id' => $member->id,
+                'name' => $member->name,
+                'phone' => $member->phone,
+                'email' => $member->email,
+                'total_points' => $member->total_points,
+                'is_birthday' => $isBirthday,
+                'birth_date' => $member->birth_date ? $member->birth_date->format('Y-m-d') : null,
+            ];
+        });
+        $settings = app(\App\Services\LoyaltyPointService::class)->getSettings($storeId);
+        $settingsData = null;
+        if ($settings && $settings->is_active) {
+            $settingsData = [
+                'point_value' => (int)$settings->point_value,
+                'min_points_to_redeem' => (int)$settings->min_points_to_redeem,
+                'max_redeem_percentage' => (int)$settings->max_redeem_percentage,
+                'max_redeem_amount' => (float)$settings->max_redeem_amount,
+            ];
+        }
+
+        return response()->json([
+            'data' => $data,
+            'point_settings' => $settingsData,
+        ]);
+    }
+
     public function apiRekening(Request $request)
     {
         $storeId = $request->integer('store_id');
@@ -392,6 +454,20 @@ class PosController extends Controller
                     throw new \Exception('Pembayaran kurang dari total belanja');
                 }
 
+                $memberId = $cart['member_id'] ?? null;
+                $pointsRedeemed = $cart['points_to_redeem'] ?? 0;
+                $pointDiscountAmount = 0.00;
+
+                if ($memberId && $pointsRedeemed > 0) {
+                    $member = \App\Models\Member::find($memberId);
+                    if ($member) {
+                        $settings = app(\App\Services\LoyaltyPointService::class)->getSettings(session('store_id'));
+                        if ($settings && $settings->is_active) {
+                            $pointDiscountAmount = $pointsRedeemed * $settings->point_value;
+                        }
+                    }
+                }
+
                 // =========================
                 // 2️⃣ CREATE SALE
                 // =========================
@@ -402,6 +478,7 @@ class PosController extends Controller
                     'sale_type'      => 'retail',
 
                     'customer_id'    => null,
+                    'member_id'      => $memberId,
                     'customer_name'  => $customerName,
                     'user_id'        => auth()->id(),
 
@@ -410,6 +487,8 @@ class PosController extends Controller
                     'trans_discount' => $cart['transaction_discount'] ?? 0,
                     'tax_total'      => 0,
                     'grand_total'    => $cart['total'],
+                    'points_redeemed' => $pointsRedeemed,
+                    'point_discount_amount' => $pointDiscountAmount,
 
                     'paid_amount'    => $paidAmount,
                     'change_amount'  => max(0, $cashAmount - $cart['total']),
@@ -440,6 +519,16 @@ class PosController extends Controller
                         $item['qty'],
                         $saleItem
                     );
+                }
+
+                // Process loyalty points inside the transaction
+                if ($memberId) {
+                    $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+                    $memberObj = \App\Models\Member::find($memberId);
+                    if ($pointsRedeemed > 0 && $memberObj) {
+                        $loyaltyService->debitPointsForRedemption($memberObj, $pointsRedeemed, $sale);
+                    }
+                    $loyaltyService->creditPointsForSale($sale);
                 }
 
                 // =========================
@@ -557,6 +646,20 @@ class PosController extends Controller
                 $customerName  = $cart['customer_name'] ?? 'Umum';
                 $customerPhone = $cart['customer_phone'] ?? null;
                 $customerId    = null;
+
+                $memberId = $cart['member_id'] ?? null;
+                $pointsRedeemed = $cart['points_to_redeem'] ?? 0;
+                $pointDiscountAmount = 0.00;
+
+                if ($memberId && $pointsRedeemed > 0) {
+                    $member = \App\Models\Member::find($memberId);
+                    if ($member) {
+                        $settings = app(\App\Services\LoyaltyPointService::class)->getSettings($storeId);
+                        if ($settings && $settings->is_active) {
+                            $pointDiscountAmount = $pointsRedeemed * $settings->point_value;
+                        }
+                    }
+                }
 
                 // ── Hutang: buat/temukan pelanggan ──────────────────────────
                 if ($paymentMethod === 'hutang') {
@@ -708,12 +811,15 @@ class PosController extends Controller
                     // Update Sale attributes
                     $sale->update([
                         'table_number'   => $cart['table_number'] ?? $sale->table_number,
+                        'member_id'      => $memberId,
                         'customer_name'  => $customerName,
                         'customer_phone' => $customerPhone,
                         'subtotal'       => $cart['subtotal'] ?? 0,
                         'discount_total' => $cart['discount_total'] ?? 0,
                         'trans_discount' => $cart['transaction_discount'] ?? 0,
                         'grand_total'    => $cartTotal,
+                        'points_redeemed' => $pointsRedeemed,
+                        'point_discount_amount' => $pointDiscountAmount,
                         'paid_amount'    => $paymentMethod === 'hold' ? 0 : $paidAmount,
                         'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
                         'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
@@ -727,6 +833,7 @@ class PosController extends Controller
                         'sale_date'      => $transactionDate,
                         'sale_type'      => 'retail',
                         'customer_id'    => $customerId,
+                        'member_id'      => $memberId,
                         'customer_name'  => $customerName,
                         'customer_phone' => $customerPhone,
                         'user_id'        => auth()->id(),
@@ -735,6 +842,8 @@ class PosController extends Controller
                         'trans_discount' => $cart['transaction_discount'] ?? 0,
                         'tax_total'      => 0,
                         'grand_total'    => $cartTotal,
+                        'points_redeemed' => $pointsRedeemed,
+                        'point_discount_amount' => $pointDiscountAmount,
                         'paid_amount'    => $paymentMethod === 'hold' ? 0 : $paidAmount,
                         'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
                         'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
@@ -800,6 +909,16 @@ class PosController extends Controller
                             'bukti_bayar'      => $buktiBayarPath,
                         ]);
                     }
+                }
+
+                // Process loyalty points inside the transaction
+                if ($memberId) {
+                    $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+                    $memberObj = \App\Models\Member::find($memberId);
+                    if ($pointsRedeemed > 0 && $memberObj) {
+                        $loyaltyService->debitPointsForRedemption($memberObj, $pointsRedeemed, $sale);
+                    }
+                    $loyaltyService->creditPointsForSale($sale);
                 }
 
                 return $sale;
@@ -1587,6 +1706,9 @@ class PosController extends Controller
                 // 2. Update status sale
                 $sale->update(['status' => 'void']);
 
+                // Revert member loyalty points
+                app(\App\Services\LoyaltyPointService::class)->revertPointsForVoid($sale);
+
                 // 3. Hapus cash transaction & jurnal
                 $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse'])
                     ->where('ref_id', $sale->id)
@@ -1857,6 +1979,9 @@ class PosController extends Controller
                     $service = new JournalFromCashTransactionService();
                     $service->createForRefund($refund->id);
                 }
+
+                // Revert member loyalty points
+                app(\App\Services\LoyaltyPointService::class)->revertPointsForVoid($sale);
             });
 
             return response()->json(['message' => 'Refund berhasil diproses']);
@@ -2169,6 +2294,9 @@ class PosController extends Controller
                     'status' => 'void'
                 ]);
 
+                // Revert member loyalty points
+                app(\App\Services\LoyaltyPointService::class)->revertPointsForVoid($sale);
+
                 // 3️⃣ Hapus cash transaction
                 $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse'])
                     ->where('ref_id', $sale->id)
@@ -2298,6 +2426,9 @@ class PosController extends Controller
                     $service = new JournalFromCashTransactionService();
                     $service->createForRefund($refund->id);
                 }
+
+                // Revert member loyalty points
+                app(\App\Services\LoyaltyPointService::class)->revertPointsForVoid($sale);
             });
 
             return back()->with('success', 'Refund berhasil diproses');

@@ -19,6 +19,7 @@ class Sale extends Model
         'sale_date',
         'sale_type',
         'customer_id',
+        'member_id',
         'customer_name',
         'customer_phone',
         'receipt_name',
@@ -28,6 +29,9 @@ class Sale extends Model
         'trans_discount',
         'tax_total',
         'grand_total',
+        'points_earned',
+        'points_redeemed',
+        'point_discount_amount',
         'paid_amount',
         'change_amount',
         'nojurnal',
@@ -39,6 +43,16 @@ class Sale extends Model
     protected $casts = [
         'sale_date' => 'datetime',
     ];
+
+    public function member()
+    {
+        return $this->belongsTo(Member::class);
+    }
+
+    public function pointHistories()
+    {
+        return $this->hasMany(MemberPointHistory::class);
+    }
 
     protected static function booted()
     {
