@@ -170,16 +170,34 @@ class GeminiService
 
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}";
 
-        $systemInstruction = "Anda adalah seorang Analis Bisnis Ritel Senior sekaligus Jurnalis Bisnis. Tugas Anda adalah menganalisis data performa harian toko POS (Point of Sales) yang dikirim dalam format JSON dan menyusun laporan narasi bisnis dalam Bahasa Indonesia bergaya editorial 'Koran Toko Digital'.\n\n"
+        $businessType = $storeData['business_type'] ?? 'retail';
+        $isFnb = $businessType === 'fnb';
+
+        $roleLabel = $isFnb
+            ? 'Analis Bisnis F&B (Food & Beverage) Senior'
+            : 'Analis Bisnis Ritel Senior';
+
+        $contextNote = $isFnb
+            ? "Toko ini adalah bisnis F&B (Food & Beverage) seperti restoran, kafe, atau kedai makanan/minuman. Gunakan istilah-istilah yang relevan dengan dunia F&B: menu, pesanan, food cost, bahan baku, peak dining hours, dll."
+            : "Toko ini adalah bisnis Ritel (toko fisik yang menjual barang). Gunakan istilah-istilah yang relevan dengan dunia ritel: stok barang, inventory turnover, display produk, restock, dll.";
+
+        $sectionProducts = $isFnb
+            ? "3. Menu Andalan Hari Ini: Analisis menu terlaris hari ini dan kinerjanya.\n"
+            . "4. Perlu Perhatian: Analisis menu yang kurang diminati dan bahan baku yang stoknya kritis (jika ada) untuk segera dipersiapkan.\n"
+            . "5. Jam Ramai Pesanan: Analisis waktu pesanan paling ramai (peak hours) dan bagaimana memaksimalkan kapasitas dapur/layanan.\n"
+            : "3. Bintang Hari Ini: Analisis produk terlaris hari ini dan kinerjanya.\n"
+            . "4. Perlu Perhatian: Analisis produk yang paling sepi dan stok yang kritis (jika ada) untuk segera direstock.\n"
+            . "5. Jam Terbang Toko: Analisis waktu transaksi paling ramai (peak hours) dan bagaimana memaksimalkannya.\n";
+
+        $systemInstruction = "Anda adalah seorang {$roleLabel} sekaligus Jurnalis Bisnis. Tugas Anda adalah menganalisis data performa harian toko POS (Point of Sales) yang dikirim dalam format JSON dan menyusun laporan narasi bisnis dalam Bahasa Indonesia bergaya editorial 'Koran Toko Digital'.\n\n"
+            . "KONTEKS BISNIS: {$contextNote}\n\n"
             . "Laporan harus informatif, memotivasi, dan memberikan wawasan tindakan nyata (actionable insights). Gunakan gaya bahasa jurnalistik koran bisnis yang menarik.\n\n"
             . "Buatlah struktur laporan HTML (content_html) yang menarik dengan elemen-elemen berikut:\n"
             . "1. Headline Utama yang ringkas dan menarik.\n"
             . "2. Laporan Omset: Rangkuman omset hari ini, perbandingan dengan H-1 (persentase naik/turun), total transaksi, dan rata-rata nilai transaksi.\n"
-            . "3. Bintang Hari Ini: Analisis produk terlaris hari ini dan kinerjanya.\n"
-            . "4. Perlu Perhatian: Analisis produk yang paling sepi dan stok yang kritis (jika ada) untuk segera direstock.\n"
-            . "5. Jam Terbang Toko: Analisis waktu transaksi paling ramai (peak hours) dan bagaimana memaksimalkannya.\n"
+            . $sectionProducts
             . "6. Laporan Pengeluaran: Ringkasan biaya operasional toko hari ini.\n"
-            . "7. Saran Aksi Besok: 3 rekomendasi taktis dan konkret untuk dijalankan esok hari.\n\n"
+            . "7. Saran Aksi Besok: 3 rekomendasi taktis dan konkret untuk dijalankan esok hari yang relevan dengan bisnis {$businessType}.\n\n"
             . "PENTING:\n"
             . "- Kembalikan hasil hanya dalam format JSON yang valid sesuai schema.\n"
             . "- Jangan menyertakan tag markdown ```json di output teks Anda.\n"

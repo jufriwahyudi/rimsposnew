@@ -153,12 +153,15 @@ class DataAggregatorService
             ];
         })->values()->toArray();
 
-        // Fetch Store Name
-        $storeName = DB::table('stores')->where('id', $storeId)->value('name') ?? 'Toko';
+        // Fetch Store Name & Business Type
+        $store = DB::table('stores')->where('id', $storeId)->select('name', 'business_type')->first();
+        $storeName = $store->name ?? 'Toko';
+        $businessType = $store->business_type ?? 'retail';
 
         // Sanitization check: Ensure no employee names, customer names, custom phones, or IDs are included.
         return [
             'store_name' => $storeName,
+            'business_type' => $businessType,
             'report_date' => $date,
             'summary' => $revenueSummary,
             'top_products' => $topProducts,
