@@ -273,8 +273,130 @@ class CustomerSelfServiceController extends Controller
         }
 
         $store = Store::findOrFail($storeId);
+        
+        // Fetch all generated QR Codes for the current store
+        $qrCodes = \App\Models\StoreQrCode::orderBy('table_name')->get();
 
-        return view('self-service.qr_generator', compact('store'));
+        return view('self-service.qr_generator', compact('store', 'qrCodes'));
+    }
+
+    /**
+     * Store a new QR Code generator record in the database.
+     */
+    public function storeQrCode(Request $request)
+    {
+        $request->validate([
+            'table_name' => 'required|string|max:100',
+        ]);
+
+        $storeId = session('store_id');
+        if (!$storeId) {
+            return response()->json(['success' => false, 'message' => 'Silakan pilih toko terlebih dahulu.'], 400);
+        }
+
+        $tableName = trim($request->input('table_name'));
+
+        // Check if QR Code with the same table name already exists for this store
+        $exists = \App\Models\StoreQrCode::where('table_name', $tableName)->first();
+        if ($exists) {
+            return response()->json([
+                'success' => true,
+                'already_exists' => true,
+                'message' => "QR Code untuk {$tableName} sudah pernah dibuat.",
+                'qr_code' => [
+                    'id' => $exists->id,
+                    'table_name' => $exists->table_name,
+                    'url' => $exists->url,
+                    'hash' => $exists->hash,
+                    'image_url' => route('settings.qr-generator.image', $exists->id),
+                    'download_url' => route('settings.qr-generator.download', $exists->id),
+                ]
+            ]);
+        }
+
+        try {
+            $hash = hash_hmac('sha256', "store_id={$storeId}&table={$tableName}", config('app.key'));
+            $url = route('order.index', [
+                'store_id' => $storeId,
+                'table' => $tableName,
+                'hash' => $hash
+            ]);
+
+            $qrCode = \App\Models\StoreQrCode::create([
+                'store_id' => $storeId,
+                'table_name' => $tableName,
+                'url' => $url,
+                'hash' => $hash,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'QR Code berhasil dibuat dan disimpan.',
+                'qr_code' => [
+                    'id' => $qrCode->id,
+                    'table_name' => $qrCode->table_name,
+                    'url' => $qrCode->url,
+                    'hash' => $qrCode->hash,
+                    'image_url' => route('settings.qr-generator.image', $qrCode->id),
+                    'download_url' => route('settings.qr-generator.download', $qrCode->id),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Gagal membuat QR Code: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal membuat QR Code: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Show QR Code image from DNS2D offline generator.
+     */
+    public function showQrCodeImage($id)
+    {
+        $qrCode = \App\Models\StoreQrCode::findOrFail($id);
+        
+        $dns = new \Milon\Barcode\DNS2D();
+        $pngBase64 = $dns->getBarcodePNG($qrCode->url, 'QRCODE', 10, 10);
+        
+        return response(base64_decode($pngBase64))
+            ->header('Content-Type', 'image/png');
+    }
+
+    /**
+     * Download QR Code image as PNG.
+     */
+    public function downloadQrCode($id)
+    {
+        $qrCode = \App\Models\StoreQrCode::findOrFail($id);
+        
+        $dns = new \Milon\Barcode\DNS2D();
+        $pngBase64 = $dns->getBarcodePNG($qrCode->url, 'QRCODE', 12, 12);
+        
+        $filename = 'qrcode-' . \Illuminate\Support\Str::slug($qrCode->table_name) . '.png';
+        
+        return response(base64_decode($pngBase64))
+            ->header('Content-Type', 'image/png')
+            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
+
+    /**
+     * Delete QR Code from database.
+     */
+    public function deleteQrCode($id)
+    {
+        try {
+            $qrCode = \App\Models\StoreQrCode::findOrFail($id);
+            $qrCode->delete();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'QR Code berhasil dihapus.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus QR Code: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     // ── FIFO stock locking helper ───────────────────────────────────────────
@@ -333,19 +455,6 @@ class CustomerSelfServiceController extends Controller
         if ($sisa > 0) {
             throw new \Exception("Stok {$variant->variant_name} tidak mencukupi di toko.");
         }
-    }
-
-    /**
-     * Generate signature hash for a table.
-     */
-    public function sign(Request $request)
-    {
-        $storeId = $request->input('store_id');
-        $table   = $request->input('table');
-        
-        $hash = hash_hmac('sha256', "store_id={$storeId}&table={$table}", config('app.key'));
-        
-        return response()->json(['hash' => $hash]);
     }
 
     /**

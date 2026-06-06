@@ -123,7 +123,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         
         // QR Code Generator
         Route::get('/qr-generator', [\App\Http\Controllers\CustomerSelfServiceController::class, 'generateQrCode'])->name('settings.qr-generator');
-        Route::get('/qr-generator/sign', [\App\Http\Controllers\CustomerSelfServiceController::class, 'sign'])->name('settings.qr-generator.sign');
+        Route::post('/qr-generator', [\App\Http\Controllers\CustomerSelfServiceController::class, 'storeQrCode'])->name('settings.qr-generator.store');
+        Route::get('/qr-generator/image/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'showQrCodeImage'])->name('settings.qr-generator.image');
+        Route::get('/qr-generator/download/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'downloadQrCode'])->name('settings.qr-generator.download');
+        Route::delete('/qr-generator/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'deleteQrCode'])->name('settings.qr-generator.delete');
     });
 
     // Member Loyalty Management

@@ -565,4 +565,82 @@ class CustomerSelfServiceTest extends TestCase
 
         $this->assertNotNull($sale);
     }
+
+    public function test_admin_can_generate_and_store_qr_code()
+    {
+        $response = $this->actingAs($this->user)
+            ->withSession(['store_id' => $this->store->id])
+            ->postJson(route('settings.qr-generator.store'), [
+                'table_name' => 'Meja VIP 1'
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('qr_code.table_name', 'Meja VIP 1');
+
+        $this->assertDatabaseHas('store_qr_codes', [
+            'store_id' => $this->store->id,
+            'table_name' => 'Meja VIP 1'
+        ]);
+    }
+
+    public function test_admin_cannot_duplicate_table_qr_code()
+    {
+        $qrCode = \App\Models\StoreQrCode::create([
+            'store_id' => $this->store->id,
+            'table_name' => 'Meja VIP 1',
+            'url' => 'http://localhost/order?store_id=' . $this->store->id . '&table=Meja%20VIP%201&hash=somehash',
+            'hash' => 'somehash'
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['store_id' => $this->store->id])
+            ->postJson(route('settings.qr-generator.store'), [
+                'table_name' => 'Meja VIP 1'
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+        $response->assertJsonPath('already_exists', true);
+        $response->assertJsonPath('qr_code.id', $qrCode->id);
+    }
+
+    public function test_admin_can_download_qr_code_as_png()
+    {
+        $qrCode = \App\Models\StoreQrCode::create([
+            'store_id' => $this->store->id,
+            'table_name' => 'Meja VIP 1',
+            'url' => 'http://localhost/order?store_id=' . $this->store->id . '&table=Meja%20VIP%201&hash=somehash',
+            'hash' => 'somehash'
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['store_id' => $this->store->id])
+            ->get(route('settings.qr-generator.download', $qrCode->id));
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'image/png');
+        $response->assertHeader('Content-Disposition', 'attachment; filename="qrcode-meja-vip-1.png"');
+    }
+
+    public function test_admin_can_delete_qr_code()
+    {
+        $qrCode = \App\Models\StoreQrCode::create([
+            'store_id' => $this->store->id,
+            'table_name' => 'Meja VIP 1',
+            'url' => 'http://localhost/order?store_id=' . $this->store->id . '&table=Meja%20VIP%201&hash=somehash',
+            'hash' => 'somehash'
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['store_id' => $this->store->id])
+            ->deleteJson(route('settings.qr-generator.delete', $qrCode->id));
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('success', true);
+
+        $this->assertDatabaseMissing('store_qr_codes', [
+            'id' => $qrCode->id
+        ]);
+    }
 }
