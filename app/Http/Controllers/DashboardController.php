@@ -114,6 +114,12 @@ class DashboardController extends Controller
             ->sortByDesc('stok_total')
             ->take(10);
 
+        // Koran Toko Digital Terkini
+        $latestNewspaper = \App\Models\DigitalNewspaper::where('store_id', $storeId)
+            ->where('status', 'success')
+            ->orderBy('report_date', 'desc')
+            ->first();
+
         return view('beranda', compact(
             'totalProducts',
             'totalVariants',
@@ -125,7 +131,8 @@ class DashboardController extends Controller
             'topProducts',
             'paymentMethods',
             'lowStock',
-            'stockOutToday'
+            'stockOutToday',
+            'latestNewspaper'
         ));
     }
 

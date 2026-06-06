@@ -334,6 +334,91 @@ class PosController extends Controller
     }
 
     /**
+     * POST /api/pos/voice-search
+     * Voice command product search powered by Gemini AI
+     */
+    public function apiVoiceSearch(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $text = trim($request->input('text'));
+        if (empty($text)) {
+            return response()->json(['message' => 'Teks pencarian suara diperlukan'], 422);
+        }
+
+        // Set tenant context so StoreScope automatically filters variants & products
+        \App\Support\Tenant::set($storeId);
+
+        // Call Gemini Service to parse the voice command
+        $gemini = app(\App\Services\GeminiService::class);
+        $parsed = $gemini->parseVoiceCommand($text);
+        Log::info('Voice command parsed: ' . json_encode($parsed));
+        
+        $searchTerm = $parsed['product_name'] ?? '';
+        $quantity = $parsed['quantity'] ?? 1;
+
+        if (empty($searchTerm)) {
+            return response()->json([
+                'success' => true,
+                'parsed_query' => [
+                    'product_name' => '',
+                    'quantity' => $quantity
+                ],
+                'suggestions' => []
+            ]);
+        }
+
+        // Search database using token-based matching (every word in search query must match some product/variant attribute)
+        $variants = ProductVariant::with(['product.tenant', 'variantAttributes.value'])
+            ->where('is_active', 'Y')
+            ->where(function ($query) use ($searchTerm) {
+                $words = array_filter(explode(' ', $searchTerm));
+                foreach ($words as $word) {
+                    $query->where(function ($q) use ($word) {
+                        $q->where('variant_name', 'like', "%{$word}%")
+                            ->orWhere('sku', 'like', "%{$word}%")
+                            ->orWhereHas('product', function ($pq) use ($word) {
+                                $pq->where('nama_produk', 'like', "%{$word}%");
+                            })
+                            ->orWhereHas('barcodes', function ($bq) use ($word) {
+                                $bq->where('barcode', 'like', "%{$word}%");
+                            });
+                    });
+                }
+            })
+            ->limit(10)
+            ->get();
+
+        $suggestions = $variants->map(function ($v) {
+            return [
+                'id'          => $v->id,
+                'product_id'  => $v->product_id,
+                'sku'         => $v->sku,
+                'name'        => $v->product->nama_produk,
+                'variant'     => $v->variant_label,
+                'price'       => (float) $v->harga_jual,
+                'stok'        => (int) $v->stok_store,
+                'track_stock' => (bool) $v->track_stock,
+                'image_url'   => $v->product->image_url,
+                'tenant_id'   => $v->product->tenant_id,
+                'tenant_name' => $v->product->tenant?->nama_tenant ?? 'Umum',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'parsed_query' => [
+                'product_name' => $searchTerm,
+                'quantity' => $quantity
+            ],
+            'suggestions' => $suggestions
+        ]);
+    }
+
+    /**
      * API to associate a barcode with a product variant.
      * POST /api/pos/product/register-barcode
      */

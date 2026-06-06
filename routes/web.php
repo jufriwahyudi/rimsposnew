@@ -271,6 +271,12 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::get('/{dailyAudit}', [DailyAuditController::class, 'show'])->name('show');
     });
 
+    // Koran Toko Digital
+    Route::middleware('role.type:ADMIN,SUPERADMIN')->prefix('koran-toko')->name('newspaper.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\DigitalNewspaperController::class, 'index'])->name('index');
+        Route::get('/{id}', [\App\Http\Controllers\DigitalNewspaperController::class, 'show'])->name('show');
+    });
+
     #LAPORAN
     Route::get('/laporan/penjualan', [LaporanController::class, 'penjualan'])->name('laporan.penjualan');
     Route::post('/laporan/penjualan/data', [LaporanController::class, 'getpenjualan'])->name('laporanpenjualan.getpenjualan');

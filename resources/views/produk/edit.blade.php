@@ -142,7 +142,7 @@
                                         <div class="card-body py-2">
                                             <div class="row g-2">
                                                 <!-- Pricing and Reward -->
-                                                <div class="col-6">
+                                                <div class="{{ $showRewardPoints ? 'col-6' : 'col-12' }}">
                                                     <small class="text-muted d-block" style="font-size: 0.7rem;">Harga Jual</small>
                                                     <span class="fw-bold text-primary" style="font-size: 0.9rem;">Rp {{ number_format($variant->harga_jual, 0, ',', '.') }}</span>
                                                 </div>

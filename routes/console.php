@@ -12,3 +12,7 @@ Artisan::command('inspire', function () {
 
 // Kirim pengingat FCM H-7 masa aktif langganan toko (setiap hari jam 08:00)
 Schedule::command('subscription:send-warnings')->dailyAt('08:00')->withoutOverlapping();
+
+// Generate digital daily newspaper for stores at 23:59 WIB daily
+Schedule::command('newspaper:generate')->dailyAt('23:59')->withoutOverlapping()->runInBackground();
+

@@ -23,6 +23,34 @@
         </div>
     @endif
 
+    @if ($latestNewspaper)
+        <div class="card border-0 rounded-4 shadow-sm mb-4" style="background: linear-gradient(135deg, #fdfbf7 0%, #f7f4eb 100%); border-left: 5px solid #7c3aed !important;">
+            <div class="card-body p-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center bg-white shadow-sm p-3" style="width: 54px; height: 54px; min-width: 54px;">
+                            <span class="material-icons-outlined text-primary fs-3">newspaper</span>
+                        </div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span class="badge bg-primary text-white fw-bold">Koran Baru</span>
+                                <small class="text-muted fw-semibold">{{ $latestNewspaper->report_date->translatedFormat('d F Y') }}</small>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-1">"{{ $latestNewspaper->headline }}"</h5>
+                            <p class="mb-0 text-muted small">Wawasan performa toko Anda hari kemarin siap untuk dibaca.</p>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <a href="{{ route('newspaper.index') }}" class="btn btn-link text-decoration-none text-muted fw-semibold">Edisi Lainnya</a>
+                        <a href="{{ route('newspaper.show', $latestNewspaper->id) }}" class="btn btn-primary px-4 rounded-pill fw-semibold shadow-sm">
+                            Baca Sekarang <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- Summary Cards --}}
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
