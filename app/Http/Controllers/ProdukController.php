@@ -7,10 +7,17 @@ use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantBarcode;
+use App\Models\StockAdjustment;
+use App\Models\StockAdjustmentItem;
+use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\VariantAttribute;
+use App\Services\JournalEntryService;
+use App\Services\StockAdjustmentPostingService;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Milon\Barcode\DNS1D;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Str;
@@ -234,6 +241,109 @@ class ProdukController extends Controller
             'storeMovements'
         ));
     }
+
+    public function adjustStock(Request $request, Product $product, ProductVariant $variant)
+    {
+        abort_if($variant->product_id !== $product->id, 404);
+
+        $request->validate([
+            'posisi'          => 'required|in:warehouse,store',
+            'adjustment_type' => 'required|in:increase,decrease',
+            'qty'             => 'required|integer|min:1',
+            'cost'            => 'required_if:adjustment_type,increase|numeric|min:0|nullable',
+            'notes'           => 'nullable|string|max:500',
+            'effective_date'  => 'required|date',
+        ]);
+
+        try {
+            DB::transaction(function () use ($request, $variant) {
+                // Generate code
+                $code = $this->generateAdjustmentCode('SA');
+
+                $posisi = $request->posisi;
+                $qty = (int) $request->qty;
+                $cost = (float) $request->cost;
+                $isIncrease = $request->adjustment_type === 'increase';
+
+                // Create StockAdjustment (DRAFT)
+                $adjustment = StockAdjustment::create([
+                    'store_id'       => session('store_id'),
+                    'code'           => $code,
+                    'effective_date' => $request->effective_date,
+                    'posisi'         => $posisi,
+                    'reason_type'    => 'CORRECTION',
+                    'notes'          => $request->notes ?? 'Penyesuaian stok langsung untuk variant #' . $variant->sku,
+                    'status'         => 'DRAFT',
+                    'created_by'     => auth()->id(),
+                ]);
+
+                if ($isIncrease) {
+                    // Tambah stok — posting service akan membuat batch baru
+                    StockAdjustmentItem::create([
+                        'stock_adjustment_id' => $adjustment->id,
+                        'product_variant_id'  => $variant->id,
+                        'qty'                 => $qty,
+                        'cost'                => $cost,
+                        'total_value'         => $qty * $cost,
+                    ]);
+                } else {
+                    // Kurang stok — FIFO otomatis
+                    $remaining = $qty;
+                    $batches = StockBatch::where('product_variant_id', $variant->id)
+                        ->where('posisi', $posisi)
+                        ->where('qty_sisa', '>', 0)
+                        ->orderBy('created_at') // FIFO
+                        ->get();
+
+                    if ($batches->isEmpty()) {
+                        throw new Exception('Tidak ada stok tersedia di posisi ' . $posisi . '.');
+                    }
+
+                    $totalAvailable = $batches->sum('qty_sisa');
+                    if ($totalAvailable < $qty) {
+                        throw new Exception('Stok tidak mencukupi. Tersedia: ' . $totalAvailable . ', diminta: ' . $qty . '.');
+                    }
+
+                    foreach ($batches as $batch) {
+                        if ($remaining <= 0) {
+                            break;
+                        }
+                        $takeQty = min($batch->qty_sisa, $remaining);
+
+                        StockAdjustmentItem::create([
+                            'stock_adjustment_id' => $adjustment->id,
+                            'product_variant_id'  => $variant->id,
+                            'stock_batch_id'      => $batch->id,
+                            'qty'                 => -$takeQty,
+                            'cost'                => $batch->harga_beli,
+                            'total_value'         => -($takeQty * $batch->harga_beli),
+                        ]);
+
+                        $remaining -= $takeQty;
+                    }
+                }
+
+                // Posting adjustment via existing service
+                $service = app(StockAdjustmentPostingService::class);
+                $result = $service->post($adjustment);
+
+                // Generate jurnal akuntansi
+                if (config('app.jurnal_transaksi')) {
+                    $this->generateAdjustmentJournal($adjustment, $result);
+                }
+            });
+
+            return redirect()->back()->with('success', 'Penyesuaian stok berhasil diposting. Stok ' . $variant->variant_label . ' telah diperbarui.');
+        } catch (Exception $e) {
+            Log::error('Gagal melakukan penyesuaian stok langsung', [
+                'variant_id' => $variant->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->withInput()->with('error', 'Gagal melakukan penyesuaian stok: ' . $e->getMessage());
+        }
+    }
+
     public function edit($id)
     {
         $product = Product::with([
@@ -798,6 +908,80 @@ $product->update($productData);
                 'success' => false,
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    private function generateAdjustmentCode($prefix)
+    {
+        $datePart = date('Ymd');
+        $count = StockAdjustment::whereDate('created_at', now()->toDateString())->count() + 1;
+        return sprintf("%s-%s-%04d", $prefix, $datePart, $count);
+    }
+
+    private function generateAdjustmentJournal(StockAdjustment $adjustment, array $result)
+    {
+        if (($result['increase'] ?? 0) <= 0 && ($result['decrease'] ?? 0) <= 0) {
+            return;
+        }
+
+        if ($adjustment->nojurnal) {
+            return;
+        }
+
+        $inventoryAccount = $adjustment->posisi === 'store' ? '11.04.13' : '11.04.14';
+        $diffAccount = '11.04.15';
+
+        $entries = [];
+
+        if (($result['increase'] ?? 0) > 0) {
+            $entries[] = [
+                'kode_akun' => $inventoryAccount,
+                'amount'    => $result['increase'],
+                'type'      => 'debet',
+            ];
+            $entries[] = [
+                'kode_akun' => $diffAccount,
+                'amount'    => $result['increase'],
+                'type'      => 'kredit',
+            ];
+        }
+
+        if (($result['decrease'] ?? 0) > 0) {
+            $entries[] = [
+                'kode_akun' => $diffAccount,
+                'amount'    => $result['decrease'],
+                'type'      => 'debet',
+            ];
+            $entries[] = [
+                'kode_akun' => $inventoryAccount,
+                'amount'    => $result['decrease'],
+                'type'      => 'kredit',
+            ];
+        }
+
+        if (count($entries) < 2) {
+            return;
+        }
+
+        try {
+            $journalService = new JournalEntryService();
+            $voucher = $journalService->create(
+                [
+                    'tanggal'     => $adjustment->effective_date,
+                    'uraian'      => 'Penyesuaian Stok ' . $adjustment->code,
+                    'jns_trx'     => 12,
+                    'ref_tagihan' => $adjustment->id,
+                    'divisi'      => 8,
+                ],
+                $entries
+            );
+
+            $adjustment->update(['nojurnal' => $voucher->id]);
+        } catch (\Throwable $e) {
+            Log::error('Gagal generate jurnal penyesuaian stok', [
+                'stock_adjustment_id' => $adjustment->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

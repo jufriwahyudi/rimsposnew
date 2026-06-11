@@ -61,7 +61,7 @@
                     </td>
 
                     <td class="text-end">
-                        {{ number_format($row->batch->harga_modal ?? 0) }}
+                        {{ number_format($row->batch->harga_beli ?? 0) }}
                     </td>
 
                     <td>

@@ -72,6 +72,11 @@
                                 type="button" role="tab" aria-controls="barcode" aria-selected="false"><i
                                     class="fa-solid fa-barcode"></i> Barcode</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="adjustment-tab" data-bs-toggle="tab" data-bs-target="#adjustment"
+                                type="button" role="tab" aria-controls="adjustment" aria-selected="false"><i
+                                    class="bi bi-arrow-left-right"></i> Penyesuaian Stok</button>
+                        </li>
                     </ul>
 
                     <div class="tab-content mt-3" id="mutasiTabsContent">
@@ -146,6 +151,63 @@
                                             </tbody>
                                         </table>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- Tab Penyesuaian Stok --}}
+                        <div class="tab-pane fade" id="adjustment" role="tabpanel" aria-labelledby="adjustment-tab">
+                            <div class="card border-0 shadow-sm rounded-4">
+                                <div class="card-body">
+                                    <h6 class="fw-bold mb-3">Penyesuaian Stok</h6>
+                                    <form action="{{ route('produk.variants.adjust-stock', ['product' => $product->id, 'variant' => $variant->id]) }}" method="POST">
+                                        @csrf
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label for="posisi" class="form-label">Posisi</label>
+                                                <select name="posisi" id="posisi" class="form-select" required>
+                                                    <option value="">-- Pilih Posisi --</option>
+                                                    <option value="warehouse" {{ old('posisi') == 'warehouse' ? 'selected' : '' }}>Gudang</option>
+                                                    <option value="store" {{ old('posisi') == 'store' ? 'selected' : '' }}>Toko</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="adjustment_type" class="form-label">Tipe Penyesuaian</label>
+                                                <select name="adjustment_type" id="adjustment_type" class="form-select" required>
+                                                    <option value="">-- Pilih Tipe --</option>
+                                                    <option value="increase" {{ old('adjustment_type') == 'increase' ? 'selected' : '' }}>Tambah Stok</option>
+                                                    <option value="decrease" {{ old('adjustment_type') == 'decrease' ? 'selected' : '' }}>Kurangi Stok</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="qty" class="form-label">Jumlah (Qty)</label>
+                                                <input type="number" name="qty" id="qty" class="form-control"
+                                                    min="1" value="{{ old('qty') }}" required
+                                                    placeholder="Masukkan jumlah">
+                                            </div>
+                                            <div class="col-md-4" id="costFieldContainer">
+                                                <label for="cost" class="form-label">Harga Beli per Unit (Rp) <span id="costRequired" class="text-danger">*</span></label>
+                                                <input type="number" name="cost" id="cost" class="form-control"
+                                                    min="0" step="0.01" value="{{ old('cost', 0) }}"
+                                                    placeholder="Harga beli per unit">
+                                                <small id="costHelpText" class="form-text text-muted">Wajib diisi untuk penambahan stok.</small>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="effective_date" class="form-label">Tanggal Efektif</label>
+                                                <input type="date" name="effective_date" id="effective_date" class="form-control"
+                                                    value="{{ old('effective_date', date('Y-m-d')) }}" required>
+                                            </div>
+                                            <div class="col-12">
+                                                <label for="notes" class="form-label">Catatan</label>
+                                                <textarea name="notes" id="notes" class="form-control" rows="2"
+                                                    placeholder="Alasan penyesuaian stok...">{{ old('notes') }}</textarea>
+                                            </div>
+                                            <div class="col-12">
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="bi bi-check-circle"></i> Simpan & Posting Penyesuaian
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
                                 </div>
                             </div>
                         </div>
@@ -228,5 +290,34 @@
                 }
             });
         }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const adjustmentType = document.getElementById('adjustment_type');
+            const costInput = document.getElementById('cost');
+            const costRequired = document.getElementById('costRequired');
+            const costHelpText = document.getElementById('costHelpText');
+
+            function toggleCostField() {
+                if (adjustmentType.value === 'decrease') {
+                    // Kurang stok — disable cost, pakai harga modal dari batch
+                    costInput.value = 0;
+                    costInput.setAttribute('disabled', 'disabled');
+                    costInput.removeAttribute('required');
+                    costRequired.style.display = 'none';
+                    costHelpText.textContent = 'Pengurangan stok mengikuti harga modal dari batch (FIFO).';
+                } else {
+                    // Tambah stok — cost wajib diisi
+                    costInput.removeAttribute('disabled');
+                    costInput.setAttribute('required', 'required');
+                    costRequired.style.display = 'inline';
+                    costHelpText.textContent = 'Wajib diisi untuk penambahan stok.';
+                }
+            }
+
+            adjustmentType.addEventListener('change', toggleCostField);
+            // Jalankan saat load untuk handle old() state
+            toggleCostField();
+        });
     </script>
 @endpush

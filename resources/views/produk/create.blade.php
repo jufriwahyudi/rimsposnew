@@ -228,7 +228,7 @@
                 <div class="card-body pt-2 pb-3">
                     <div class="row g-3">
                         <!-- Left Panel: General Info -->
-                        <div class="col-md-${isFnB ? '6' : '12'} \${isFnB ? 'border-end pe-3' : ''}">
+                        <div class="col-md-${isFnB ? '6' : '12'} ${isFnB ? 'border-end pe-3' : ''}">
                             <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
                             <div class="row g-2">
                                 <div class="col-md-6">
@@ -246,12 +246,12 @@
                                         <input name="variants[${i}][harga]" class="form-control" type="number" min="0" placeholder="0" required>
                                     </div>
                                 </div>
-                                \${rewardPointsField}
+                                ${rewardPointsField}
                             </div>
                         </div>
                         
                         <!-- Right Panel: FnB Settings -->
-                        \${isFnB ? `
+                        ${isFnB ? `
                         <div class="col-md-6 ps-3">
                             <h6 class="fw-semibold text-success mb-3" style="font-size: 0.85rem;"><i class="bi bi-gear-fill me-1"></i> Pengaturan FnB (Stok & Komisi)</h6>
                             <div class="row g-2">

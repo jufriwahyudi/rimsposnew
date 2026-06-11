@@ -147,6 +147,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::resource('expenses', ExpenseController::class)->except(['create', 'show']);
 
     Route::get('produk/{product}/variants/{variant}', [ProdukController::class, 'showVariantDetail'])->name('produk.variants.detail');
+    Route::post('produk/{product}/variants/{variant}/adjust-stock', [ProdukController::class, 'adjustStock'])->name('produk.variants.adjust-stock');
     Route::delete('produk/variants/{variant}', [ProdukController::class, 'destroyVariant'])->name('produk.variants.destroy');
     Route::put('/produk/variant/update-harga', [ProdukController::class, 'updateHarga'])->name('produk.variants.updateHarga');
     Route::put('/produk/variant/update', [ProdukController::class, 'updateVariant'])->name('produk.variants.update');
