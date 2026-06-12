@@ -28,7 +28,100 @@ class ProdukController extends Controller
 {
     public function index()
     {
-        return view('produk.index');
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+        $pointSettings = $loyaltyService->getSettings(session('store_id'));
+        $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+
+        return view('produk.index', compact('isFnB', 'showRewardPoints'));
+    }
+
+    public function downloadTemplate()
+    {
+        $store = Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
+        $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+        $pointSettings = $loyaltyService->getSettings(session('store_id'));
+        $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+
+        $fileName = 'template_import_produk_' . ($isFnB ? 'fnb' : 'retail') . '.xlsx';
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\ProductTemplateExport($isFnB, $showRewardPoints),
+            $fileName
+        );
+    }
+
+    public function importProses(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+            'dry_run' => 'nullable',
+        ]);
+
+        try {
+            $store = Store::find(session('store_id'));
+            $isFnB = $store && $store->business_type === 'fnb';
+
+            $loyaltyService = app(\App\Services\LoyaltyPointService::class);
+            $pointSettings = $loyaltyService->getSettings(session('store_id'));
+            $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+
+            $importService = new \App\Services\ProductImportService();
+            $result = $importService->import([
+                'file' => $request->file('file'),
+                'store_id' => session('store_id'),
+                'is_fnb' => $isFnB,
+                'show_reward_points' => $showRewardPoints,
+                'dry_run' => $request->has('dry_run') || $request->boolean('dry_run'),
+            ]);
+
+            return response()->json(array_merge(['success_status' => true], $result));
+        } catch (\Exception $e) {
+            return response()->json([
+                'success_status' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function downloadStockTemplate()
+    {
+        $storeId = session('store_id');
+        $fileName = 'template_import_stok_awal.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\StockTemplateExport($storeId),
+            $fileName
+        );
+    }
+
+    public function importStockProses(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+            'transaction_type' => 'required|in:purchase_order,stock_adjustment',
+            'dry_run' => 'nullable',
+        ]);
+
+        try {
+            $importService = new \App\Services\StockImportService();
+            $result = $importService->import([
+                'file' => $request->file('file'),
+                'store_id' => session('store_id'),
+                'transaction_type' => $request->transaction_type,
+                'dry_run' => $request->has('dry_run') || $request->boolean('dry_run'),
+            ]);
+
+            return response()->json(array_merge(['success_status' => true], $result));
+        } catch (\Exception $e) {
+            return response()->json([
+                'success_status' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function datatables(Request $request)

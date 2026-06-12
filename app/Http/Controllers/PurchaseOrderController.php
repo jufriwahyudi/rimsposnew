@@ -27,8 +27,17 @@ class PurchaseOrderController extends Controller
     public function create()
     {
         $products = Product::with([
-            'variants.variantAttributes.attribute'
-        ])->get();
+            'variants' => function ($query) {
+                $query->where('is_active', 'Y');
+                $query->where('track_stock', true);
+                $query->with('variantAttributes.attribute');
+            }
+        ])
+        ->whereHas('variants', function ($query) {
+            $query->where('is_active', 'Y');
+            $query->where('track_stock', true);
+        })
+        ->get();
         // lihat sql yang terbentuk
         // dd($products->toSql(), $products->getBindings());
         $attributeValues = AttributeValue::pluck('nama', 'id');

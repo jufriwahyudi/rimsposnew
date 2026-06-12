@@ -25,6 +25,10 @@ class ProductVariant extends Model
         'commission_rate',
     ];
 
+    protected $casts = [
+        'track_stock' => 'boolean',
+    ];  
+
     protected $appends = [
         'stok_warehouse',
         'stok_store',

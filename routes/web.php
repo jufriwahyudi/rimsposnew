@@ -140,6 +140,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::delete('/{attributeValue}', [AttributeValueController::class, 'destroy'])->name('attribute-nilai.destroy');
     });
     Route::get('/produk/datatables', [ProdukController::class, 'datatables'])->name('produk.datatables');
+    Route::get('/produk/import/template', [ProdukController::class, 'downloadTemplate'])->name('produk.import.template');
+    Route::post('/produk/import/proses', [ProdukController::class, 'importProses'])->name('produk.import.proses');
+    Route::get('/produk/import/template-stok', [ProdukController::class, 'downloadStockTemplate'])->name('produk.import.template-stok');
+    Route::post('/produk/import/proses-stok', [ProdukController::class, 'importStockProses'])->name('produk.import.proses-stok');
     Route::resource('produk', ProdukController::class);
 
     // Biaya Operasional

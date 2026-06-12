@@ -496,7 +496,7 @@
                                 <div class="card-body py-2">
                                     <div class="row g-2">
                                         <!-- Pricing and Reward -->
-                                        <div class="col-6">
+                                        <div class="{{ $showRewardPoints ? 'col-6' : 'col-12' }}">
                                             <small class="text-muted d-block" style="font-size: 0.7rem;">Harga Jual</small>
                                             <span class="fw-bold text-primary" style="font-size: 0.9rem;">Rp {{ number_format($v->harga_jual, 0, ',', '.') }}</span>
                                         </div>
@@ -508,14 +508,16 @@
                                         @endif
                                         
                                         <!-- Inventory -->
-                                        <div class="col-6 border-top pt-2">
-                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Toko</small>
-                                            <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($v->stok_store ?? 0) }}</span>
-                                        </div>
-                                        <div class="col-6 border-top pt-2">
-                                            <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Gudang</small>
-                                            <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($v->stok_warehouse ?? 0) }}</span>
-                                        </div>
+                                        @if($v->track_stock)
+                                            <div class="col-6 border-top pt-2">
+                                                <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Toko</small>
+                                                <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($v->stok_store ?? 0) }}</span>
+                                            </div>
+                                            <div class="col-6 border-top pt-2">
+                                                <small class="text-muted d-block" style="font-size: 0.7rem;">Stok Gudang</small>
+                                                <span class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ number_format($v->stok_warehouse ?? 0) }}</span>
+                                            </div>
+                                        @endif
 
                                         <!-- FnB Specific Details -->
                                         @if ($isFnB)
