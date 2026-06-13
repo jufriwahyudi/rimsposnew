@@ -152,8 +152,9 @@ class PosController extends Controller
         // dd($akunkas);
         $akunkasir = 0;
         $customers = \App\Models\Customer::orderBy('name')->get();
+        $store = Store::findOrFail(session('store_id'));
 
-        return view('pos.index', compact('akunkas', 'akunkasir', 'customers'));
+        return view('pos.index', compact('akunkas', 'akunkasir', 'customers', 'store'));
     }
     public function sales()
     {
@@ -2880,6 +2881,8 @@ class PosController extends Controller
                 'total'    => round($sale->grand_total),
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
+                'payment_status' => $sale->payment_status,
+                'remaining_debt' => round($sale->grand_total - $sale->paid_amount),
             ]
         ]);
     }
@@ -2974,6 +2977,16 @@ class PosController extends Controller
     {
         $store = Store::findOrFail(session('store_id'));
         $data = $this->printReceipt($id)->getData(true);
+
+        if ($store->printer_type === 'pdf') {
+            $pdf = \PDF::loadView('pos.receipt-pdf', [
+                'store'       => $data['store'],
+                'transaction' => $data['transaction'],
+                'items'       => $data['items'],
+                'summary'     => $data['summary'],
+            ])->setPaper('a4', 'portrait');
+            return $pdf->stream('Invoice-' . $data['transaction']['invoice'] . '.pdf');
+        }
 
         $view = ($store->printer_type === '58mm') ? 'pos.receipt-58mm' : 'pos.receipt';
 

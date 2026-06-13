@@ -128,6 +128,37 @@ class StoreControllerTest extends TestCase
         ]);
     }
 
+    public function test_create_store_with_pdf_printer_type()
+    {
+        $business = Business::first();
+
+        $payload = [
+            'business_id'  => $business->id,
+            'name'         => 'Cabang Baru Test PDF',
+            'code'         => 'CBTSTPDF',
+            'address'      => 'Alamat Test',
+            'city'         => 'Kota Test',
+            'phone'        => '081234567890',
+            'printer_type' => 'pdf',
+            'is_active'    => 1,
+            'bussiness_type' => 'retail',
+            'addon_self_service' => 0,
+            'addon_kds'          => 0,
+        ];
+
+        $response = $this->postJson(route('stores.store'), $payload);
+
+        $response->assertStatus(200);
+        $response->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('stores', [
+            'business_id'  => $business->id,
+            'name'         => 'Cabang Baru Test PDF',
+            'code'         => 'CBTSTPDF',
+            'printer_type' => 'pdf',
+        ]);
+    }
+
     public function test_create_store_validation_unique_business_code()
     {
         // Let's create a business with code 'BIZCODE'

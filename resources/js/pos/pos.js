@@ -676,21 +676,19 @@ const POS = {
                             customerIdSelect.val('').trigger('change.select2');
                         }
                         if (result.isConfirmed) {
-                            // Printer.printReceipt(res.invoice);
-                            // fetch(`/datasales/receiptdata/${res.sale_id}`)
-                            //     .then(res => res.json())
-                            //     .then(data => {
-                            //         Printer.printReceiptPrinter(data);
-                            //     });
-                            // PRINT DENGAN NEW WINDOW
-                            const printWindow = window.open(`/sales/${res.sale_id}/receipt`, '_blank');
-                            printWindow.focus();
-                            printWindow.onload = function () {
-                                printWindow.print();
-                                printWindow.onafterprint = function () {
-                                    printWindow.close();
+                            const printUrl = `/sales/${res.sale_id}/receipt`;
+                            if (window.PRINTER_TYPE === 'pdf') {
+                                window.open(printUrl, '_blank');
+                            } else {
+                                const printWindow = window.open(printUrl, '_blank');
+                                printWindow.focus();
+                                printWindow.onload = function () {
+                                    printWindow.print();
+                                    printWindow.onafterprint = function () {
+                                        printWindow.close();
+                                    };
                                 };
-                            };
+                            }
                         }
 
                         this.closeTab(this.cart.id);

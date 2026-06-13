@@ -213,6 +213,7 @@
     <script>
         window.AKUN_BANK = @json($akunkas);
         window.AKUN_KASIR = '{{ $akunkasir }}';
+        window.PRINTER_TYPE = '{{ $store->printer_type ?? '80mm' }}';
     </script>
 @endpush
 @push('scripts')

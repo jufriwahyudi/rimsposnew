@@ -159,7 +159,7 @@
                                                     @endif
                                                 </td>
                                                 <td>
-                                                    <span class="badge bg-{{ $store->printer_type === '58mm' ? 'info' : 'primary' }}">
+                                                    <span class="badge bg-{{ $store->printer_type === '58mm' ? 'info' : ($store->printer_type === 'pdf' ? 'warning text-dark' : 'primary') }}">
                                                         {{ $store->printer_type ?? '80mm' }}
                                                     </span>
                                                 </td>
@@ -344,6 +344,7 @@
                                 <select class="form-select" id="printer_type">
                                     <option value="80mm">80mm</option>
                                     <option value="58mm">58mm</option>
+                                    <option value="pdf">PDF A4</option>
                                 </select>
                             </div>
                             <div class="col-md-6 d-flex align-items-end">

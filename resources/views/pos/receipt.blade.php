@@ -361,6 +361,14 @@
                         <span class="badge-status">{{ $transaction['status'] }}</span>
                     </td>
                 </tr>
+                @if (isset($summary['payment_status']) && $summary['payment_status'] === 'hutang')
+                <tr>
+                    <td>Status Bayar</td>
+                    <td style="text-align:right;">
+                        <span class="badge-status" style="border-color: #dc3545; color: #dc3545; font-weight: bold;">HUTANG</span>
+                    </td>
+                </tr>
+                @endif
             </table>
 
             <div class="divider"></div>
@@ -415,6 +423,12 @@
                     <td>Kembali</td>
                     <td>Rp {{ number_format($summary['change'], 0, ',', '.') }}</td>
                 </tr>
+                @if (isset($summary['payment_status']) && $summary['payment_status'] === 'hutang')
+                <tr class="total-row" style="color: #dc3545;">
+                    <td>SISA HUTANG</td>
+                    <td>Rp {{ number_format($summary['remaining_debt'], 0, ',', '.') }}</td>
+                </tr>
+                @endif
             </table>
 
             <div class="divider-solid"></div>

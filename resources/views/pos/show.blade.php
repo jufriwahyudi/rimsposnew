@@ -3,6 +3,8 @@
 
 @section('content')
     @php
+        $activeStore = \App\Models\Store::find(session('store_id'));
+        $printerType = $activeStore ? $activeStore->printer_type : '80mm';
         if (!function_exists('variantLabel')) {
             function variantLabel($item)
             {
@@ -378,6 +380,11 @@
          *              Fallback: cetak browser jika WebSocket gagal.
          */
         function cetakStruk(saleId) {
+            if ('{{ $printerType }}' === 'pdf') {
+                window.open('{{ route('sales.receipt', ':id') }}'.replace(':id', saleId), '_blank');
+                return;
+            }
+
             const btn = document.getElementById('btnCetakStruk');
             btn.disabled = true;
             const originalLabel = btn.innerHTML;
