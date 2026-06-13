@@ -26,6 +26,10 @@ class CashTransaction extends Model
         'nojurnal'
     ];
 
+    protected $casts = [
+        'transaction_date' => 'datetime',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');

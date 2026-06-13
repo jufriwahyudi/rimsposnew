@@ -156,6 +156,25 @@ const POS = {
      * EVENT BINDING
      * ========================= */
     bindEvents() {
+        // Initialize Select2 for Customer/Mitra selection
+        const customerIdSelect = $('#customerId');
+        if (customerIdSelect.length) {
+            customerIdSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Pilih Mitra / Pelanggan'
+            });
+
+            customerIdSelect.on('change', () => {
+                const val = customerIdSelect.val();
+                const option = customerIdSelect.find('option:selected');
+                const text = val ? option.text() : 'Umum';
+                
+                this.cart.customer_id = val ? parseInt(val) : null;
+                this.cart.customer_name = text;
+                this.persist();
+            });
+        }
+
         const skuInput = document.getElementById('skuInput');
 
         skuInput?.addEventListener('keydown', e => {
@@ -218,9 +237,13 @@ const POS = {
             transactionDateInput.value = this.cart.transaction_date || new Date().toISOString().split('T')[0];
         }
 
-        const customerNameInput = document.getElementById('customerName');
-        if (customerNameInput) {
-            customerNameInput.value = this.cart.customer_name || '';
+        const customerIdSelect = $('#customerId');
+        if (customerIdSelect.length) {
+            const currentVal = customerIdSelect.val();
+            const cartVal = this.cart.customer_id || '';
+            if (currentVal != cartVal) {
+                customerIdSelect.val(cartVal).trigger('change.select2');
+            }
         }
 
         const tbody = document.getElementById('cartBody');
@@ -331,7 +354,8 @@ const POS = {
                         color: #4f46e5;
                     }
                     .pay-method {
-                        display: flex;
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
                         gap: 8px;
                     }
                     .pay-btn {
@@ -372,6 +396,7 @@ const POS = {
                         <div id="btnCash" class="pay-btn active">💵 Cash</div>
                         <div id="btnTransfer" class="pay-btn">🏦 Transfer</div>
                         <div id="btnSplit" class="pay-btn">🔀 Split</div>
+                        <div id="btnHutang" class="pay-btn">🤝 Hutang</div>
                     </div>
                 </div>
 
@@ -426,6 +451,13 @@ const POS = {
                     </div>
                 </div>
 
+                <div id="hutangSection" class="pos-card d-none">
+                    <div class="pos-label">Pencatatan Hutang</div>
+                    <div class="text-danger small fw-semibold">
+                        Tagihan ini akan dicatat sebagai hutang mitra dan wajib dilunasi secara bertahap.
+                    </div>
+                </div>
+
             `,
             showCancelButton: true,
             confirmButtonText: 'Bayar',
@@ -435,19 +467,23 @@ const POS = {
                 const btnCash = document.getElementById('btnCash');
                 const btnTransfer = document.getElementById('btnTransfer');
                 const btnSplit = document.getElementById('btnSplit');
+                const btnHutang = document.getElementById('btnHutang');
 
                 const cashSection = document.getElementById('cashSection');
                 const transferSection = document.getElementById('transferSection');
                 const splitSection = document.getElementById('splitSection');
+                const hutangSection = document.getElementById('hutangSection');
 
                 const reset = () => {
                     cashSection.classList.add('d-none');
                     transferSection.classList.add('d-none');
                     splitSection.classList.add('d-none');
+                    hutangSection.classList.add('d-none');
 
                     btnCash.classList.remove('active');
                     btnTransfer.classList.remove('active');
                     btnSplit.classList.remove('active');
+                    btnHutang.classList.remove('active');
                 };
 
                 btnCash.onclick = () => {
@@ -466,6 +502,12 @@ const POS = {
                     reset();
                     btnSplit.classList.add('active');
                     splitSection.classList.remove('d-none');
+                };
+
+                btnHutang.onclick = () => {
+                    reset();
+                    btnHutang.classList.add('active');
+                    hutangSection.classList.remove('d-none');
                 };
 
                 // Hitung kembalian untuk cash
@@ -506,6 +548,25 @@ const POS = {
                 const isCash = document.getElementById('btnCash').classList.contains('active');
                 const isTransfer = document.getElementById('btnTransfer').classList.contains('active');
                 const isSplit = document.getElementById('btnSplit').classList.contains('active');
+                const isHutang = document.getElementById('btnHutang').classList.contains('active');
+
+                /* ================= HUTANG ================= */
+                if (isHutang) {
+                    const customerId = this.cart.customer_id;
+                    if (!customerId) {
+                        Swal.showValidationMessage('Mitra wajib dipilih untuk transaksi hutang');
+                        return false;
+                    }
+
+                    return {
+                        payment_method: 'hutang',
+                        paid_amount: 0,
+                        cash_amount: 0,
+                        transfer_amount: 0,
+                        akun_kasir: null,
+                        akun_bank: null
+                    };
+                }
 
                 /* ================= CASH ================= */
                 if (isCash) {
@@ -609,7 +670,11 @@ const POS = {
                         // reset transaction date & customer name for next transaction
                         this.cart.transaction_date = new Date().toISOString().split('T')[0];
                         $('#transactionDate').val(this.cart.transaction_date);
-                        $('#customerName').val("");
+                        
+                        const customerIdSelect = $('#customerId');
+                        if (customerIdSelect.length) {
+                            customerIdSelect.val('').trigger('change.select2');
+                        }
                         if (result.isConfirmed) {
                             // Printer.printReceipt(res.invoice);
                             // fetch(`/datasales/receiptdata/${res.sale_id}`)

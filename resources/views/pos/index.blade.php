@@ -32,11 +32,15 @@
 
                                 {{-- Pelanggan --}}
                                 <div class="col-md-4 col-6">
-                                    <label class="form-label fw-semibold small mb-1">Nama Pelanggan</label>
+                                    <label class="form-label fw-semibold small mb-1">Nama Pelanggan / Mitra</label>
                                     <div class="input-icon">
                                         <i class="bi bi-person"></i>
-                                        <input type="text" id="customerName" class="form-control"
-                                            placeholder="Masukkan nama pelanggan" onchange="POS.updateCustomerName()">
+                                        <select id="customerId" class="form-select select2-customer" style="width: 100%;">
+                                            <option value="">-- Pelanggan Umum --</option>
+                                            @foreach ($customers as $cust)
+                                                <option value="{{ $cust->id }}" data-phone="{{ $cust->phone }}">{{ $cust->name }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -45,6 +49,7 @@
                     @else
                         <input type="hidden" id="transactionDate" value="{{ date('Y-m-d') }}">
                         <input type="hidden" id="customerName" value="Umum">
+                        <input type="hidden" id="customerId" value="">
                     @endif
 
                     {{-- TAB POS --}}

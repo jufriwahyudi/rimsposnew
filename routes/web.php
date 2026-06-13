@@ -34,6 +34,7 @@ use App\Http\Controllers\VendorController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\PointSettingController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\CustomerController;
 use App\Services\JournalFromCashTransactionService;
 use App\Http\Controllers\KitchenController;
 
@@ -116,6 +117,9 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
+        Route::resource('customers', CustomerController::class);
+        Route::get('/debts', [CustomerController::class, 'debtsIndex'])->name('customers.debts.index');
+        Route::post('/debts/pay-collective', [CustomerController::class, 'payCollective'])->name('customers.debts.pay-collective');
         
         // Loyalty Points Settings
         Route::get('/points', [PointSettingController::class, 'index'])->name('settings.points');
@@ -205,10 +209,12 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     });
 
     Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
+    Route::get('/pos/product', [PosController::class, 'findProduct'])->name('pos.find-product');
     Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
     Route::get('/sales', [PosController::class, 'sales'])->name('pos.sales');
     Route::get('/sales/datatables', [PosController::class, 'datatable'])->name('sales.datatables');
     Route::get('/sales/{sale}', [PosController::class, 'show'])->name('sales.show');
+    Route::post('/sales/{sale}/pay-debt', [PosController::class, 'payDebt'])->name('sales.pay-debt');
     Route::post('/sales/{sale}/void', [PosController::class, 'void'])->name('sales.void');
     Route::post('/sales/{sale}/refund', [PosController::class, 'refund'])->name('sales.refund');
     Route::post('/sales/{sale}/exchange', [PosController::class, 'exchange'])->name('sales.exchange');
@@ -304,6 +310,9 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/laporan/tenant', [LaporanController::class, 'tenantReport'])->name('laporan.tenant');
     Route::post('/laporan/tenant/data', [LaporanController::class, 'getTenantReport'])->name('laporan.tenant.data');
     Route::get('/laporan/tenant/export', [LaporanController::class, 'exportTenantReport'])->name('laporan.tenant.export');
+    Route::get('/laporan/hutang', [LaporanController::class, 'laporanHutang'])->name('laporan.hutang');
+    Route::post('/laporan/hutang/data', [LaporanController::class, 'getLaporanHutang'])->name('laporan.hutang.data');
+    Route::get('/laporan/hutang/export', [LaporanController::class, 'exportLaporanHutang'])->name('laporan.hutang.export');
     Route::get('/laporan/penerimaan-kas', [LaporanController::class, 'penerimaanKasFrontliner'])->name('laporan.penerimaan_kas');
     Route::post('/laporan/penerimaan-kas/data', [LaporanController::class, 'getPenerimaanKas'])->name('laporan.penerimaan_kas.data');
     Route::get('/laporan/penerimaan-kas/export', [LaporanController::class, 'exportPenerimaanKas'])->name('laporan.penerimaan_kas.export');

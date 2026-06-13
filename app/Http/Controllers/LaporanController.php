@@ -14,11 +14,13 @@ use App\Models\User;
 use App\Models\NseCalonSiswa;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\Customer;
 use App\Exports\LaporanBiayaExport;
 use App\Exports\LaporanStokExport;
 use App\Exports\LaporanPenjualanExport;
 use App\Exports\LaporanPenjualanNSEExport;
 use App\Exports\LaporanLabaRugiExport;
+use App\Exports\LaporanHutangExport;
 use Maatwebsite\Excel\Facades\Excel;
 use PDF;
 
@@ -821,6 +823,77 @@ class LaporanController extends Controller
         return Excel::download(
             new \App\Exports\LaporanTenantExport($mulai, $akhir),
             'Laporan_Piutang_Tenant_' . $mulai . '_' . $akhir . '.xlsx'
+        );
+    }
+
+    public function laporanHutang(Request $request)
+    {
+        return view('laporan.hutang');
+    }
+
+    public function getLaporanHutang(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+
+        $query = Customer::query()
+            ->with(['sales' => function ($q) use ($mulai, $akhir) {
+                $q->where('payment_status', 'hutang');
+                if ($mulai && $akhir) {
+                    $q->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
+                }
+            }]);
+
+        $customers = $query->get()->map(function ($customer) {
+            $sales = $customer->sales;
+            $totalInvoices = $sales->count();
+            $totalDebt = $sales->sum('grand_total');
+            $totalPaid = $sales->sum('paid_amount');
+            $remaining = $totalDebt - $totalPaid;
+
+            return (object) [
+                'customer_id' => $customer->id,
+                'name' => $customer->name,
+                'phone' => $customer->phone ?? '-',
+                'alamat' => $customer->alamat ?? '-',
+                'total_invoices' => $totalInvoices,
+                'total_debt' => $totalDebt,
+                'total_paid' => $totalPaid,
+                'remaining' => $remaining,
+            ];
+        });
+
+        // Filter: Hanya tampilkan customer yang memiliki invoice hutang
+        $rows = $customers->filter(function ($item) {
+            return $item->total_invoices > 0;
+        })->values();
+
+        $totalHutang = $rows->sum('total_debt');
+        $totalTerbayar = $rows->sum('total_paid');
+        $totalSisaHutang = $rows->sum('remaining');
+
+        if ($request->ajax()) {
+            return view('laporan.hutang_table', compact('rows', 'mulai', 'akhir', 'totalHutang', 'totalTerbayar', 'totalSisaHutang'));
+        }
+
+        return view('laporan.hutang', compact('rows', 'mulai', 'akhir', 'totalHutang', 'totalTerbayar', 'totalSisaHutang'));
+    }
+
+    public function exportLaporanHutang(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+
+        $filename = 'Laporan_Hutang_Mitra';
+        if ($mulai && $akhir) {
+            $filename .= '_' . $mulai . '_' . $akhir;
+        } else {
+            $filename .= '_Semua_Periode';
+        }
+
+        return Excel::download(
+            new LaporanHutangExport($mulai, $akhir),
+            $filename . '.xlsx'
         );
     }
 }

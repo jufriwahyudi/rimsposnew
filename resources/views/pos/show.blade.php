@@ -3,11 +3,13 @@
 
 @section('content')
     @php
-        function variantLabel($item)
-        {
-            return $item->variant
-                ? implode(', ', $item->variant->variantAttributes->map(fn($va) => $va->value->nama)->toArray())
-                : '-';
+        if (!function_exists('variantLabel')) {
+            function variantLabel($item)
+            {
+                return $item->variant
+                    ? implode(', ', $item->variant->variantAttributes->map(fn($va) => $va->value->nama)->toArray())
+                    : '-';
+            }
         }
     @endphp
     <div class="card rounded-4">
@@ -171,14 +173,67 @@
                             <th>Kembali</th>
                             <td class="text-end">{{ number_format($sale->change_amount) }}</td>
                         </tr>
+                        @if ($sale->payment_status === 'hutang')
+                        <tr class="text-danger fw-bold">
+                            <th>Sisa Hutang</th>
+                            <td class="text-end">Rp {{ number_format($sale->grand_total - $sale->paid_amount) }}</td>
+                        </tr>
+                        @endif
                     </table>
                 </div>
             </div>
+
+            @if ($sale->payments->count() > 0)
+            <div class="card rounded-4 border mt-4">
+                <div class="card-header bg-light fw-bold py-3">
+                    <i class="bi bi-wallet2 me-1"></i> Riwayat Cicilan / Pembayaran
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Metode</th>
+                                    <th>Tujuan/Bank</th>
+                                    <th class="text-end">Nominal</th>
+                                    <th class="text-center">Bukti Bayar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($sale->payments as $payment)
+                                    <tr>
+                                        <td>{{ $payment->transaction_date->format('d M Y H:i') }}</td>
+                                        <td><span class="badge bg-secondary">{{ strtoupper($payment->payment_method) }}</span></td>
+                                        <td>{{ $payment->rekening ? $payment->rekening->bank_rek . ' - ' . $payment->rekening->no_rek : '-' }}</td>
+                                        <td class="text-end fw-bold text-success">Rp {{ number_format($payment->amount) }}</td>
+                                        <td class="text-center">
+                                            @if ($payment->bukti_bayar)
+                                                <a href="{{ asset('storage/' . $payment->bukti_bayar) }}" target="_blank" class="btn btn-sm btn-outline-info py-0">
+                                                    Lihat Bukti
+                                                </a>
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            @endif
 
             <div class="mt-3 d-flex gap-2">
                 <a href="{{ route('pos.sales') }}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Kembali
                 </a>
+                @if ($sale->payment_status === 'hutang' && $sale->status !== 'void')
+                    <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalPayDebt">
+                        <i class="bi bi-cash-coin"></i> Catat Cicilan / Pelunasan
+                    </button>
+                @endif
                 <button type="button" class="btn btn-outline-primary" id="btnCetakStruk"
                     onclick="cetakStruk({{ $sale->id }})">
                     <i class="bi bi-printer"></i> Cetak Struk
@@ -548,3 +603,76 @@
         }
     </script>
 @endpush
+
+@if ($sale->payment_status === 'hutang' && $sale->status !== 'void')
+<!-- Pay Debt Modal -->
+<div class="modal fade" id="modalPayDebt" tabindex="-1" aria-labelledby="modalPayDebtLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPayDebtLabel">Catat Cicilan / Pelunasan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ route('sales.pay-debt', $sale->id) }}" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+                    <div class="alert alert-secondary small mb-3">
+                        <strong>Nota:</strong> {{ $sale->invoice_number }}<br>
+                        <strong>Total Tagihan:</strong> Rp {{ number_format($sale->grand_total) }}<br>
+                        <strong>Sudah Dibayar:</strong> Rp {{ number_format($sale->paid_amount) }}<br>
+                        <strong>Sisa Hutang:</strong> <span class="text-danger fw-bold">Rp {{ number_format($sale->grand_total - $sale->paid_amount) }}</span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Jumlah Pembayaran (Rp) <span class="text-danger">*</span></label>
+                        <input type="number" name="amount" class="form-control form-control-lg" max="{{ $sale->grand_total - $sale->paid_amount }}" min="1" required placeholder="Masukkan nominal cicilan">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Metode Pembayaran <span class="text-danger">*</span></label>
+                        <select name="payment_method" id="pay_method_single" class="form-select" required>
+                            <option value="cash" selected>Tunai (Cash)</option>
+                            <option value="transfer">Transfer Bank</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-none" id="group_bank_single">
+                        <label class="form-label fw-bold">Rekening Bank Tujuan <span class="text-danger">*</span></label>
+                        <select name="akun_bank" class="form-select">
+                            <option value="">-- Pilih Bank --</option>
+                            @foreach ($akunkas as $a)
+                                <option value="{{ $a->id }}">{{ $a->no_rek }} - {{ $a->nama_rek }} ({{ $a->bank_rek }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Upload Bukti Transfer <small class="text-muted">(Opsional)</small></label>
+                        <input type="file" name="bukti_bayar" class="form-control" accept="image/*">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success">Simpan Pembayaran</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+    <script>
+        $(document).ready(function() {
+            $('#pay_method_single').on('change', function() {
+                if ($(this).val() === 'transfer') {
+                    $('#group_bank_single').removeClass('d-none');
+                    $('#group_bank_single select').attr('required', true);
+                } else {
+                    $('#group_bank_single').addClass('d-none');
+                    $('#group_bank_single select').removeAttr('required');
+                }
+            });
+        });
+    </script>
+@endpush
+@endif

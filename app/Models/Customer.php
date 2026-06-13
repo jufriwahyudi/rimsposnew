@@ -13,6 +13,7 @@ class Customer extends Model
         'store_id',
         'name',
         'phone',
+        'alamat',
     ];
 
     public function sales()

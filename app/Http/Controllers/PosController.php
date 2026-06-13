@@ -148,11 +148,12 @@ class PosController extends Controller
     public function index()
     {
         // dd($roleuserlist);
-        $akunkas = Rekening::all();
+        $akunkas = Rekening::where('store_id', session('store_id'))->get();
         // dd($akunkas);
         $akunkasir = 0;
+        $customers = \App\Models\Customer::orderBy('name')->get();
 
-        return view('pos.index', compact('akunkas', 'akunkasir'));
+        return view('pos.index', compact('akunkas', 'akunkasir', 'customers'));
     }
     public function sales()
     {
@@ -241,7 +242,8 @@ class PosController extends Controller
             'items.variant.variantAttributes.value',
             'items.batches',
             'refunds',
-            'cashier'
+            'cashier',
+            'payments'
         ]);
 
         // Determine if current store is FnB to hide exchange feature
@@ -250,10 +252,86 @@ class PosController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
 
         $variants = $isFnB ? collect() : ProductVariant::with('product')->get();
-        $akunkas = Rekening::all();
+        $akunkas = Rekening::where('store_id', $storeId)->get();
         $akunkasir = 0;
 
         return view('pos.show', compact('sale', 'variants', 'akunkas', 'akunkasir', 'isFnB'));
+    }
+
+    public function payDebt(Request $request, Sale $sale)
+    {
+        $storeId = session('store_id');
+
+        if ($sale->store_id != $storeId) {
+            return redirect()->back()->with('error', 'Akses ditolak');
+        }
+
+        if ($sale->payment_status !== 'hutang') {
+            return redirect()->back()->with('error', 'Transaksi ini bukan hutang');
+        }
+
+        if ($sale->status === 'void') {
+            return redirect()->back()->with('error', 'Transaksi sudah di-void');
+        }
+
+        $request->validate([
+            'amount'         => 'required|numeric|min:1',
+            'payment_method' => 'required|in:cash,transfer',
+            'akun_bank'      => 'required_if:payment_method,transfer',
+            'bukti_bayar'    => 'nullable|image|max:2048',
+        ]);
+
+        $amount        = (float) $request->amount;
+        $paymentMethod = $request->payment_method;
+        $akunBank      = $request->akun_bank;
+        $alreadyPaid   = (float) $sale->paid_amount;
+        $remaining     = $sale->grand_total - $alreadyPaid;
+
+        if ($amount > $remaining + 0.01) {
+            return redirect()->back()->with('error', 'Jumlah melebihi sisa hutang (Rp ' . number_format($remaining, 0, ',', '.') . ')');
+        }
+
+        $effectiveAmount = min($amount, $remaining);
+
+        // Handle bukti_bayar upload
+        $buktiBayarPath = null;
+        if ($request->hasFile('bukti_bayar') && $request->file('bukti_bayar')->isValid()) {
+            $buktiBayarPath = $request->file('bukti_bayar')->store('bukti_bayar', 'public');
+        }
+
+        try {
+            DB::transaction(function () use ($sale, $effectiveAmount, $paymentMethod, $akunBank, $storeId, $alreadyPaid, $buktiBayarPath) {
+                CashTransaction::create([
+                    'store_id'         => $storeId,
+                    'ref_type'         => 'SaleDebt',
+                    'ref_id'           => $sale->id,
+                    'transaction_type' => 'sale',
+                    'payment_method'   => $paymentMethod,
+                    'account_code'     => $paymentMethod === 'transfer' ? ($akunBank ?? 0) : 0,
+                    'amount'           => $effectiveAmount,
+                    'direction'        => 'in',
+                    'transaction_date' => now(),
+                    'user_id'          => auth()->id(),
+                    'notes'            => 'Bayar Hutang #' . $sale->invoice_number,
+                    'bukti_bayar'      => $buktiBayarPath,
+                ]);
+
+                $newPaidTotal = $alreadyPaid + $effectiveAmount;
+                $isLunas      = ($sale->grand_total - $newPaidTotal) <= 0.01;
+
+                $sale->update([
+                    'paid_amount'    => $isLunas ? (float) $sale->grand_total : $newPaidTotal,
+                    'payment_status' => $isLunas ? 'lunas' : 'hutang',
+                ]);
+            });
+
+            return redirect()->back()->with('success', 'Pembayaran cicilan berhasil diterima.');
+        } catch (\Exception $e) {
+            if ($buktiBayarPath) {
+                Storage::disk('public')->delete($buktiBayarPath);
+            }
+            return redirect()->back()->with('error', 'Gagal memproses pembayaran: ' . $e->getMessage());
+        }
     }
     /**
      * Endpoint pencarian produk (SKU / barcode / nama)
@@ -525,17 +603,30 @@ class PosController extends Controller
                 $akunBank        = $cart['akun_bank'] ?? null;
                 $transactionDate = $cart['transaction_date'] ? $cart['transaction_date'] . ' ' . now()->format('H:i:s') : now();
                 $customerName    = $cart['customer_name'] ?? 'Umum';
+                $customerId      = $cart['customer_id'] ?? null;
 
                 // =========================
                 // 1️⃣ VALIDASI
                 // =========================
+                if ($paymentMethod === 'hutang') {
+                    if (empty($customerName) || $customerName === 'Umum') {
+                        throw new \Exception('Nama pelanggan wajib diisi untuk transaksi hutang');
+                    }
+                    if (empty($customerId)) {
+                        throw new \Exception('Pelanggan wajib dipilih dari daftar untuk transaksi hutang');
+                    }
+                    $paidAmount = 0;
+                    $cashAmount = 0;
+                    $transferAmount = 0;
+                }
+
                 if ($paymentMethod === 'split') {
                     if (($cashAmount + $transferAmount) != $paidAmount) {
                         throw new \Exception('Total split payment tidak sesuai');
                     }
                 }
 
-                if ($paidAmount < $cart['total']) {
+                if ($paymentMethod !== 'hutang' && $paidAmount < $cart['total']) {
                     throw new \Exception('Pembayaran kurang dari total belanja');
                 }
 
@@ -562,7 +653,7 @@ class PosController extends Controller
                     'sale_date'      => $transactionDate,
                     'sale_type'      => 'retail',
 
-                    'customer_id'    => null,
+                    'customer_id'    => $customerId,
                     'member_id'      => $memberId,
                     'customer_name'  => $customerName,
                     'user_id'        => auth()->id(),
@@ -576,8 +667,9 @@ class PosController extends Controller
                     'point_discount_amount' => $pointDiscountAmount,
 
                     'paid_amount'    => $paidAmount,
-                    'change_amount'  => max(0, $cashAmount - $cart['total']),
+                    'change_amount'  => $paymentMethod === 'hutang' ? 0 : max(0, $cashAmount - $cart['total']),
                     'status'         => 'paid',
+                    'payment_status' => $paymentMethod === 'hutang' ? 'hutang' : 'lunas',
                 ]);
 
                 // =========================
@@ -655,7 +747,7 @@ class PosController extends Controller
                 }
 
                 // jika pembayaran diskon 100% (gratisan), tetap buat cash transaction dengan amount 0 agar bisa tercatat di jurnal
-                if ($paidAmount == 0) {
+                if ($paidAmount == 0 && $paymentMethod !== 'hutang') {
                     CashTransaction::create([
                         'store_id'         => session('store_id'),
                         'ref_type'         => 'SalePos',

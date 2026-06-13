@@ -10,7 +10,8 @@ const Cart = {
             discount_total: 0,
             total: 0,
             transaction_date: null,
-            customer_name: 'Umum'
+            customer_name: 'Umum',
+            customer_id: null
         };
     },
 

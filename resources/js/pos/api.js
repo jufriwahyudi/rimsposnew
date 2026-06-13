@@ -1,6 +1,6 @@
 const Api = {
     async findProduct(code) {
-        const res = await fetch(`/api/pos/product?q=${encodeURIComponent(code)}`, {
+        const res = await fetch(`/pos/product?q=${encodeURIComponent(code)}`, {
             credentials: 'same-origin'
         });
 
