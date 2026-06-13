@@ -150,8 +150,21 @@
 
                             <!-- Redemption Rules Tab -->
                             <div class="tab-pane fade" id="redemption-rules" role="tabpanel">
-                                <h6 class="fw-bold mb-3"><i class="bx bx-transfer text-primary me-1"></i> Nilai & Batas Penukaran</h6>
+                                <h6 class="fw-bold mb-3"><i class="bx bx-transfer text-primary me-1"></i> Metode & Batas Penukaran</h6>
                                 <div class="row g-3 mb-4">
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-semibold">Metode Penukaran Poin</label>
+                                        <select class="form-select" name="redemption_method" id="redemption_method" onchange="toggleRedemptionFields()">
+                                            <option value="point_value" {{ ($settings->redemption_method ?? 'point_value') === 'point_value' ? 'selected' : '' }}>Potongan Rupiah (1 Poin = X Rupiah)</option>
+                                            <option value="item_redemption" {{ ($settings->redemption_method ?? 'point_value') === 'item_redemption' ? 'selected' : '' }}>Penukaran Barang / Hadiah & Voucher</option>
+                                        </select>
+                                        <small class="text-muted d-block mt-1">
+                                            Pilih apakah member menukarkan poin sebagai potongan belanja langsung di kasir atau ditukarkan dengan hadiah fisik/voucher diskon terlebih dahulu.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-4" id="conversion-fields">
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold">Nilai Konversi (1 Poin = ... Rupiah)</label>
                                         <div class="input-group">
@@ -264,12 +277,25 @@
             document.getElementById('exp-fixed-field').style.display = type === 'fixed_date' ? 'block' : 'none';
         }
 
+        function toggleRedemptionFields() {
+            const method = document.getElementById('redemption_method').value;
+            const conversionFields = document.getElementById('conversion-fields');
+            if (method === 'item_redemption') {
+                conversionFields.style.opacity = '0.5';
+                conversionFields.querySelectorAll('input').forEach(el => el.disabled = true);
+            } else {
+                conversionFields.style.opacity = '1';
+                conversionFields.querySelectorAll('input').forEach(el => el.disabled = false);
+            }
+        }
+
         document.getElementById('earning_method').addEventListener('change', toggleEarningFields);
         document.getElementById('expiration_type').addEventListener('change', toggleExpirationFields);
 
         // Run on load
         toggleEarningFields();
         toggleExpirationFields();
+        toggleRedemptionFields();
 
         // AJAX Form Submit
         document.getElementById('formPointSettings').addEventListener('submit', function(e) {

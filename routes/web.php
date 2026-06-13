@@ -8,6 +8,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\SubscribedBillingController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\RewardItemController;
 use App\Http\Controllers\DailyAuditController;
 use App\Http\Controllers\FrontlinerDepositController;
 use App\Http\Controllers\GoodsReceiptController;
@@ -124,6 +125,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         // Loyalty Points Settings
         Route::get('/points', [PointSettingController::class, 'index'])->name('settings.points');
         Route::post('/points', [PointSettingController::class, 'update'])->name('settings.points.update');
+        Route::resource('rewards', RewardItemController::class)->except(['create', 'edit', 'show']);
         
         // QR Code Generator
         Route::get('/qr-generator', [\App\Http\Controllers\CustomerSelfServiceController::class, 'generateQrCode'])->name('settings.qr-generator');
@@ -295,6 +297,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/laporan/penjualan', [LaporanController::class, 'penjualan'])->name('laporan.penjualan');
     Route::post('/laporan/penjualan/data', [LaporanController::class, 'getpenjualan'])->name('laporanpenjualan.getpenjualan');
     Route::get('/laporan/penjualan/export', [LaporanController::class, 'exportPenjualan'])->name('laporanpenjualan.export');
+
+    Route::get('/laporan/penukaran-poin', [LaporanController::class, 'penukaranPoin'])->name('laporan.penukaran-poin');
+    Route::post('/laporan/penukaran-poin/data', [LaporanController::class, 'getPenukaranPoin'])->name('laporan.penukaran-poin.data');
+    Route::get('/laporan/penukaran-poin/export', [LaporanController::class, 'exportPenukaranPoin'])->name('laporan.penukaran-poin.export');
 
     Route::get('/laporan/penjualanNSE', [LaporanController::class, 'penjualanNSE'])->name('laporan.penjualanNSE');
     Route::post('/laporan/penjualanNSE/data', [LaporanController::class, 'getpenjualanNSE'])->name('laporanpenjualanNSE.getpenjualanNSE');

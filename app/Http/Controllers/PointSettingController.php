@@ -57,15 +57,16 @@ class PointSettingController extends Controller
             'exclude_service_charge' => 'boolean',
             'exclude_delivery_fee' => 'boolean',
             'exclude_promo_items' => 'boolean',
-            'point_value' => 'required|numeric|min:0',
-            'min_points_to_redeem' => 'required|integer|min:0',
-            'max_redeem_percentage' => 'required|numeric|min:0|max:100',
-            'max_redeem_amount' => 'required|numeric|min:0',
+            'point_value' => 'nullable|required_if:redemption_method,point_value|numeric|min:0',
+            'min_points_to_redeem' => 'nullable|required_if:redemption_method,point_value|integer|min:0',
+            'max_redeem_percentage' => 'nullable|required_if:redemption_method,point_value|numeric|min:0|max:100',
+            'max_redeem_amount' => 'nullable|required_if:redemption_method,point_value|numeric|min:0',
             'expiration_type' => 'required|in:never,duration,fixed_date',
             'expiration_duration_months' => 'nullable|integer|min:1',
             'expiration_fixed_date' => 'nullable|string|max:5',
             'welcome_points' => 'required|integer|min:0',
             'birthday_multiplier' => 'required|numeric|min:1',
+            'redemption_method' => 'nullable|in:point_value,item_redemption',
         ]);
 
         $isOverride = $request->boolean('is_override');
@@ -98,15 +99,16 @@ class PointSettingController extends Controller
             'exclude_service_charge' => $request->boolean('exclude_service_charge'),
             'exclude_delivery_fee' => $request->boolean('exclude_delivery_fee'),
             'exclude_promo_items' => $request->boolean('exclude_promo_items'),
-            'point_value' => $request->input('point_value'),
-            'min_points_to_redeem' => $request->input('min_points_to_redeem'),
-            'max_redeem_percentage' => $request->input('max_redeem_percentage'),
-            'max_redeem_amount' => $request->input('max_redeem_amount'),
+            'point_value' => $request->input('point_value') ?? $settings->point_value ?? 0.00,
+            'min_points_to_redeem' => $request->input('min_points_to_redeem') ?? $settings->min_points_to_redeem ?? 0,
+            'max_redeem_percentage' => $request->input('max_redeem_percentage') ?? $settings->max_redeem_percentage ?? 100.00,
+            'max_redeem_amount' => $request->input('max_redeem_amount') ?? $settings->max_redeem_amount ?? 0.00,
             'expiration_type' => $request->input('expiration_type'),
             'expiration_duration_months' => $request->filled('expiration_duration_months') ? $request->input('expiration_duration_months') : 12,
             'expiration_fixed_date' => $request->filled('expiration_fixed_date') ? $request->input('expiration_fixed_date') : '12-31',
             'welcome_points' => $request->input('welcome_points'),
             'birthday_multiplier' => $request->input('birthday_multiplier'),
+            'redemption_method' => $request->input('redemption_method') ?? $settings->redemption_method ?? 'point_value',
         ]);
 
         $settings->save();

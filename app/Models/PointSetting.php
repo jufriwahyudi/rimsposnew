@@ -28,6 +28,7 @@ class PointSetting extends Model
         'welcome_points',
         'birthday_multiplier',
         'birthday_gift_points',
+        'redemption_method',
     ];
 
     protected $casts = [

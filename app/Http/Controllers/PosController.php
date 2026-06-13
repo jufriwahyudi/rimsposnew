@@ -112,6 +112,7 @@ class PosController extends Controller
                 'min_points_to_redeem' => (int)$settings->min_points_to_redeem,
                 'max_redeem_percentage' => (int)$settings->max_redeem_percentage,
                 'max_redeem_amount' => (float)$settings->max_redeem_amount,
+                'redemption_method' => $settings->redemption_method ?? 'point_value',
             ];
         }
 
@@ -829,14 +830,47 @@ class PosController extends Controller
                 $pointsRedeemed = $cart['points_to_redeem'] ?? 0;
                 $pointDiscountAmount = 0.00;
 
+                $settings = app(\App\Services\LoyaltyPointService::class)->getSettings($storeId);
+
                 if ($memberId && $pointsRedeemed > 0) {
                     $member = \App\Models\Member::find($memberId);
                     if ($member) {
-                        $settings = app(\App\Services\LoyaltyPointService::class)->getSettings($storeId);
                         if ($settings && $settings->is_active) {
+                            if (($settings->redemption_method ?? 'point_value') !== 'point_value') {
+                                throw new \Exception('Metode potongan poin langsung tidak diaktifkan. Harap gunakan penukaran hadiah/voucher.');
+                            }
                             $pointDiscountAmount = $pointsRedeemed * $settings->point_value;
                         }
                     }
+                }
+
+                $voucherCode = $cart['voucher_code'] ?? null;
+                $voucherDiscountAmount = 0.00;
+                $voucherRedemption = null;
+
+                if ($memberId && $voucherCode) {
+                    $voucherRedemption = \App\Models\MemberRedemption::with('rewardItem')
+                        ->where('member_id', $memberId)
+                        ->where('voucher_code', $voucherCode)
+                        ->where('is_used', false)
+                        ->first();
+
+                    if (!$voucherRedemption) {
+                        throw new \Exception('Voucher tidak valid atau sudah digunakan.');
+                    }
+
+                    $reward = $voucherRedemption->rewardItem;
+                    if ($reward->reward_type === 'voucher_percent') {
+                        $discount = ($cart['subtotal'] * $reward->value) / 100;
+                        if ($reward->max_discount > 0) {
+                            $discount = min($discount, $reward->max_discount);
+                        }
+                        $voucherDiscountAmount = $discount;
+                    } elseif ($reward->reward_type === 'voucher_nominal') {
+                        $voucherDiscountAmount = $reward->value;
+                    }
+
+                    $voucherDiscountAmount = min($voucherDiscountAmount, $cart['subtotal']);
                 }
 
                 // ── Hutang: buat/temukan pelanggan ──────────────────────────
@@ -1002,6 +1036,8 @@ class PosController extends Controller
                         'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
                         'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
                         'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
+                        'voucher_code'   => $voucherCode,
+                        'voucher_discount_amount' => $voucherDiscountAmount,
                     ]);
                 } else {
                     $sale = Sale::create([
@@ -1026,6 +1062,8 @@ class PosController extends Controller
                         'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
                         'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
                         'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
+                        'voucher_code'   => $voucherCode,
+                        'voucher_discount_amount' => $voucherDiscountAmount,
                     ]);
 
                     // Create items for new sale
@@ -1052,6 +1090,14 @@ class PosController extends Controller
                             $saleItem
                         );
                     }
+                }
+
+                if ($voucherRedemption) {
+                    $voucherRedemption->update([
+                        'is_used' => true,
+                        'used_at' => now(),
+                        'sale_id' => $sale->id,
+                    ]);
                 }
 
                 if ($paymentMethod !== 'hold') {
@@ -2343,6 +2389,10 @@ class PosController extends Controller
             'change_amount'    => (float) $sale->change_amount,
             'payment_status'   => $sale->payment_status,
             'status'           => $sale->status,
+            'voucher_code'     => $sale->voucher_code,
+            'voucher_discount_amount' => (float) $sale->voucher_discount_amount,
+            'points_redeemed'  => (int) $sale->points_redeemed,
+            'point_discount_amount' => (float) $sale->point_discount_amount,
             'bukti_bayar_url'  => (function () use ($sale) {
                 $path = CashTransaction::where('ref_id', $sale->id)
                     ->whereIn('ref_type', ['SalePos', 'SaleDebt'])
@@ -2883,6 +2933,10 @@ class PosController extends Controller
                 'change'   => round($sale->change_amount),
                 'payment_status' => $sale->payment_status,
                 'remaining_debt' => round($sale->grand_total - $sale->paid_amount),
+                'voucher_code' => $sale->voucher_code,
+                'voucher_discount_amount' => round($sale->voucher_discount_amount),
+                'points_redeemed' => (int) $sale->points_redeemed,
+                'point_discount_amount' => round($sale->point_discount_amount),
             ]
         ]);
     }

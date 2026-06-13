@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\RewardRedemptionController;
 use App\Http\Controllers\PosController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +37,12 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::post('/pos/sales/{id}/refund',    [PosController::class, 'apiRefund']);
     Route::post('/pos/sales/{id}/pay',       [PosController::class, 'apiPayDebt']);
     Route::post('/pos/sales/{id}/exchange',  [PosController::class, 'apiExchange']);
+
+    // ── Reward Redemptions ──────────────────────────────────────────────────
+    Route::get('/pos/reward-items',              [RewardRedemptionController::class, 'apiRewardItems']);
+    Route::get('/pos/members/{id}/rewards',      [RewardRedemptionController::class, 'apiMemberRewards']);
+    Route::post('/pos/members/{id}/redeem',      [RewardRedemptionController::class, 'apiRedeem']);
+    Route::get('/pos/members/{id}/vouchers',     [RewardRedemptionController::class, 'apiMemberVouchers']);
 
     // ── Self-Service (POS Control) ───────────────────────────────────────────
     Route::get('/pos/self-service/pending', [PosController::class, 'apiPendingSelfService']);

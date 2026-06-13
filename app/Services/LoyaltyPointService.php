@@ -236,6 +236,17 @@ class LoyaltyPointService
      */
     public function revertPointsForVoid($sale)
     {
+        // 0. Revert voucher usage if applied
+        if ($sale->voucher_code) {
+            \App\Models\MemberRedemption::where('voucher_code', $sale->voucher_code)
+                ->where('sale_id', $sale->id)
+                ->update([
+                    'is_used' => false,
+                    'used_at' => null,
+                    'sale_id' => null,
+                ]);
+        }
+
         $member = Member::find($sale->member_id);
         if (!$member) {
             return;

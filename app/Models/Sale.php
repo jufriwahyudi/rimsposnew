@@ -38,6 +38,8 @@ class Sale extends Model
         'status',
         'payment_status',
         'has_exchange',
+        'voucher_code',
+        'voucher_discount_amount',
     ];
 
     protected $casts = [

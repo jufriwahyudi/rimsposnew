@@ -41,6 +41,9 @@
                         Kasir: {{ $sale->cashier->name }}
                         @if ($sale->customer_name)
                             <br>Pelanggan: {{ $sale->customer_name }}
+                            @if ($sale->member_id)
+                                <span class="badge bg-primary rounded-pill ms-1" style="font-size: 10px;">Loyalty Member</span>
+                            @endif
                         @else
                             <br>Pelanggan: <em>Umum</em>
                         @endif
@@ -158,11 +161,27 @@
                             <td class="text-end">{{ number_format($sale->subtotal) }}</td>
                         </tr>
                         <tr>
-                            <th>Diskon</th>
+                            <th>Diskon Item/Trans</th>
                             <td class="text-end text-danger">
                                 -{{ number_format($sale->discount_total) }}
                             </td>
                         </tr>
+                        @if ($sale->voucher_code)
+                        <tr>
+                            <th>Voucher ({{ $sale->voucher_code }})</th>
+                            <td class="text-end text-danger">
+                                -{{ number_format($sale->voucher_discount_amount) }}
+                            </td>
+                        </tr>
+                        @endif
+                        @if ($sale->point_discount_amount > 0)
+                        <tr>
+                            <th>Potongan Poin ({{ $sale->points_redeemed }} Poin)</th>
+                            <td class="text-end text-danger">
+                                -{{ number_format($sale->point_discount_amount) }}
+                            </td>
+                        </tr>
+                        @endif
                         <tr class="fw-bold">
                             <th>Total</th>
                             <td class="text-end">{{ number_format($sale->grand_total) }}</td>

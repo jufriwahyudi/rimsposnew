@@ -896,4 +896,50 @@ class LaporanController extends Controller
             $filename . '.xlsx'
         );
     }
+
+    public function penukaranPoin()
+    {
+        return view('laporan.penukaran_poin');
+    }
+
+    public function getPenukaranPoin(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+        $storeId = session('store_id');
+
+        $query = \App\Models\MemberRedemption::with(['member', 'rewardItem', 'sale'])
+            ->where('store_id', $storeId)
+            ->whereBetween('created_at', [$mulai . " 00:00:00", $akhir . " 23:59:59"]);
+
+        $redemptions = $query->orderBy('created_at', 'desc')->get();
+
+        $totalPointsSpent = $redemptions->sum('points_spent');
+        $totalPhysical = $redemptions->filter(fn($r) => $r->rewardItem->reward_type === 'physical')->count();
+        $totalVoucherPercent = $redemptions->filter(fn($r) => $r->rewardItem->reward_type === 'voucher_percent')->count();
+        $totalVoucherNominal = $redemptions->filter(fn($r) => $r->rewardItem->reward_type === 'voucher_nominal')->count();
+
+        if ($request->ajax()) {
+            return view('laporan.datapenukaran_poin_table', compact(
+                'redemptions', 'mulai', 'akhir', 
+                'totalPointsSpent', 'totalPhysical', 'totalVoucherPercent', 'totalVoucherNominal'
+            ));
+        }
+
+        return view('laporan.penukaran_poin', compact(
+            'redemptions', 'mulai', 'akhir', 
+            'totalPointsSpent', 'totalPhysical', 'totalVoucherPercent', 'totalVoucherNominal'
+        ));
+    }
+
+    public function exportPenukaranPoin(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+
+        return Excel::download(
+            new \App\Exports\LaporanPenukaranPoinExport($mulai, $akhir),
+            'laporan_penukaran_poin_' . $mulai . '_' . $akhir . '.xlsx'
+        );
+    }
 }
