@@ -7,7 +7,7 @@ use App\Support\Tenant;
 
 trait HasStore
 {
-    protected static function booted()
+    public static function bootHasStore()
     {
         // tambahkan global scope
         static::addGlobalScope(new StoreScope());
