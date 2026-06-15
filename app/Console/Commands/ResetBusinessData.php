@@ -343,7 +343,6 @@ class ResetBusinessData extends Command
             'store_qr_codes',
             'store_subscriptions',
             'subscribed_invoices',
-            'customers',
         ];
 
         $hasOutput = false;
@@ -388,7 +387,7 @@ class ResetBusinessData extends Command
         } else {
             $this->info('Memulai pembersihan seluruh database...');
         }
-
+        
         $tablesToTruncate = [
             'sale_item_batches',
             'sale_item_fnb_details',
@@ -433,7 +432,6 @@ class ResetBusinessData extends Command
             'store_subscriptions',
             'subscribed_invoices',
             'subscribed_payments',
-            'customers',
         ];
 
         Schema::disableForeignKeyConstraints();
