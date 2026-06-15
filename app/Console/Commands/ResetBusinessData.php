@@ -159,11 +159,6 @@ class ResetBusinessData extends Command
                     ->whereIn('daily_audit_id', function ($query) use ($storeId) {
                         $query->select('id')->from('daily_audits')->where('store_id', $storeId);
                     });
-            case 'subscribed_payments':
-                return DB::table('subscribed_payments')
-                    ->whereIn('subscribed_invoice_id', function ($query) use ($storeId) {
-                        $query->select('id')->from('subscribed_invoices')->where('store_id', $storeId);
-                    });
             case 'product_variant_barcodes':
                 return DB::table('product_variant_barcodes')
                     ->whereIn('product_variant_id', function ($query) use ($storeId) {
@@ -221,7 +216,6 @@ class ResetBusinessData extends Command
             'stock_adjustment_items' => 'stock_adjustment_items',
             'stock_opname_items' => 'stock_opname_items',
             'daily_audit_details' => 'daily_audit_details',
-            'subscribed_payments' => 'subscribed_payments',
         ];
 
         foreach ($childTablesViaParent as $table) {
@@ -341,8 +335,6 @@ class ResetBusinessData extends Command
             'rekenings',
             'digital_newspapers',
             'store_qr_codes',
-            'store_subscriptions',
-            'subscribed_invoices',
         ];
 
         $hasOutput = false;
@@ -429,9 +421,6 @@ class ResetBusinessData extends Command
             'rekenings',
             'digital_newspapers',
             'store_qr_codes',
-            'store_subscriptions',
-            'subscribed_invoices',
-            'subscribed_payments',
         ];
 
         Schema::disableForeignKeyConstraints();
