@@ -161,7 +161,7 @@ class StockImportService
                     }
 
                     foreach ($groupedByPosisi as $pos => $items) {
-                        $code = $this->generateCode('SA');
+                        $code = $this->generateCode('SA',$storeId);
                         $adjustment = StockAdjustment::create([
                             'store_id' => $storeId,
                             'code' => $code,
@@ -288,10 +288,10 @@ class StockImportService
         ];
     }
 
-    private function generateCode($prefix)
+    private function generateCode($prefix, $storeId)
     {
         $datePart = date('Ymd');
         $count = StockAdjustment::whereDate('created_at', now()->toDateString())->count() + 1;
-        return sprintf("%s-%s-%04d", $prefix, $datePart, $count);
+        return sprintf("%s-%s-%s-%04d", $prefix, $storeId, $datePart, $count);
     }
 }
