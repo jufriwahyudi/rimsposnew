@@ -21,6 +21,7 @@
                         <th class="text-center">Total</th>
                         <th class="text-center">Modal</th>
                         <th class="text-center">Laba / Rugi</th>
+                        <th class="text-center">Tip</th>
                         <th class="text-center">Metode Pembayaran</th>
                         <th class="text-center">Petugas</th>
                         <th class="text-center">Status</th>
@@ -37,14 +38,28 @@
                                 <td class="text-end">{{ number_format($row->jumlah_penjualan, 2, ',', '.') }}</td>
                                 <td class="text-end">{{ number_format($row->modal, 2, ',', '.') }}</td>
                                 <td class="text-end">{{ number_format($row->laba_rugi, 2, ',', '.') }}</td>
+                                <td class="text-end {{ ($row->tip ?? 0) > 0 ? 'text-success fw-semibold' : 'text-muted' }}">
+                                    {{ ($row->tip ?? 0) > 0 ? number_format($row->tip, 0, ',', '.') : '-' }}
+                                </td>
                                 <td>{{ ucfirst($row->metode_pembayaran ?? '-') }}</td>
                                 <td>{{ $row->kasir ?? '-' }}</td>
                                 <td>{{ ucfirst($row->status ?? '-') }}</td>
                             </tr>
                         @endforeach
+                        {{-- FOOTER TOTAL --}}
+                        <tr class="table-secondary fw-bold">
+                            <td colspan="4" class="text-end">TOTAL</td>
+                            <td class="text-end">{{ number_format($totalPenjualan, 2, ',', '.') }}</td>
+                            <td class="text-end">{{ number_format($totalModal, 2, ',', '.') }}</td>
+                            <td class="text-end">{{ number_format($totalLabaRugi, 2, ',', '.') }}</td>
+                            <td class="text-end {{ ($totalTip ?? 0) > 0 ? 'text-success' : '' }}">
+                                {{ ($totalTip ?? 0) > 0 ? number_format($totalTip, 0, ',', '.') : '-' }}
+                            </td>
+                            <td colspan="3"></td>
+                        </tr>
                     @else
                         <tr>
-                            <td colspan="9" class="text-center">Tidak ada data</td>
+                            <td colspan="11" class="text-center">Tidak ada data</td>
                         </tr>
                     @endif
                 </tbody>

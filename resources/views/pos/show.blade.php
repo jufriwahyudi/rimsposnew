@@ -194,6 +194,12 @@
                             <th>Kembali</th>
                             <td class="text-end">{{ number_format($sale->change_amount) }}</td>
                         </tr>
+                        @if (($sale->tip_amount ?? 0) > 0)
+                        <tr class="text-success">
+                            <th>💝 Tip</th>
+                            <td class="text-end fw-bold">{{ number_format($sale->tip_amount) }}</td>
+                        </tr>
+                        @endif
                         @if ($sale->payment_status === 'hutang')
                         <tr class="text-danger fw-bold">
                             <th>Sisa Hutang</th>

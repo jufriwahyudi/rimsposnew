@@ -34,6 +34,7 @@ class Sale extends Model
         'point_discount_amount',
         'paid_amount',
         'change_amount',
+        'tip_amount',
         'nojurnal',
         'status',
         'payment_status',

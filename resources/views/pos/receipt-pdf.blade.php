@@ -378,6 +378,12 @@
                         <td style="color: #64748b;">Kembali</td>
                         <td class="text-right">Rp {{ number_format($summary['change'], 0, ',', '.') }}</td>
                     </tr>
+                    @if (isset($summary['tip']) && $summary['tip'] > 0)
+                    <tr>
+                        <td style="color: #16a34a; font-weight: bold;">Tip</td>
+                        <td class="text-right" style="color: #16a34a; font-weight: bold;">Rp {{ number_format($summary['tip'], 0, ',', '.') }}</td>
+                    </tr>
+                    @endif
                     @if (isset($summary['payment_status']) && $summary['payment_status'] === 'hutang')
                     <tr class="debt-row">
                         <td>SISA HUTANG</td>

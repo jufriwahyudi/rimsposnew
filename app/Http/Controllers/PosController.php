@@ -601,6 +601,7 @@ class PosController extends Controller
                 $paidAmount      = $cart['paid_amount'];
                 $cashAmount      = $cart['cash_amount'] ?? 0;
                 $transferAmount  = $cart['transfer_amount'] ?? 0;
+                $tipAmount       = (float) ($cart['tip_amount'] ?? 0);
                 $akunKasir       = $cart['akun_kasir'] ?? null;
                 $akunBank        = $cart['akun_bank'] ?? null;
                 $transactionDate = $cart['transaction_date'] ? $cart['transaction_date'] . ' ' . now()->format('H:i:s') : now();
@@ -620,6 +621,7 @@ class PosController extends Controller
                     $paidAmount = 0;
                     $cashAmount = 0;
                     $transferAmount = 0;
+                    $tipAmount = 0;
                 }
 
                 if ($paymentMethod === 'split') {
@@ -669,7 +671,8 @@ class PosController extends Controller
                     'point_discount_amount' => $pointDiscountAmount,
 
                     'paid_amount'    => $paidAmount,
-                    'change_amount'  => $paymentMethod === 'hutang' ? 0 : max(0, $cashAmount - $cart['total']),
+                    'change_amount'  => $paymentMethod === 'hutang' ? 0 : max(0, $cashAmount - $cart['total'] - $tipAmount),
+                    'tip_amount'     => $tipAmount,
                     'status'         => 'paid',
                     'payment_status' => $paymentMethod === 'hutang' ? 'hutang' : 'lunas',
                 ]);
@@ -762,6 +765,27 @@ class PosController extends Controller
                         'transaction_date' => $transactionDate,
                         'user_id'          => auth()->id(),
                         'notes'            => 'Penjualan POS (Gratis) #' . $sale->invoice_number,
+                    ]);
+                }
+
+                // =========================
+                // 6️⃣ CASH TRANSACTION (TIP)
+                // =========================
+                if ($tipAmount > 0) {
+                    $tipPaymentMethod = ($paymentMethod === 'transfer') ? 'transfer' : 'cash';
+                    $tipAccountCode   = ($paymentMethod === 'transfer') ? $akunBank : $akunKasir;
+                    CashTransaction::create([
+                        'store_id'         => session('store_id'),
+                        'ref_type'         => 'Tip',
+                        'ref_id'           => $sale->id,
+                        'transaction_type' => 'tip',
+                        'payment_method'   => $tipPaymentMethod,
+                        'account_code'     => $tipAccountCode,
+                        'amount'           => $tipAmount,
+                        'direction'        => 'in',
+                        'transaction_date' => $transactionDate,
+                        'user_id'          => auth()->id(),
+                        'notes'            => 'Tip dari pelanggan #' . $sale->invoice_number,
                     ]);
                 }
 
@@ -1651,6 +1675,7 @@ class PosController extends Controller
                 'total'    => round($sale->grand_total),
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
+                'tip'      => round($sale->tip_amount ?? 0),    
             ],
         ];
 
@@ -2526,7 +2551,7 @@ class PosController extends Controller
                 app(\App\Services\LoyaltyPointService::class)->revertPointsForVoid($sale);
 
                 // 3️⃣ Hapus cash transaction
-                $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse'])
+                $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse', 'tip'])
                     ->where('ref_id', $sale->id)
                     ->get();
                 $jurnalService = new JournalEntryService();
@@ -2931,6 +2956,7 @@ class PosController extends Controller
                 'total'    => round($sale->grand_total),
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
+                'tip'      => round($sale->tip_amount ?? 0),
                 'payment_status' => $sale->payment_status,
                 'remaining_debt' => round($sale->grand_total - $sale->paid_amount),
                 'voucher_code' => $sale->voucher_code,

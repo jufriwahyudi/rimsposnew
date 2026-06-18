@@ -412,6 +412,26 @@ const POS = {
                         <div class="pos-label">Kembalian</div>
                         <div class="fw-bold text-success fs-5" id="cashChangeDisplay">Rp 0</div>
                     </div>
+                    <div class="mt-2" id="tipSection" style="display:none;">
+                        <hr style="margin:8px 0">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <button type="button" id="btnUseTip"
+                                class="btn btn-sm btn-outline-success"
+                                style="font-size:12px;padding:3px 10px">
+                                💝 Jadikan Tip
+                            </button>
+                            <span class="text-muted small">Selisih uang tidak dikembalikan</span>
+                        </div>
+                        <div id="tipInputWrapper" style="display:none;">
+                            <div class="pos-label">Nominal Tip (Rp)</div>
+                            <input type="number" id="tipAmount" class="form-control form-control-sm"
+                                placeholder="0" min="0" value="0">
+                            <div class="d-flex justify-content-between mt-1 small">
+                                <span class="text-muted">Kembalian Aktual</span>
+                                <span class="fw-bold text-success" id="realChangeDisplay">Rp 0</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="transferSection" class="pos-card d-none">
@@ -422,6 +442,12 @@ const POS = {
 
                     <div class="mt-2 small text-muted">
                         Transfer sesuai total pembayaran
+                    </div>
+                    <div class="mt-2">
+                        <div class="pos-label">Tip (opsional)</div>
+                        <input type="number" id="transferTipAmount" class="form-control form-control-sm"
+                            placeholder="0 jika tidak ada tip" min="0" value="0">
+                        <div class="small text-muted mt-1">Isi jika pelanggan menambahkan tip dalam transfer</div>
                     </div>
                 </div>
 
@@ -514,12 +540,72 @@ const POS = {
                 const total = POS.cart.total;
 
                 // === CASH ===
-                document.getElementById('paidAmount').addEventListener('input', e => {
-                    const paid = parseFloat(e.target.value) || 0;
+                const paidAmountInput = document.getElementById('paidAmount');
+                const cashChangeDisplay = document.getElementById('cashChangeDisplay');
+                const tipSection = document.getElementById('tipSection');
+                const btnUseTip = document.getElementById('btnUseTip');
+                const tipInputWrapper = document.getElementById('tipInputWrapper');
+                const tipAmountInput = document.getElementById('tipAmount');
+                const realChangeDisplay = document.getElementById('realChangeDisplay');
+
+                let tipActive = false;
+
+                function updateCashDisplay() {
+                    const paid = parseFloat(paidAmountInput.value) || 0;
                     const change = paid - total;
 
-                    document.getElementById('cashChangeDisplay').innerText =
-                        change > 0 ? "Rp " + POS.numberSeparator(change) : "Rp 0";
+                    if (change > 0) {
+                        cashChangeDisplay.innerText = 'Rp ' + POS.numberSeparator(change);
+                        tipSection.style.display = '';
+                    } else {
+                        cashChangeDisplay.innerText = 'Rp 0';
+                        tipSection.style.display = 'none';
+                        // reset tip jika uang tidak cukup untuk tip
+                        tipActive = false;
+                        tipInputWrapper.style.display = 'none';
+                        btnUseTip.classList.remove('btn-success');
+                        btnUseTip.classList.add('btn-outline-success');
+                        if (tipAmountInput) tipAmountInput.value = 0;
+                    }
+
+                    if (tipActive) {
+                        const tip = parseFloat(tipAmountInput.value) || 0;
+                        const realChange = paid - total - tip;
+                        realChangeDisplay.innerText = 'Rp ' + POS.numberSeparator(Math.max(0, realChange));
+                    }
+                }
+
+                paidAmountInput.addEventListener('input', () => {
+                    if (tipActive) {
+                        // auto-fill tip = selisih
+                        const paid = parseFloat(paidAmountInput.value) || 0;
+                        const change = paid - total;
+                        tipAmountInput.value = change > 0 ? change : 0;
+                    }
+                    updateCashDisplay();
+                });
+
+                tipAmountInput.addEventListener('input', () => {
+                    updateCashDisplay();
+                });
+
+                btnUseTip.addEventListener('click', () => {
+                    tipActive = !tipActive;
+                    if (tipActive) {
+                        btnUseTip.classList.remove('btn-outline-success');
+                        btnUseTip.classList.add('btn-success');
+                        tipInputWrapper.style.display = '';
+                        // auto-fill dengan selisih
+                        const paid = parseFloat(paidAmountInput.value) || 0;
+                        const change = paid - total;
+                        tipAmountInput.value = change > 0 ? change : 0;
+                    } else {
+                        btnUseTip.classList.remove('btn-success');
+                        btnUseTip.classList.add('btn-outline-success');
+                        tipInputWrapper.style.display = 'none';
+                        tipAmountInput.value = 0;
+                    }
+                    updateCashDisplay();
                 });
 
                 // === SPLIT ===
@@ -578,10 +664,13 @@ const POS = {
                         return false;
                     }
 
+                    const tipAmt = parseFloat(document.getElementById('tipAmount')?.value) || 0;
+
                     return {
                         payment_method: 'cash',
                         paid_amount: paid,
                         cash_amount: paid,
+                        tip_amount: tipAmt,
                         transfer_amount: 0,
                         akun_kasir: window.AKUN_KASIR,
                         akun_bank: null
@@ -597,9 +686,12 @@ const POS = {
                         return false;
                     }
 
+                    const tipAmt = parseFloat(document.getElementById('transferTipAmount')?.value) || 0;
+
                     return {
                         payment_method: 'transfer',
-                        paid_amount: total,
+                        paid_amount: total + tipAmt,
+                        tip_amount: tipAmt,
                         cash_amount: 0,
                         transfer_amount: total,
                         akun_kasir: null,

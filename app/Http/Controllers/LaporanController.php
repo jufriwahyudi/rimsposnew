@@ -101,20 +101,22 @@ class LaporanController extends Controller
                 'metode_pembayaran' => $metode,
                 'kasir' => optional($sale->cashier)->name ?? '-',
                 'status' => $sale->status,
+                'tip' => (float) ($sale->tip_amount ?? 0),
             ]);
         }
 
         $totalPenjualan = $rows->sum('jumlah_penjualan');
         $totalModal = $rows->sum('modal');
         $totalLabaRugi = $rows->sum('laba_rugi');
+        $totalTip = $rows->sum('tip');
 
         // Jika request dari AJAX, return partial view (hanya tabel)
         if ($request->ajax()) {
-            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalPenjualan', 'totalModal', 'totalLabaRugi'));
+            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
         }
 
         // Jika request normal, return full page
-        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalPenjualan', 'totalModal', 'totalLabaRugi'));
+        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
     }
 
     public function exportPenjualan(Request $request)
