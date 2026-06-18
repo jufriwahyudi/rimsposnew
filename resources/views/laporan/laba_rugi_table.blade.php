@@ -66,6 +66,12 @@
                 <td class="ps-4">Total Omset Penjualan</td>
                 <td class="text-end fw-semibold">{{ $fmt($omset) }}</td>
             </tr>
+            @if($tip > 0)
+            <tr>
+                <td class="ps-4">Total Tip</td>
+                <td class="text-end fw-semibold">{{ $fmt($tip) }}</td>
+            </tr>
+            @endif
         </tbody>
 
         {{-- ===== HPP ===== --}}

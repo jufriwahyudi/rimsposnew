@@ -660,6 +660,7 @@ class LaporanController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
 
         $omset = $sales->sum('grand_total');
+        $tip   = $sales->sum('tip_amount');
         $hpp   = 0;
         foreach ($sales as $sale) {
             foreach ($sale->items as $item) {
@@ -683,7 +684,7 @@ class LaporanController extends Controller
             }
         }
 
-        $pendapatanKotor = $omset - $hpp;
+        $pendapatanKotor = ($omset + $tip) - $hpp;
 
         // ===== BIAYA OPERASIONAL =====
         $expenses = Expense::with('category')
@@ -711,6 +712,7 @@ class LaporanController extends Controller
                 'mulai',
                 'akhir',
                 'omset',
+                'tip',
                 'hpp',
                 'pendapatanKotor',
                 'biayaPerKategori',
@@ -723,6 +725,7 @@ class LaporanController extends Controller
             'mulai',
             'akhir',
             'omset',
+            'tip',
             'hpp',
             'pendapatanKotor',
             'biayaPerKategori',

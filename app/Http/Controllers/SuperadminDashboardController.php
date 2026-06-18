@@ -252,7 +252,7 @@ class SuperadminDashboardController extends Controller
             $sid = $sale->store_id;
             if (!in_array($sid, $storeIds)) continue;
 
-            $report['omset'][$sid] += $sale->grand_total;
+            $report['omset'][$sid] += $sale->grand_total + $sale->tip_amount;
             $isFnB = ($storeTypes[$sid] ?? 'retail') === 'fnb';
 
             foreach ($sale->items as $item) {
