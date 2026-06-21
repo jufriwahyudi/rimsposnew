@@ -115,6 +115,17 @@
                         </button>
                     </form>
 
+                    @php
+                        $latestVersion = \App\Models\AppVersion::first();
+                    @endphp
+                    @if ($latestVersion && !empty($latestVersion->download_url))
+                        <div class="text-center mt-4">
+                            <a href="{{ $latestVersion->download_url }}" class="text-decoration-none text-primary fw-semibold small" target="_blank">
+                                <i class="fa fa-download me-1"></i> Download APK Kasir Terbaru (v{{ $latestVersion->version }})
+                            </a>
+                        </div>
+                    @endif
+
                     <script>
                         function togglePassword() {
                             const input = document.getElementById('password');
