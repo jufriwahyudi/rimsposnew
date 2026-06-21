@@ -125,6 +125,11 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         // Loyalty Points Settings
         Route::get('/points', [PointSettingController::class, 'index'])->name('settings.points');
         Route::post('/points', [PointSettingController::class, 'update'])->name('settings.points.update');
+        
+        // APK Update Settings
+        Route::get('/app-version', [\App\Http\Controllers\AppVersionController::class, 'index'])->name('settings.app-version');
+        Route::post('/app-version', [\App\Http\Controllers\AppVersionController::class, 'update'])->name('settings.app-version.update');
+
         Route::resource('rewards', RewardItemController::class)->except(['create', 'edit', 'show']);
         
         // QR Code Generator

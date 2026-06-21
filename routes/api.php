@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 // ── Auth (public) ────────────────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/pin-login', [AuthController::class, 'pinLogin']);
 });
 
 // ── Auth (protected) ─────────────────────────────────────────────────────────
@@ -15,6 +16,7 @@ Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me',      [AuthController::class, 'me']);
     Route::post('/fcm-token', [AuthController::class, 'updateFcmToken']);
+    Route::post('/set-pin', [AuthController::class, 'setPin']);
 });
 
 // ── POS (protected + subscription check) ─────────────────────────────────────
@@ -52,3 +54,6 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
 
 // ── Self-Service Status (public fallback) ─────────────────────────────────────
 Route::get('/order/status/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'statusApi']);
+
+// ── App Update Check (public) ────────────────────────────────────────────────
+Route::get('/app-version/latest', [\App\Http\Controllers\AppVersionController::class, 'latestApi']);

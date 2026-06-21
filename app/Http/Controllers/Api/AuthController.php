@@ -153,4 +153,113 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Token FCM berhasil disimpan.']);
     }
+
+    /**
+     * POST /api/auth/set-pin  (requires Bearer token)
+     */
+    public function setPin(Request $request)
+    {
+        $request->validate([
+            'pin' => ['required', 'string', 'size:6', 'regex:/^[0-9]+$/'],
+        ]);
+
+        $request->user()->update([
+            'pin' => $request->pin,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PIN 6-digit berhasil disimpan.',
+        ]);
+    }
+
+    /**
+     * POST /api/auth/pin-login
+     */
+    public function pinLogin(Request $request)
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+            'pin'   => ['required', 'string', 'size:6', 'regex:/^[0-9]+$/'],
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || !$user->pin || !Hash::check($request->pin, $user->pin)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PIN yang Anda masukkan salah.',
+            ], 401);
+        }
+
+        $stores = $user->stores()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->with('subscription')
+            ->get();
+
+        $accessibleStores = $stores->filter(function ($store) {
+            if (!$store->subscription) {
+                return true;
+            }
+            return !$store->subscription->isExpired();
+        });
+
+        if ($accessibleStores->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Masa aktif toko Anda telah habis. Silakan hubungi administrator.',
+            ], 403);
+        }
+
+        $user->tokens()->where('name', 'mobile')->delete();
+
+        $token = $user->createToken('mobile')->plainTextToken;
+
+        $storesData = $accessibleStores->map(function ($store) {
+            $subscriptionInfo = null;
+
+            if ($store->subscription) {
+                $sub = $store->subscription;
+                $status = $sub->subscription_status;
+
+                $subscriptionInfo = [
+                    'package_type' => $sub->package_type,
+                    'status'       => $status,
+                    'start_date'   => $sub->start_date?->format('Y-m-d'),
+                    'end_date'     => $sub->end_date?->format('Y-m-d'),
+                ];
+
+                if ($status === 'grace_period') {
+                    $subscriptionInfo['show_subscription_alert'] = true;
+                    $subscriptionInfo['grace_days_left'] = $sub->grace_days_left;
+                    $subscriptionInfo['grace_expires_at'] = $sub->end_date->copy()->addDays(7)->format('Y-m-d');
+                    $subscriptionInfo['alert_message'] = 'Masa aktif toko ini telah berakhir pada '
+                        . $sub->end_date->format('d M Y')
+                        . '. Sisa masa tenggang Anda adalah ' . $sub->grace_days_left . ' hari. '
+                        . 'Harap hubungi administrator sebelum operasional dihentikan.';
+                } else {
+                    $subscriptionInfo['show_subscription_alert'] = false;
+                }
+            }
+
+            return [
+                'id'                => $store->id,
+                'name'              => $store->name,
+                'printer_type'      => $store->printer_type,
+                'business_type'     => $store->business_type,
+                'subscription_info' => $subscriptionInfo,
+            ];
+        })->values();
+
+        return response()->json([
+            'token' => $token,
+            'user'  => [
+                'id'     => $user->id,
+                'name'   => $user->name,
+                'email'  => $user->email,
+                'stores' => $storesData,
+            ],
+        ]);
+    }
 }

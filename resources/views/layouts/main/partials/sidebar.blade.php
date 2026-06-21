@@ -47,7 +47,14 @@
                     </li>
                 @endforeach
             @endif
-
+            @if(session('role_name') === 'SUPERADMIN' || session('role_name') === 'ADMIN' || (auth()->check() && auth()->user()->role === 'SUPERADMIN'))
+            <li>
+                <a href="{{ route('settings.app-version') }}">
+                    <div class="parent-icon"><i class="material-icons-outlined">system_update_alt</i></div>
+                    <div class="menu-title">Update APK Kasir</div>
+                </a>
+            </li>
+            @endif
         </ul>
         <!--end navigation-->
     </div>
