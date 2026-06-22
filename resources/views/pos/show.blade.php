@@ -99,6 +99,9 @@
                         <th class="text-end">Subtotal</th>
                         @if (empty($isFnB) || !$isFnB)
                             <th class="text-center">Aksi</th>
+                            @if ($sale->status === 'paid')
+                            <th class="text-center">Void Item</th>
+                            @endif
                         @endif
                     </tr>
                 </thead>
@@ -144,7 +147,31 @@
                                 @if ($item->status === 'exchanged_out')
                                     <span class="badge bg-secondary">DITUKAR</span>
                                 @endif
+
+                                {{-- Badge Voided --}}
+                                @if ($item->status === 'voided')
+                                    <span class="badge bg-danger">VOIDED</span>
+                                @endif
                             </td>
+
+                            {{-- Kolom Void Item --}}
+                            @if ($sale->status === 'paid')
+                            <td class="text-center">
+                                @if (in_array($item->status, ['sold', 'exchanged_in']))
+                                    <button class="btn btn-sm btn-outline-danger"
+                                        onclick="openVoidItemModal(
+                                            {{ $item->id }},
+                                            {{ $item->qty }},
+                                            '{{ addslashes($item->product_name) }} ({{ variantLabel($item) }})',
+                                            {{ $item->price }},
+                                            {{ $item->subtotal }},
+                                            '{{ $sale->payment_status }}'
+                                        )">
+                                        <i class="bi bi-slash-circle"></i> Void
+                                    </button>
+                                @endif
+                            </td>
+                            @endif
                             @endif
                         </tr>
                     @endforeach
@@ -265,8 +292,13 @@
                     onclick="cetakStruk({{ $sale->id }})">
                     <i class="bi bi-printer"></i> Cetak Struk
                 </button>
-                <!-- jika sales date(created_at) adalah hari ini, tampilkan tombol void -->
-                @if ($sale->status == 'paid' && $sale->created_at->isToday() && $sale->refunds->count() === 0)
+                {{--
+                    Logika tombol Void / Refund:
+                    - Void   : sale=paid, belum direfund, DAN (hutang ATAU dibuat hari ini)
+                    - Refund : sale=paid, lunas, bukan hari ini, belum direfund
+                --}}
+                @if ($sale->status == 'paid' && $sale->refunds->count() === 0
+                     && ($sale->payment_status === 'hutang' || $sale->created_at->isToday()))
                     <form method="POST" class="form-inline mb-0" action="{{ route('sales.void', $sale) }}"
                         onsubmit="confirmVoid(event)">
                         @csrf
@@ -275,8 +307,8 @@
                         </button>
                     </form>
                 @endif
-                <!-- jika sales date(created_at) bukan hari ini, tampilkan tombol refund -->
-                @if ($sale->status == 'paid' && $sale->refunds->count() === 0 && !$sale->created_at->isToday())
+                @if ($sale->status == 'paid' && $sale->refunds->count() === 0
+                     && $sale->payment_status === 'lunas' && !$sale->created_at->isToday())
                     <form method="POST" class="form-inline mb-0" action="{{ route('sales.refund', $sale) }}"
                         onsubmit="confirmRefund(event)">
                         @csrf
@@ -296,6 +328,56 @@
         </div>
     </div>
     @if (empty($isFnB) || !$isFnB)
+    <!-- Void Item Modal -->
+    @if ($sale->status === 'paid')
+    <div class="modal fade" id="voidItemModal" tabindex="-1" aria-labelledby="voidItemModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="voidItemModalLabel"><i class="bi bi-slash-circle me-1"></i> Void Item</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{{ route('sales.void-item', $sale) }}" onsubmit="confirmVoidItem(event)">
+                    @csrf
+                    <input type="hidden" name="sale_item_id" id="voidItemId">
+                    <div class="modal-body">
+                        <div class="alert alert-secondary small mb-3" id="voidItemInfo">
+                            <strong>Item:</strong> <span id="voidItemName"></span><br>
+                            <strong>Harga Satuan:</strong> Rp <span id="voidItemPrice"></span><br>
+                            <strong>Qty Terjual:</strong> <span id="voidItemMaxQty"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Qty yang di-Void <span class="text-danger">*</span></label>
+                            <input type="number" name="void_qty" id="voidQtyInput"
+                                class="form-control form-control-lg text-center"
+                                value="1" min="1" required
+                                oninput="updateVoidRefundInfo()">
+                            <div class="form-text">Maks: <span id="voidMaxQtyHint"></span> pcs</div>
+                        </div>
+
+                        <div class="border rounded p-3 small" id="voidRefundSummary">
+                            <div class="d-flex justify-content-between">
+                                <span>Nilai yang di-void:</span>
+                                <strong class="text-danger" id="voidRefundAmount">Rp 0</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1" id="voidRefundNote">
+                                <span class="text-muted" id="voidRefundNoteText"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-slash-circle"></i> Proses Void
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Exchange Modal -->
     <div class="modal fade" id="exchangeModal" tabindex="-1" aria-labelledby="exchangeModalLabel" aria-hidden="true">
         <div class="modal-dialog">
@@ -535,6 +617,82 @@
             }
         }
 
+
+        // ── Void Item Modal ───────────────────────────────────────────────
+        let _voidItemMaxQty    = 1;
+        let _voidItemPriceUnit = 0;
+        let _voidItemSubtotal  = 0;
+        let _voidPaymentStatus = '';
+
+        function openVoidItemModal(itemId, itemQty, itemName, itemPrice, itemSubtotal, paymentStatus) {
+            _voidItemMaxQty    = itemQty;
+            _voidItemPriceUnit = itemPrice;
+            _voidItemSubtotal  = itemSubtotal;
+            _voidPaymentStatus = paymentStatus;
+
+            document.getElementById('voidItemId').value    = itemId;
+            document.getElementById('voidItemName').textContent = itemName;
+            document.getElementById('voidItemPrice').textContent = itemPrice.toLocaleString('id-ID');
+            document.getElementById('voidItemMaxQty').textContent = itemQty;
+            document.getElementById('voidMaxQtyHint').textContent = itemQty;
+
+            const qtyInput = document.getElementById('voidQtyInput');
+            qtyInput.max   = itemQty;
+            qtyInput.value = 1;
+
+            updateVoidRefundInfo();
+            const modal = new bootstrap.Modal(document.getElementById('voidItemModal'));
+            modal.show();
+        }
+
+        function updateVoidRefundInfo() {
+            const qty = parseInt(document.getElementById('voidQtyInput').value) || 0;
+            const pricePerUnit = _voidItemMaxQty > 0 ? (_voidItemSubtotal / _voidItemMaxQty) : _voidItemPriceUnit;
+            const voidValue = Math.round(pricePerUnit * qty);
+
+            document.getElementById('voidRefundAmount').textContent =
+                'Rp ' + voidValue.toLocaleString('id-ID');
+
+            const noteEl = document.getElementById('voidRefundNoteText');
+            if (_voidPaymentStatus === 'hutang') {
+                noteEl.textContent = '⚠️ Transaksi hutang — sisa tagihan akan berkurang sebesar nilai di atas.';
+            } else if (_voidPaymentStatus === 'lunas') {
+                noteEl.textContent = '💵 Transaksi lunas — pastikan uang sejumlah di atas dikembalikan ke pelanggan.';
+            } else {
+                noteEl.textContent = '';
+            }
+        }
+
+        function confirmVoidItem(event) {
+            event.preventDefault();
+            const form = event.target;
+            const qty  = parseInt(document.getElementById('voidQtyInput').value) || 0;
+            const pricePerUnit = _voidItemMaxQty > 0 ? (_voidItemSubtotal / _voidItemMaxQty) : _voidItemPriceUnit;
+            const voidValue    = Math.round(pricePerUnit * qty);
+
+            let extraText = '';
+            if (_voidPaymentStatus === 'lunas') {
+                extraText = `Kembalikan uang Rp ${voidValue.toLocaleString('id-ID')} ke pelanggan.`;
+            } else if (_voidPaymentStatus === 'hutang') {
+                extraText = `Sisa tagihan akan berkurang Rp ${voidValue.toLocaleString('id-ID')}.`;
+            }
+
+            Swal.fire({
+                title: `Void ${qty} pcs item ini?`,
+                html: `<p class="mb-1">Nilai yang di-void: <strong class="text-danger">Rp ${voidValue.toLocaleString('id-ID')}</strong></p>`
+                    + (extraText ? `<p class="text-muted small">${extraText}</p>` : ''),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Proses Void!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+        }
 
         function confirmVoid(event) {
             event.preventDefault();

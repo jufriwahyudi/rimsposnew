@@ -223,6 +223,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/sales/{sale}', [PosController::class, 'show'])->name('sales.show');
     Route::post('/sales/{sale}/pay-debt', [PosController::class, 'payDebt'])->name('sales.pay-debt');
     Route::post('/sales/{sale}/void', [PosController::class, 'void'])->name('sales.void');
+    Route::post('/sales/{sale}/void-item', [PosController::class, 'voidItem'])->name('sales.void-item');
     Route::post('/sales/{sale}/refund', [PosController::class, 'refund'])->name('sales.refund');
     Route::post('/sales/{sale}/exchange', [PosController::class, 'exchange'])->name('sales.exchange');
     Route::post('/sales/{sale}/print', [PosController::class, 'printThermal'])->name('sales.print-thermal');

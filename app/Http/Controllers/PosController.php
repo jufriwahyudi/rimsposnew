@@ -2583,6 +2583,157 @@ class PosController extends Controller
         }
     }
 
+    /**
+     * ======================================================
+     * PARTIAL VOID — void sebagian qty dari satu item
+     * POST /sales/{sale}/void-item
+     * ======================================================
+     */
+    public function voidItem(Request $request, Sale $sale)
+    {
+        $request->validate([
+            'sale_item_id' => 'required|exists:sale_items,id',
+            'void_qty'     => 'required|integer|min:1',
+        ]);
+
+        if ($sale->status === 'void') {
+            return back()->with('error', 'Transaksi sudah di-void sepenuhnya.');
+        }
+
+        $item = \App\Models\SaleItem::with('batches')->findOrFail($request->sale_item_id);
+
+        // Pastikan item milik sale ini
+        if ($item->sale_id !== $sale->id) {
+            abort(403, 'Item tidak termasuk dalam transaksi ini.');
+        }
+
+        if (!in_array($item->status, ['sold', 'exchanged_in'])) {
+            return back()->with('error', 'Item ini tidak dapat di-void (status: ' . $item->status . ').');
+        }
+
+        $voidQty = (int) $request->void_qty;
+
+        if ($voidQty > $item->qty) {
+            return back()->with('error', "Qty void ({$voidQty}) melebihi qty item ({$item->qty}).");
+        }
+
+        try {
+            DB::transaction(function () use ($sale, $item, $voidQty) {
+                $isFullVoid = ($voidQty === $item->qty);
+
+                // ── 1. Handle item: full void vs partial void ─────────────────
+                if ($isFullVoid) {
+                    // Tandai item asli sebagai voided
+                    $voidedItem = $item;
+                    $item->update(['status' => 'voided']);
+                } else {
+                    // Partial void — kurangi qty item asli
+                    $originalQty = $item->qty;
+                    $remainingQty = $originalQty - $voidQty;
+
+                    // Hitung ulang subtotal proporsional per-unit
+                    $pricePerUnit = $item->qty > 0 ? ($item->subtotal / $item->qty) : $item->price;
+
+                    $item->update([
+                        'qty'      => $remainingQty,
+                        'subtotal' => round($pricePerUnit * $remainingQty),
+                    ]);
+
+                    // Buat item baru untuk void qty
+                    $voidedItem = \App\Models\SaleItem::create([
+                        'sale_id'            => $sale->id,
+                        'product_id'         => $item->product_id,
+                        'product_variant_id' => $item->product_variant_id,
+                        'sku'                => $item->sku,
+                        'product_name'       => $item->product_name,
+                        'price'              => $item->price,
+                        'qty'                => $voidQty,
+                        'discount_amount'    => 0,
+                        'subtotal'           => round($pricePerUnit * $voidQty),
+                        'status'             => 'voided',
+                    ]);
+
+                    // Split batches dari item asli ke item voided
+                    $this->splitBatches($item, $voidedItem, $voidQty);
+                }
+
+                // ── 2. Kembalikan stok (reverse FIFO dari batch voided item) ──
+                foreach ($voidedItem->batches as $batch) {
+                    StockBatch::where('id', $batch->stock_batch_id)
+                        ->increment('qty_sisa', $batch->qty);
+
+                    StockMovement::create([
+                        'product_variant_id' => $voidedItem->product_variant_id,
+                        'stock_batch_id'     => $batch->stock_batch_id,
+                        'posisi'             => 'store',
+                        'tanggal'            => now(),
+                        'tipe'               => 'in',
+                        'direction'          => 'in',
+                        'qty'                => $batch->qty,
+                        'ref_type'           => 'PartialVoid',
+                        'ref_id'             => $voidedItem->id,
+                    ]);
+                }
+
+                // ── 3. Recalculate total sale ─────────────────────────────────
+                $sale->refresh();
+                $newSubtotal   = $sale->items()->whereNotIn('status', ['voided', 'exchanged_out'])->sum('subtotal');
+                $newGrandTotal = $newSubtotal; // simplified; discount sudah di-embed di subtotal per-item
+                // Jika ada diskon trans level, proporsikan
+                // (Untuk saat ini kita gunakan subtotal items saja; bisa dikembangkan lebih lanjut)
+
+                $updateData = [
+                    'subtotal'    => $newSubtotal,
+                    'grand_total' => $newGrandTotal,
+                ];
+
+                // Jika hutang, sesuaikan paid_amount agar sisa hutang tidak negatif
+                if ($sale->payment_status === 'hutang') {
+                    $currentPaid = $sale->paid_amount;
+                    // Sisa hutang baru = grand_total baru - paid lama
+                    // Jika paid_amount sudah melebihi grand_total baru (overpaid), bataskan
+                    $newPaidAmount = min($currentPaid, $newGrandTotal);
+                    $updateData['paid_amount'] = $newPaidAmount;
+                    $updateData['payment_status'] = ($newPaidAmount >= $newGrandTotal) ? 'lunas' : 'hutang';
+                }
+
+                // ── 4. Cek apakah semua item sudah voided ────────────────────
+                $activeItemsCount = $sale->items()->whereNotIn('status', ['voided', 'exchanged_out'])->count();
+                if ($activeItemsCount === 0) {
+                    $updateData['status'] = 'void';
+                }
+
+                $sale->update($updateData);
+
+                // ── 5. Revert loyalty points jika sale penuh di-void ─────────
+                if (isset($updateData['status']) && $updateData['status'] === 'void') {
+                    app(\App\Services\LoyaltyPointService::class)->revertPointsForVoid($sale);
+                }
+            });
+
+            // Hitung refund info untuk flash message
+            $sale->refresh();
+            $voidedSubtotal = \App\Models\SaleItem::where('sale_id', $sale->id)
+                ->where('status', 'voided')
+                ->orderByDesc('created_at')
+                ->first();
+
+            $refundAmount = $voidedSubtotal ? $voidedSubtotal->subtotal : 0;
+            $successMsg   = 'Partial void berhasil. ';
+
+            if ($sale->payment_status === 'lunas' || $sale->status === 'void') {
+                $successMsg .= 'Uang dikembalikan ke pelanggan sebesar Rp ' . number_format($refundAmount) . ' (catat cash out jika diperlukan).';
+            } elseif ($sale->payment_status === 'hutang') {
+                $successMsg .= 'Grand total dan sisa hutang sudah diperbarui. Total transaksi baru: Rp ' . number_format($sale->grand_total) . '.';
+            }
+
+            return back()->with('success', $successMsg);
+
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal partial void: ' . $e->getMessage());
+        }
+    }
+
     public function refund(Request $request, Sale $sale)
     {
         // 🔒 Validasi
