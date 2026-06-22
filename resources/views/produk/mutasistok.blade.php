@@ -320,4 +320,49 @@
             toggleCostField();
         });
     </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const barcodeForm = document.getElementById('barcodeForm');
+            const barcodeInput = document.getElementById('barcodeInput');
+            const btnTambahkan = document.getElementById('btnTambahkan');
+
+            let lastBarcode = '';
+            let lastSubmitTime = 0;
+            let isSubmitting = false;
+
+            if (barcodeForm) {
+                barcodeForm.addEventListener('submit', function(e) {
+                    const barcodeVal = barcodeInput.value.trim();
+                    const now = Date.now();
+
+                    if (isSubmitting) {
+                        e.preventDefault();
+                        return;
+                    }
+
+                    if (barcodeVal === '') {
+                        e.preventDefault();
+                        return;
+                    }
+
+                    // Handle duplicate scans/submits within 1 second
+                    if (barcodeVal === lastBarcode && (now - lastSubmitTime) < 1000) {
+                        e.preventDefault();
+                        console.log('Duplicate scan ignored:', barcodeVal);
+                        return;
+                    }
+
+                    lastBarcode = barcodeVal;
+                    lastSubmitTime = now;
+                    isSubmitting = true;
+
+                    // Disable button to prevent double-click
+                    if (btnTambahkan) {
+                        btnTambahkan.disabled = true;
+                        btnTambahkan.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Menambahkan...';
+                    }
+                });
+            }
+        });
+    </script>
 @endpush
