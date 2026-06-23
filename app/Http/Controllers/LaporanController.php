@@ -985,4 +985,60 @@ class LaporanController extends Controller
             'laporan_penukaran_poin_' . $mulai . '_' . $akhir . '.xlsx'
         );
     }
+
+    public function laporanCustomer(Request $request)
+    {
+        $customFields = \App\Models\CustomerCustomField::where('store_id', session('store_id'))->get();
+        return view('laporan.customer', compact('customFields'));
+    }
+
+    public function getLaporanCustomer(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+        $search = $request->search;
+        $storeId = session('store_id');
+
+        $query = Customer::where('store_id', $storeId);
+
+        if ($request->filled('mulai') && $request->filled('akhir')) {
+            $query->whereBetween('created_at', [$mulai . " 00:00:00", $akhir . " 23:59:59"]);
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('alamat', 'like', "%{$search}%");
+            });
+        }
+
+        $customers = $query->orderBy('name', 'asc')->get();
+        $customFields = \App\Models\CustomerCustomField::where('store_id', $storeId)->get();
+
+        if ($request->ajax()) {
+            return view('laporan.customer_table', compact('customers', 'customFields', 'mulai', 'akhir', 'search'));
+        }
+
+        return view('laporan.customer', compact('customers', 'customFields', 'mulai', 'akhir', 'search'));
+    }
+
+    public function exportLaporanCustomer(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+        $search = $request->search;
+
+        $filename = 'Laporan_Customer';
+        if ($mulai && $akhir) {
+            $filename .= '_' . $mulai . '_' . $akhir;
+        } else {
+            $filename .= '_Semua_Periode';
+        }
+
+        return Excel::download(
+            new \App\Exports\LaporanCustomerExport($mulai, $akhir, $search),
+            $filename . '.xlsx'
+        );
+    }
 }

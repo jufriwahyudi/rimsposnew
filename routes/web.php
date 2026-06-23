@@ -343,6 +343,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/laporan/biaya-operasional/data', [LaporanController::class, 'getBiayaOperasional'])->name('laporan.biaya_operasional.data');
     Route::get('/laporan/biaya-operasional/export', [LaporanController::class, 'exportBiayaOperasional'])->name('laporan.biaya_operasional.export');
 
+    Route::get('/laporan/customer', [LaporanController::class, 'laporanCustomer'])->name('laporan.customer');
+    Route::post('/laporan/customer/data', [LaporanController::class, 'getLaporanCustomer'])->name('laporan.customer.data');
+    Route::get('/laporan/customer/export', [LaporanController::class, 'exportLaporanCustomer'])->name('laporan.customer.export');
+
     #export excel laporan stok
     Route::get('/laporan-stok/excel', [LaporanController::class, 'exportExcel'])
         ->name('laporan.stok.excel');
