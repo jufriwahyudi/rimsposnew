@@ -453,8 +453,14 @@ class LaporanController extends Controller
 
     public function penerimaanKasFrontliner()
     {
-        $frontliners = User::whereIn('id', function ($q) {
-            $q->select('user_id')->from('cash_transactions')->whereNotNull('user_id')->distinct();
+        $frontliners = User::whereHas('stores', function ($q) {
+            $q->where('stores.id', session('store_id'));
+        })->whereIn('id', function ($q) {
+            $q->select('user_id')
+                ->from('cash_transactions')
+                ->where('store_id', session('store_id'))
+                ->whereNotNull('user_id')
+                ->distinct();
         })->orderBy('name')->get();
 
         return view('laporan.penerimaan_kas_frontliner', compact('frontliners'));
@@ -466,62 +472,93 @@ class LaporanController extends Controller
 
         $userId = $request->user_id;
 
-        // Kas masuk (penerimaan): sale cash, dll
+        // Ambil semua transaksi kas (cash & transfer)
         $kasTransactions = CashTransaction::with('user')
             ->whereBetween('transaction_date', [$tanggal . ' 00:00:00', $tanggal . ' 23:59:59'])
-            ->where('payment_method', 'cash')
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->orderBy('transaction_date', 'asc')
             ->get();
 
-        $rows = collect();
-        $totalMasuk = 0;
-        $totalKeluar = 0;
+        $cashRows = collect();
+        $totalCashMasuk = 0;
+        $totalCashKeluar = 0;
 
-        foreach ($kasTransactions as $i => $trx) {
+        $transferRows = collect();
+        $totalTransferMasuk = 0;
+        $totalTransferKeluar = 0;
+
+        foreach ($kasTransactions as $trx) {
             $masuk = $trx->direction === 'in' ? $trx->amount : 0;
             $keluar = $trx->direction === 'out' ? $trx->amount : 0;
-            $totalMasuk += $masuk;
-            $totalKeluar += $keluar;
 
-            $rows->push((object) [
-                'no' => $i + 1,
-                'transaction_date' => $trx->transaction_date,
-                'transaction_type' => $trx->transaction_type,
-                'ref_type' => $trx->ref_type,
-                'ref_id' => $trx->ref_id,
-                'notes' => $trx->notes,
-                'masuk' => $masuk,
-                'keluar' => $keluar,
-                'petugas' => optional($trx->user)->name ?? '-',
-            ]);
+            if ($trx->payment_method === 'cash') {
+                $totalCashMasuk += $masuk;
+                $totalCashKeluar += $keluar;
+                $cashRows->push((object) [
+                    'no' => $cashRows->count() + 1,
+                    'transaction_date' => $trx->transaction_date,
+                    'transaction_type' => $trx->transaction_type,
+                    'ref_type' => $trx->ref_type,
+                    'ref_id' => $trx->ref_id,
+                    'notes' => $trx->notes,
+                    'masuk' => $masuk,
+                    'keluar' => $keluar,
+                    'petugas' => optional($trx->user)->name ?? '-',
+                ]);
+            } else {
+                $totalTransferMasuk += $masuk;
+                $totalTransferKeluar += $keluar;
+                $transferRows->push((object) [
+                    'no' => $transferRows->count() + 1,
+                    'transaction_date' => $trx->transaction_date,
+                    'transaction_type' => $trx->transaction_type,
+                    'ref_type' => $trx->ref_type,
+                    'ref_id' => $trx->ref_id,
+                    'notes' => $trx->notes,
+                    'masuk' => $masuk,
+                    'keluar' => $keluar,
+                    'petugas' => optional($trx->user)->name ?? '-',
+                ]);
+            }
         }
 
-        $saldo = $totalMasuk - $totalKeluar;
+        $saldoCash = $totalCashMasuk - $totalCashKeluar;
+        $saldoTransfer = $totalTransferMasuk - $totalTransferKeluar;
 
         if ($request->ajax()) {
-            return view('laporan.penerimaan_kas_table', compact('rows', 'tanggal', 'totalMasuk', 'totalKeluar', 'saldo', 'userId'));
+            return view('laporan.penerimaan_kas_table', compact(
+                'cashRows', 'totalCashMasuk', 'totalCashKeluar', 'saldoCash',
+                'transferRows', 'totalTransferMasuk', 'totalTransferKeluar', 'saldoTransfer',
+                'tanggal', 'userId'
+            ));
         }
 
-        return view('laporan.penerimaan_kas_frontliner', compact('rows', 'tanggal', 'totalMasuk', 'totalKeluar', 'saldo'));
+        return view('laporan.penerimaan_kas_frontliner', compact(
+            'cashRows', 'totalCashMasuk', 'totalCashKeluar', 'saldoCash',
+            'transferRows', 'totalTransferMasuk', 'totalTransferKeluar', 'saldoTransfer',
+            'tanggal'
+        ));
     }
 
     public function exportPenerimaanKas(Request $request)
     {
         $tanggal = $request->tanggal ?? now()->toDateString();
         $userId = $request->user_id;
+        $paymentMethod = $request->payment_method ?? 'cash';
 
         return Excel::download(
-            new \App\Exports\PenerimaanKasExport($tanggal, $userId),
-            'Laporan_Penerimaan_Kas_' . $tanggal . '.xlsx'
+            new \App\Exports\PenerimaanKasExport($tanggal, $userId, $paymentMethod),
+            'Laporan_Penerimaan_Kas_' . ($paymentMethod === 'transfer' ? 'Transfer' : 'Cash') . '_' . $tanggal . '.xlsx'
         );
     }
 
-    public function cetakPenerimaanKas($tanggal, $userId = null)
+    public function cetakPenerimaanKas(Request $request, $tanggal, $userId = null)
     {
+        $paymentMethod = $request->payment_method ?? 'cash';
+
         $transactions = CashTransaction::with('user')
             ->whereBetween('transaction_date', [$tanggal . ' 00:00:00', $tanggal . ' 23:59:59'])
-            ->where('payment_method', 'cash')
+            ->where('payment_method', $paymentMethod)
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->orderBy('transaction_date', 'asc')
             ->get();
@@ -544,10 +581,11 @@ class LaporanController extends Controller
             'tanggal',
             'totalMasuk',
             'totalKeluar',
-            'saldo'
+            'saldo',
+            'paymentMethod'
         ))->setPaper('a4', 'landscape');
 
-        return $pdf->stream('penerimaan_kas.pdf');
+        return $pdf->stream('penerimaan_kas_' . $paymentMethod . '.pdf');
     }
 
     public function biayaOperasional()

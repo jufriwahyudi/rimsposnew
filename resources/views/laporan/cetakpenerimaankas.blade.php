@@ -60,7 +60,7 @@
 
 <body>
 
-    <div class="title">Laporan Penerimaan Kas (Cash)</div>
+    <div class="title">Laporan Penerimaan Kas ({{ ucfirst($paymentMethod ?? 'cash') }})</div>
     <div class="subtitle">Tanggal: {{ $tanggal }}</div>
 
     <table>
@@ -71,8 +71,8 @@
                 <th>Tipe Transaksi</th>
                 <th>Referensi</th>
                 <th>Keterangan</th>
-                <th>Kas Masuk</th>
-                <th>Kas Keluar</th>
+                <th>{{ ($paymentMethod ?? 'cash') === 'transfer' ? 'Transfer Masuk' : 'Kas Masuk' }}</th>
+                <th>{{ ($paymentMethod ?? 'cash') === 'transfer' ? 'Transfer Keluar' : 'Kas Keluar' }}</th>
                 <th>Petugas</th>
             </tr>
         </thead>
@@ -120,7 +120,7 @@
 
             <!-- SALDO -->
             <tr class="saldo">
-                <td colspan="5" class="text-center">SALDO KAS</td>
+                <td colspan="5" class="text-center">SALDO {{ ($paymentMethod ?? 'cash') === 'transfer' ? 'TRANSFER' : 'KAS' }}</td>
                 <td class="text-right">{{ number_format($saldo, 0, ',', '.') }}</td>
                 <td></td>
                 <td></td>

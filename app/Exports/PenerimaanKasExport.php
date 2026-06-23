@@ -21,20 +21,26 @@ class PenerimaanKasExport implements
 {
     protected $tanggal;
     protected $userId;
+    protected $paymentMethod;
     protected $totalMasuk = 0;
     protected $totalKeluar = 0;
     protected $rowCount = 0;
 
-    public function __construct($tanggal, $userId = null)
+    public function __construct($tanggal, $userId = null, $paymentMethod = 'cash')
     {
         $this->tanggal = $tanggal;
         $this->userId = $userId;
+        $this->paymentMethod = $paymentMethod;
     }
 
     public function headings(): array
     {
+        $title = $this->paymentMethod === 'transfer' ? 'Laporan Penerimaan Transfer' : 'Laporan Penerimaan Kas (Cash)';
+        $inLabel = $this->paymentMethod === 'transfer' ? 'Transfer Masuk' : 'Kas Masuk';
+        $outLabel = $this->paymentMethod === 'transfer' ? 'Transfer Keluar' : 'Kas Keluar';
+
         return [
-            ['Laporan Penerimaan Kas (Cash)'],
+            [$title],
             ['Tanggal: ' . $this->tanggal],
             [],
             [
@@ -43,8 +49,8 @@ class PenerimaanKasExport implements
                 'Tipe Transaksi',
                 'Referensi',
                 'Keterangan',
-                'Kas Masuk',
-                'Kas Keluar',
+                $inLabel,
+                $outLabel,
                 'Petugas',
             ],
         ];
@@ -54,7 +60,7 @@ class PenerimaanKasExport implements
     {
         $transactions = CashTransaction::with('user')
             ->whereBetween('transaction_date', [$this->tanggal . ' 00:00:00', $this->tanggal . ' 23:59:59'])
-            ->where('payment_method', 'cash')
+            ->where('payment_method', $this->paymentMethod)
             ->when($this->userId, fn($q) => $q->where('user_id', $this->userId))
             ->orderBy('transaction_date', 'asc')
             ->get();
@@ -99,8 +105,9 @@ class PenerimaanKasExport implements
 
         // Saldo row
         $saldo = $this->totalMasuk - $this->totalKeluar;
+        $saldoLabel = $this->paymentMethod === 'transfer' ? 'SALDO TRANSFER' : 'SALDO KAS';
         $rows[] = [
-            '', '', '', '', 'SALDO KAS',
+            '', '', '', '', $saldoLabel,
             $saldo,
             '',
             '',
