@@ -123,7 +123,7 @@
                                                                 </div>
                                                                 <div class="col-md-6">
                                                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></label>
-                                                                    <input name="variants[{{ $i }}][barcode]" class="form-control form-control-sm" value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
+                                                                    <input name="variants[{{ $i }}][barcode]" class="form-control form-control-sm barcode-input" value="{{ $v['barcode'] ?? '' }}" placeholder="Auto-generate">
                                                                 </div>
                                                                 <div class="col-md-6">
                                                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Harga Jual</label>
@@ -305,6 +305,13 @@
             const container = document.getElementById('variantContainer');
             if (container.querySelectorAll('.variant-card').length === 0) {
                 addVariantRow();
+            }
+        });
+
+        // Prevent form submission when Enter key is pressed in barcode fields (e.g. from scanner)
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter' && event.target.classList.contains('barcode-input')) {
+                event.preventDefault();
             }
         });
     </script>
