@@ -14,6 +14,11 @@ class Customer extends Model
         'name',
         'phone',
         'alamat',
+        'custom_values',
+    ];
+
+    protected $casts = [
+        'custom_values' => 'array',
     ];
 
     public function sales()

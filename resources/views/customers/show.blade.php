@@ -33,6 +33,18 @@
                         <p class="mb-3 text-dark small" style="white-space: pre-line;">{{ $customer->alamat ?? '-' }}</p>
                     </div>
 
+                    @if (isset($customFields) && $customFields->count() > 0)
+                        <div class="text-start border-top pt-3">
+                            @foreach ($customFields as $field)
+                                @php
+                                    $val = $customer->custom_values[$field->name] ?? null;
+                                @endphp
+                                <label class="form-label fw-bold text-muted small mb-1">{{ $field->label }}</label>
+                                <p class="mb-2 text-dark small">{{ $val ?: '-' }}</p>
+                            @endforeach
+                        </div>
+                    @endif
+
                     <div class="border-top pt-3">
                         <label class="form-label fw-bold text-muted small mb-1">Akumulasi Hutang Belum Lunas</label>
                         <h3 class="fw-bold text-danger">Rp {{ number_format($totalDebt, 0, ',', '.') }}</h3>

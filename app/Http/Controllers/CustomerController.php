@@ -6,9 +6,11 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\Rekening;
 use App\Models\CashTransaction;
+use App\Models\CustomerCustomField;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class CustomerController extends Controller
 {
@@ -18,7 +20,8 @@ class CustomerController extends Controller
     public function index()
     {
         $customers = Customer::orderBy('name')->get();
-        return view('customers.index', compact('customers'));
+        $customFields = CustomerCustomField::where('store_id', session('store_id'))->get();
+        return view('customers.index', compact('customers', 'customFields'));
     }
 
     /**
@@ -26,17 +29,37 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $customFields = CustomerCustomField::where('store_id', session('store_id'))->get();
+        $customRules = [];
+        foreach ($customFields as $field) {
+            $rule = $field->is_required ? 'required' : 'nullable';
+            if ($field->type === 'number') {
+                $rule .= '|numeric';
+            } else {
+                $rule .= '|string';
+            }
+            $customRules['custom_values.' . $field->name] = $rule;
+        }
+
+        $request->validate(array_merge([
             'name'   => 'required|string|max:255',
             'phone'  => 'nullable|string|max:50',
             'alamat' => 'nullable|string',
-        ]);
+        ], $customRules));
+
+        // extract custom values
+        $customValues = $request->input('custom_values', []);
+        $cleanCustomValues = [];
+        foreach ($customFields as $field) {
+            $cleanCustomValues[$field->name] = $customValues[$field->name] ?? null;
+        }
 
         $customer = Customer::create([
-            'store_id' => session('store_id'),
-            'name'     => $request->name,
-            'phone'    => $request->phone,
-            'alamat'   => $request->alamat,
+            'store_id'      => session('store_id'),
+            'name'          => $request->name,
+            'phone'         => $request->phone,
+            'alamat'        => $request->alamat,
+            'custom_values' => $cleanCustomValues,
         ]);
 
         return response()->json([
@@ -61,8 +84,9 @@ class CustomerController extends Controller
             ->get();
 
         $totalDebt = $debts->sum(fn($s) => $s->grand_total - $s->paid_amount);
+        $customFields = CustomerCustomField::where('store_id', session('store_id'))->get();
 
-        return view('customers.show', compact('customer', 'sales', 'debts', 'totalDebt'));
+        return view('customers.show', compact('customer', 'sales', 'debts', 'totalDebt', 'customFields'));
     }
 
     /**
@@ -70,16 +94,36 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer)
     {
-        $request->validate([
+        $customFields = CustomerCustomField::where('store_id', session('store_id'))->get();
+        $customRules = [];
+        foreach ($customFields as $field) {
+            $rule = $field->is_required ? 'required' : 'nullable';
+            if ($field->type === 'number') {
+                $rule .= '|numeric';
+            } else {
+                $rule .= '|string';
+            }
+            $customRules['custom_values.' . $field->name] = $rule;
+        }
+
+        $request->validate(array_merge([
             'name'   => 'required|string|max:255',
             'phone'  => 'nullable|string|max:50',
             'alamat' => 'nullable|string',
-        ]);
+        ], $customRules));
+
+        // extract custom values
+        $customValues = $request->input('custom_values', []);
+        $cleanCustomValues = [];
+        foreach ($customFields as $field) {
+            $cleanCustomValues[$field->name] = $customValues[$field->name] ?? null;
+        }
 
         $customer->update([
-            'name'   => $request->name,
-            'phone'  => $request->phone,
-            'alamat' => $request->alamat,
+            'name'          => $request->name,
+            'phone'         => $request->phone,
+            'alamat'        => $request->alamat,
+            'custom_values' => $cleanCustomValues,
         ]);
 
         return response()->json([
@@ -106,6 +150,87 @@ class CustomerController extends Controller
             'success' => true,
             'message' => 'Mitra/Pelanggan berhasil dihapus.'
         ]);
+    }
+
+    /**
+     * Manage custom fields definitions for the current store.
+     */
+    public function customFieldsIndex()
+    {
+        $fields = CustomerCustomField::where('store_id', session('store_id'))->get();
+        return view('customers.custom_fields', compact('fields'));
+    }
+
+    public function customFieldsStore(Request $request)
+    {
+        $request->validate([
+            'label' => 'required|string|max:255',
+            'type'  => 'required|in:text,number,select',
+            'options' => 'nullable|string',
+        ]);
+
+        $name = Str::slug($request->label, '_');
+
+        // Check uniqueness for this store
+        $exists = CustomerCustomField::where('store_id', session('store_id'))
+            ->where('name', $name)
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()->with('error', 'Field kustom dengan label tersebut sudah ada.');
+        }
+
+        CustomerCustomField::create([
+            'store_id'    => session('store_id'),
+            'name'        => $name,
+            'label'       => $request->label,
+            'type'        => $request->type,
+            'options'     => $request->options,
+            'is_required' => $request->has('is_required'),
+        ]);
+
+        return redirect()->back()->with('success', 'Field kustom berhasil ditambahkan.');
+    }
+
+    public function customFieldsUpdate(Request $request, $id)
+    {
+        $field = CustomerCustomField::findOrFail($id);
+
+        $request->validate([
+            'label' => 'required|string|max:255',
+            'type'  => 'required|in:text,number,select',
+            'options' => 'nullable|string',
+        ]);
+
+        $name = Str::slug($request->label, '_');
+
+        // Check uniqueness for this store excluding current field
+        $exists = CustomerCustomField::where('store_id', session('store_id'))
+            ->where('name', $name)
+            ->where('id', '!=', $field->id)
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()->with('error', 'Field kustom dengan label tersebut sudah ada.');
+        }
+
+        $field->update([
+            'name'        => $name,
+            'label'       => $request->label,
+            'type'        => $request->type,
+            'options'     => $request->options,
+            'is_required' => $request->has('is_required'),
+        ]);
+
+        return redirect()->back()->with('success', 'Field kustom berhasil diperbarui.');
+    }
+
+    public function customFieldsDestroy($id)
+    {
+        $field = CustomerCustomField::findOrFail($id);
+        $field->delete();
+
+        return redirect()->back()->with('success', 'Field kustom berhasil dihapus.');
     }
 
     /**

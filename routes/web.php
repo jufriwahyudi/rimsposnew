@@ -118,6 +118,12 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
+        // Customer Custom Fields Management
+        Route::get('/customers/custom-fields', [CustomerController::class, 'customFieldsIndex'])->name('customers.custom-fields.index');
+        Route::post('/customers/custom-fields', [CustomerController::class, 'customFieldsStore'])->name('customers.custom-fields.store');
+        Route::put('/customers/custom-fields/{field}', [CustomerController::class, 'customFieldsUpdate'])->name('customers.custom-fields.update');
+        Route::delete('/customers/custom-fields/{field}', [CustomerController::class, 'customFieldsDestroy'])->name('customers.custom-fields.destroy');
+
         Route::resource('customers', CustomerController::class);
         Route::get('/debts', [CustomerController::class, 'debtsIndex'])->name('customers.debts.index');
         Route::post('/debts/pay-collective', [CustomerController::class, 'payCollective'])->name('customers.debts.pay-collective');

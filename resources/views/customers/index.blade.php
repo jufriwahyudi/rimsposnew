@@ -28,10 +28,15 @@
                             <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
-                    <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalCustomer">
-                        <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah
-                        Mitra
-                    </button>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('customers.custom-fields.index') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">settings</i> Field Kustom
+                        </a>
+                        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalCustomer">
+                            <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah
+                            Mitra
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <table class="table table-bordered table-hover" id="tbl-customer">
@@ -58,7 +63,8 @@
                                         <button class="btn btn-sm btn-warning btn-edit-customer" data-id="{{ $cust->id }}"
                                             data-name="{{ htmlspecialchars($cust->name) }}"
                                             data-phone="{{ htmlspecialchars($cust->phone) }}"
-                                            data-alamat="{{ htmlspecialchars($cust->alamat) }}">
+                                            data-alamat="{{ htmlspecialchars($cust->alamat) }}"
+                                            data-custom-values="{{ json_encode($cust->custom_values ?? (object)[]) }}">
                                             <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">edit</i>
                                         </button>
                                         <button class="btn btn-sm btn-danger btn-delete-customer" data-id="{{ $cust->id }}">
@@ -103,6 +109,30 @@
                             <label class="form-label">Alamat</label>
                             <textarea class="form-control" id="customer_alamat" rows="3" placeholder="contoh: Jl. Merdeka No. 10"></textarea>
                         </div>
+                        @if (isset($customFields) && $customFields->count() > 0)
+                            <hr>
+                            <h6 class="fw-bold mb-3 text-secondary" style="font-size: 0.9rem;">Informasi Tambahan (Store)</h6>
+                            @foreach ($customFields as $field)
+                                <div class="mb-3">
+                                    <label class="form-label">{{ $field->label }} @if($field->is_required)<span class="text-danger">*</span>@endif</label>
+                                    @if ($field->type === 'select')
+                                        @php
+                                            $opts = array_map('trim', explode(',', $field->options));
+                                        @endphp
+                                        <select class="form-select custom-field-input" data-name="{{ $field->name }}" id="cf_{{ $field->name }}" @if($field->is_required) required @endif>
+                                            <option value="">-- Pilih {{ $field->label }} --</option>
+                                            @foreach ($opts as $opt)
+                                                <option value="{{ $opt }}">{{ $opt }}</option>
+                                            @endforeach
+                                        </select>
+                                    @elseif ($field->type === 'number')
+                                        <input type="number" class="form-control custom-field-input" data-name="{{ $field->name }}" id="cf_{{ $field->name }}" placeholder="Masukkan {{ $field->label }}" @if($field->is_required) required @endif>
+                                    @else
+                                        <input type="text" class="form-control custom-field-input" data-name="{{ $field->name }}" id="cf_{{ $field->name }}" placeholder="Masukkan {{ $field->label }}" @if($field->is_required) required @endif>
+                                    @endif
+                                </div>
+                            @endforeach
+                        @endif
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -146,6 +176,9 @@
             document.getElementById('customer_name').value = '';
             document.getElementById('customer_phone').value = '';
             document.getElementById('customer_alamat').value = '';
+            document.querySelectorAll('.custom-field-input').forEach(input => {
+                input.value = '';
+            });
         });
 
         // Edit customer
@@ -154,8 +187,14 @@
                 document.getElementById('modalCustomerTitle').textContent = 'Edit Mitra';
                 document.getElementById('customer_id').value = this.dataset.id;
                 document.getElementById('customer_name').value = this.dataset.name;
-                document.getElementById('customer_phone').value = this.dataset.phone !== 'null' ? this.dataset.phone : '';
-                document.getElementById('customer_alamat').value = this.dataset.alamat !== 'null' ? this.dataset.alamat : '';
+                document.getElementById('customer_phone').value = this.dataset.phone !== 'null' && this.dataset.phone !== 'undefined' ? this.dataset.phone : '';
+                document.getElementById('customer_alamat').value = this.dataset.alamat !== 'null' && this.dataset.alamat !== 'undefined' ? this.dataset.alamat : '';
+                
+                const customValues = JSON.parse(this.dataset.customValues || '{}');
+                document.querySelectorAll('.custom-field-input').forEach(input => {
+                    input.value = customValues[input.dataset.name] !== undefined && customValues[input.dataset.name] !== null ? customValues[input.dataset.name] : '';
+                });
+
                 new bootstrap.Modal(document.getElementById('modalCustomer')).show();
             });
         });
@@ -166,6 +205,11 @@
             const id = document.getElementById('customer_id').value;
             const url = id ? `${baseUrl}/${id}` : baseUrl;
             const method = id ? 'PUT' : 'POST';
+
+            const customValues = {};
+            document.querySelectorAll('.custom-field-input').forEach(input => {
+                customValues[input.dataset.name] = input.value;
+            });
 
             fetch(url, {
                     method: method,
@@ -178,6 +222,7 @@
                         name: document.getElementById('customer_name').value,
                         phone: document.getElementById('customer_phone').value,
                         alamat: document.getElementById('customer_alamat').value,
+                        custom_values: customValues
                     }),
                 })
                 .then(async r => {
