@@ -52,8 +52,8 @@
     @endif
 
     {{-- Summary Cards --}}
-    <div class="row g-3 mb-4">
-        <div class="col-xl-3 col-md-6">
+    <div class="row g-3 mb-3">
+        <div class="col-xl-4 col-md-4 col-12">
             <div class="card rounded-4 border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
@@ -68,7 +68,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-4 col-12">
             <div class="card rounded-4 border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
@@ -84,7 +84,25 @@
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-4 col-md-4 col-12">
+            <div class="card rounded-4 border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
+                        style="width:50px;height:50px;background:#e0f2fe;">
+                        <i class="bx bx-group fs-4" style="color:#0284c7;"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted">Total Customer</small>
+                        <h4 class="fw-bold mb-0">{{ number_format($totalCustomers) }}</h4>
+                        <small class="text-muted">Terdaftar di sistem</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-xl-6 col-md-6 col-12">
             <div class="card rounded-4 border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
@@ -99,7 +117,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6">
+        <div class="col-xl-6 col-md-6 col-12">
             <div class="card rounded-4 border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle d-flex align-items-center justify-content-center me-3"

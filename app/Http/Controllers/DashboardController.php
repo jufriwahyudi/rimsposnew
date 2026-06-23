@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Models\CashTransaction;
 use App\Models\StockMovement;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -29,6 +30,7 @@ class DashboardController extends Controller
         // Jumlah produk aktif
         $totalProducts = Product::count();
         $totalVariants = ProductVariant::where('is_active', 1)->count();
+        $totalCustomers = Customer::count();
 
         // Stok gudang & store filter yang product_variants dengan store_id sesuai session
         $storeId = session('store_id');
@@ -123,6 +125,7 @@ class DashboardController extends Controller
         return view('beranda', compact(
             'totalProducts',
             'totalVariants',
+            'totalCustomers',
             'stokGudang',
             'stokStore',
             'salesToday',
