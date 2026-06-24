@@ -386,6 +386,7 @@ class LaporanController extends Controller
             ->whereHas('sale', function ($q) use ($mulai, $akhir) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
+                    ->where('status', 'paid')
                     ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
             })
             ->whereIn('status', ['sold', 'exchanged_in'])
@@ -435,11 +436,20 @@ class LaporanController extends Controller
             ->sortByDesc('total_qty')
             ->values();
 
+        $sales = \App\Models\Sale::whereNull('ref_sale_id')
+            ->whereDoesntHave('refunds')
+            ->where('status', 'paid')
+            ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
+            ->get();
+
+        $totalTransDiscount = $sales->sum('trans_discount');
+        $totalPointDiscount = $sales->sum('point_discount_amount');
+
         if ($request->ajax()) {
-            return view('laporan.harian_table', compact('rows', 'mulai', 'akhir'));
+            return view('laporan.harian_table', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount'));
         }
 
-        return view('laporan.harian', compact('rows', 'mulai', 'akhir'));
+        return view('laporan.harian', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount'));
     }
 
     public function exportHarian(Request $request)

@@ -61,8 +61,8 @@
                                 <td class="text-center">{{ $row->jumlah_trx }}</td>
                             </tr>
                         @endforeach
-                        <tr class="table-dark fw-bold">
-                            <td colspan="5" class="text-center">TOTAL</td>
+                        <tr class="table-secondary fw-bold">
+                            <td colspan="5" class="text-center">SUBTOTAL ITEM</td>
                             <td class="text-center">{{ number_format($sumQty) }}</td>
                             <td class="text-end">{{ number_format($sumDiskon, 0, ',', '.') }}</td>
                             <td class="text-end">{{ number_format($sumSubtotal, 0, ',', '.') }}</td>
@@ -71,6 +71,61 @@
                                 {{ number_format($sumLaba, 0, ',', '.') }}
                             </td>
                             <td class="text-center">{{ number_format($sumTrx) }}</td>
+                        </tr>
+                        <tr class="fw-bold">
+                            <td colspan="5" class="text-center">DISKON TRANSAKSI</td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end text-danger">-{{ number_format($totalTransDiscount, 0, ',', '.') }}</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        @if ($totalPointDiscount > 0)
+                        <tr class="fw-bold">
+                            <td colspan="5" class="text-center">DISKON POINT</td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end text-danger">-{{ number_format($totalPointDiscount, 0, ',', '.') }}</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        @endif
+                        @php
+                            $grandTotal = $sumSubtotal - $totalTransDiscount - $totalPointDiscount;
+                        @endphp
+                        <tr class="table-warning fw-bold">
+                            <td colspan="5" class="text-center">GRAND TOTAL (OMSET)</td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end">{{ number_format($grandTotal, 0, ',', '.') }}</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr class="fw-bold">
+                            <td colspan="5" class="text-center">TOTAL MODAL (HPP)</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end">{{ number_format($sumModal, 0, ',', '.') }}</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        @php
+                            $labaRugiBersih = $grandTotal - $sumModal;
+                        @endphp
+                        <tr class="{{ $labaRugiBersih >= 0 ? 'table-success' : 'table-danger' }} fw-bold">
+                            <td colspan="5" class="text-center">LABA / RUGI BERSIH</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end {{ $labaRugiBersih >= 0 ? 'text-success' : 'text-danger' }}">
+                                {{ number_format($labaRugiBersih, 0, ',', '.') }}
+                            </td>
+                            <td></td>
                         </tr>
                     @else
                         <tr>

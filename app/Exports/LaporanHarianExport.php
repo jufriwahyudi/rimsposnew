@@ -28,6 +28,8 @@ class LaporanHarianExport implements
     protected $sumModal = 0;
     protected $sumLaba = 0;
     protected $sumTrx = 0;
+    protected $totalTransDiscount = 0;
+    protected $totalPointDiscount = 0;
 
     public function __construct($mulai, $akhir)
     {
@@ -67,6 +69,7 @@ class LaporanHarianExport implements
             ->whereHas('sale', function ($q) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
+                    ->where('status', 'paid')
                     ->whereBetween('sale_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59']);
             })
             ->whereIn('status', ['sold', 'exchanged_in'])
@@ -138,19 +141,48 @@ class LaporanHarianExport implements
 
         $this->rowCount = count($rows);
 
-        // Total row
+        $sales = \App\Models\Sale::whereNull('ref_sale_id')
+            ->whereDoesntHave('refunds')
+            ->where('status', 'paid')
+            ->whereBetween('sale_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59'])
+            ->get();
+
+        $this->totalTransDiscount = $sales->sum('trans_discount');
+        $this->totalPointDiscount = $sales->sum('point_discount_amount');
+
+        // Append Subtotal Item
         $rows[] = [
-            '',
-            '',
-            '',
-            'TOTAL',
-            '',
-            $this->sumQty,
-            $this->sumDiskon,
-            $this->sumSubtotal,
-            $this->sumModal,
-            $this->sumLaba,
-            $this->sumTrx,
+            '', '', '', 'SUBTOTAL ITEM', '', '', '', $this->sumSubtotal, '', '', '',
+        ];
+
+        // Append Diskon Transaksi
+        $rows[] = [
+            '', '', '', 'DISKON TRANSAKSI', '', '', '', -$this->totalTransDiscount, '', '', '',
+        ];
+
+        // Append Diskon Point (if any)
+        if ($this->totalPointDiscount > 0) {
+            $rows[] = [
+                '', '', '', 'DISKON POINT', '', '', '', -$this->totalPointDiscount, '', '', '',
+            ];
+        }
+
+        $grandTotal = $this->sumSubtotal - $this->totalTransDiscount - $this->totalPointDiscount;
+
+        // Append Grand Total (Omset)
+        $rows[] = [
+            '', '', '', 'GRAND TOTAL (OMSET)', '', '', '', $grandTotal, '', '', '',
+        ];
+
+        // Append Total Modal (HPP)
+        $rows[] = [
+            '', '', '', 'TOTAL MODAL (HPP)', '', '', '', '', $this->sumModal, '', '',
+        ];
+
+        // Append Laba / Rugi Bersih
+        $labaRugiBersih = $grandTotal - $this->sumModal;
+        $rows[] = [
+            '', '', '', 'LABA / RUGI BERSIH', '', '', '', '', '', $labaRugiBersih, '',
         ];
 
         return $rows;
@@ -201,14 +233,13 @@ class LaporanHarianExport implements
                     ]);
                 }
 
-                // Total row
-                $totalRow = $lastDataRow + 1;
-                $sheet->getStyle('A' . $totalRow . ':K' . $totalRow)->applyFromArray([
+                // Summary rows range
+                $summaryStart = $lastDataRow + 1;
+                $summaryEnd = $summaryStart + 4 + ($this->totalPointDiscount > 0 ? 1 : 0);
+
+                // Apply borders and bold font to all summary rows
+                $sheet->getStyle('A' . $summaryStart . ':K' . $summaryEnd)->applyFromArray([
                     'font' => ['bold' => true],
-                    'fill' => [
-                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => 'D1E7DD'],
-                    ],
                     'borders' => [
                         'allBorders' => [
                             'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
@@ -216,9 +247,26 @@ class LaporanHarianExport implements
                     ],
                 ]);
 
+                // Highlight Grand Total row
+                $grandTotalRow = $lastDataRow + 3 + ($this->totalPointDiscount > 0 ? 1 : 0);
+                $sheet->getStyle('A' . $grandTotalRow . ':K' . $grandTotalRow)->applyFromArray([
+                    'fill' => [
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => 'FFF2CC'],
+                    ],
+                ]);
+
+                // Highlight Laba Rugi Bersih row
+                $sheet->getStyle('A' . $summaryEnd . ':K' . $summaryEnd)->applyFromArray([
+                    'fill' => [
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => 'D1E7DD'],
+                    ],
+                ]);
+
                 // Number format for amount columns (E, G, H, I, J)
-                $sheet->getStyle('E5:E' . $totalRow)->getNumberFormat()->setFormatCode('#,##0');
-                $sheet->getStyle('G5:J' . $totalRow)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle('E5:E' . $summaryEnd)->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle('G5:J' . $summaryEnd)->getNumberFormat()->setFormatCode('#,##0');
             },
         ];
     }
