@@ -41,9 +41,8 @@
                                 <div class="col-md-12 col-sm-12">
                                     <div class="input-group">
                                         <label for="datefilter" class="input-group-text">Pilih Tanggal</label>
-                                        <input type="date" name="date_filter" id="datefilter" class="form-control"
-                                            required max="{{ date('Y-m-d') }}"
-                                            value="{{ old('date_filter') ?? date('Y-m-d') }}">
+                                        <input type="text" name="date_filter" id="datefilter" class="form-control"
+                                            required placeholder="Pilih tanggal">
                                         <button class="btn btn-primary" type="button" id="searchBtn">
                                             <i class="fa fa-search"></i>
                                         </button>
@@ -61,23 +60,46 @@
     </div>
 @endsection
 
+@push('styles')
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+@endpush
+
 @push('scripts')
+    <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script>
         $(function() {
+            var start = moment();
+            var end = moment();
+
+            $('#datefilter').daterangepicker({
+                startDate: start,
+                endDate: end,
+                locale: {
+                    format: 'MM/DD/YYYY'
+                }
+            });
+
+            // Set default value in input
+            $('#datefilter').val(start.format('MM/DD/YYYY') + ' - ' + end.format('MM/DD/YYYY'));
+
             // Auto-load data hari ini
-            loadData($('#datefilter').val());
+            loadData(start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD'));
 
             // Handle button search
             $('#searchBtn').click(function() {
-                var tanggal = $('#datefilter').val();
-                if (!tanggal) {
+                var datefilter = $('#datefilter').val();
+                if (!datefilter) {
                     alert('Silakan pilih tanggal terlebih dahulu');
                     return;
                 }
-                loadData(tanggal);
+                var dates = datefilter.split(' - ');
+                var mulai = moment(dates[0], 'MM/DD/YYYY').format('YYYY-MM-DD');
+                var akhir = moment(dates[1], 'MM/DD/YYYY').format('YYYY-MM-DD');
+                loadData(mulai, akhir);
             });
 
-            function loadData(tanggal) {
+            function loadData(mulai, akhir) {
                 $('#dataContainer').html(
                     '<div class="text-center py-4"><i class="fa fa-spinner fa-spin fa-2x"></i></div>');
 
@@ -86,7 +108,8 @@
                     type: "POST",
                     data: {
                         _token: $('input[name="_token"]').val(),
-                        tanggal: tanggal
+                        mulai: mulai,
+                        akhir: akhir
                     },
                     success: function(response) {
                         $('#dataContainer').html(response);

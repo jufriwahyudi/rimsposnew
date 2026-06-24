@@ -2,9 +2,9 @@
     <div class="card-header mb-3 d-flex justify-content-between align-items-center">
         <div>
             <h5 class="fw-bold mb-0" style="color: #7c3aed">Stok Terjual Harian</h5>
-            <small class="text-muted">Tanggal: {{ $tanggal }}</small>
+            <small class="text-muted">Tanggal: {{ $mulai === $akhir ? $mulai : $mulai . ' s/d ' . $akhir }}</small>
         </div>
-        <a href="{{ route('laporan.harian.export', ['tanggal' => $tanggal]) }}" class="btn btn-sm btn-success">
+        <a href="{{ route('laporan.harian.export', ['mulai' => $mulai, 'akhir' => $akhir]) }}" class="btn btn-sm btn-success">
             <i class="bi bi-file-earmark-excel"></i> Export Excel
         </a>
     </div>
@@ -74,7 +74,7 @@
                         </tr>
                     @else
                         <tr>
-                            <td colspan="11" class="text-center">Tidak ada data penjualan pada tanggal ini</td>
+                            <td colspan="11" class="text-center">Tidak ada data penjualan pada periode ini</td>
                         </tr>
                     @endif
                 </tbody>

@@ -376,16 +376,17 @@ class LaporanController extends Controller
 
     public function getharian(Request $request)
     {
-        $tanggal = $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? now()->toDateString();
+        $akhir = $request->akhir ?? now()->toDateString();
 
         $store = \App\Models\Store::find(session('store_id'));
         $isFnB = $store && $store->business_type === 'fnb';
 
         $rows = SaleItem::with(['variant.product', 'fnbDetail', 'batches', 'sale'])
-            ->whereHas('sale', function ($q) use ($tanggal) {
+            ->whereHas('sale', function ($q) use ($mulai, $akhir) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
-                    ->whereDate('sale_date', $tanggal);
+                    ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
             })
             ->whereIn('status', ['sold', 'exchanged_in'])
             ->get()
@@ -435,19 +436,20 @@ class LaporanController extends Controller
             ->values();
 
         if ($request->ajax()) {
-            return view('laporan.harian_table', compact('rows', 'tanggal'));
+            return view('laporan.harian_table', compact('rows', 'mulai', 'akhir'));
         }
 
-        return view('laporan.harian', compact('rows', 'tanggal'));
+        return view('laporan.harian', compact('rows', 'mulai', 'akhir'));
     }
 
     public function exportHarian(Request $request)
     {
-        $tanggal = $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? now()->toDateString();
+        $akhir = $request->akhir ?? now()->toDateString();
 
         return Excel::download(
-            new \App\Exports\LaporanHarianExport($tanggal),
-            'Laporan_Harian_' . $tanggal . '.xlsx'
+            new \App\Exports\LaporanHarianExport($mulai, $akhir),
+            'Laporan_Harian_' . $mulai . '_to_' . $akhir . '.xlsx'
         );
     }
 

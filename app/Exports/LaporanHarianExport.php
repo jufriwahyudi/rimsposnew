@@ -19,7 +19,8 @@ class LaporanHarianExport implements
     ShouldAutoSize,
     WithEvents
 {
-    protected $tanggal;
+    protected $mulai;
+    protected $akhir;
     protected $rowCount = 0;
     protected $sumQty = 0;
     protected $sumDiskon = 0;
@@ -28,16 +29,18 @@ class LaporanHarianExport implements
     protected $sumLaba = 0;
     protected $sumTrx = 0;
 
-    public function __construct($tanggal)
+    public function __construct($mulai, $akhir)
     {
-        $this->tanggal = $tanggal;
+        $this->mulai = $mulai;
+        $this->akhir = $akhir;
     }
 
     public function headings(): array
     {
+        $tanggalText = $this->mulai === $this->akhir ? $this->mulai : $this->mulai . ' s/d ' . $this->akhir;
         return [
             ['Laporan Harian - Stok Terjual'],
-            ['Tanggal: ' . $this->tanggal],
+            ['Tanggal: ' . $tanggalText],
             [],
             [
                 'No',
@@ -64,7 +67,7 @@ class LaporanHarianExport implements
             ->whereHas('sale', function ($q) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
-                    ->whereDate('sale_date', $this->tanggal);
+                    ->whereBetween('sale_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59']);
             })
             ->whereIn('status', ['sold', 'exchanged_in'])
             ->get()
