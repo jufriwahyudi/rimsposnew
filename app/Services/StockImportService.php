@@ -291,7 +291,22 @@ class StockImportService
     private function generateCode($prefix, $storeId)
     {
         $datePart = date('Ymd');
-        $count = StockAdjustment::whereDate('created_at', now()->toDateString())->count() + 1;
-        return sprintf("%s-%s-%s-%04d", $prefix, $storeId, $datePart, $count);
+        $count = StockAdjustment::withoutGlobalScopes()
+            ->where('store_id', $storeId)
+            ->whereDate('created_at', now()->toDateString())
+            ->count() + 1;
+
+        do {
+            $code = sprintf("%s-%s-%s-%04d", $prefix, $storeId, $datePart, $count);
+            $exists = StockAdjustment::withoutGlobalScopes()
+                ->where('store_id', $storeId)
+                ->where('code', $code)
+                ->exists();
+            if ($exists) {
+                $count++;
+            }
+        } while ($exists);
+
+        return $code;
     }
 }

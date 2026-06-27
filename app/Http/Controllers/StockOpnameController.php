@@ -295,7 +295,23 @@ class StockOpnameController extends Controller
     private function generateCode($prefix)
     {
         $datePart = date('Ymd');
-        $count = StockAdjustment::whereDate('created_at', now()->toDateString())->count() + 1;
-        return sprintf("%s-%s-%04d", $prefix, $datePart, $count);
+        $storeId = session('store_id');
+        $count = StockAdjustment::withoutGlobalScopes()
+            ->where('store_id', $storeId)
+            ->whereDate('created_at', now()->toDateString())
+            ->count() + 1;
+
+        do {
+            $code = sprintf("%s-%s-%04d", $prefix, $datePart, $count);
+            $exists = StockAdjustment::withoutGlobalScopes()
+                ->where('store_id', $storeId)
+                ->where('code', $code)
+                ->exists();
+            if ($exists) {
+                $count++;
+            }
+        } while ($exists);
+
+        return $code;
     }
 }
