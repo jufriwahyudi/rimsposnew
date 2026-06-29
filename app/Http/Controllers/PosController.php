@@ -122,6 +122,90 @@ class PosController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/pos/members
+     * Create a new member for POS mobile.
+     */
+    public function apiStoreMember(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->integer('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $store = Store::find($storeId);
+        if (!$store) {
+            return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+        }
+
+        $businessId = $store->business_id ?: 1;
+
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'name' => 'required|string|max:100',
+            'phone' => 'required|string|max:20',
+            'email' => 'nullable|email|max:100',
+            'birth_date' => 'nullable|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Check unique phone number per business
+        $exist = \App\Models\Member::where('business_id', $businessId)
+            ->where('phone', $request->phone)
+            ->exists();
+
+        if ($exist) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor handphone member sudah terdaftar.',
+            ], 422);
+        }
+
+        $member = \App\Models\Member::create([
+            'business_id' => $businessId,
+            'name' => $request->name,
+            'phone' => $request->phone,
+            'email' => $request->email,
+            'birth_date' => $request->birth_date,
+            'total_points' => 0,
+        ]);
+
+        // Award Welcome Points if configured and settings are active
+        $settings = \App\Models\PointSetting::where('business_id', $businessId)->whereNull('store_id')->first();
+        if ($settings && $settings->welcome_points > 0 && $settings->is_active) {
+            $member->increment('total_points', $settings->welcome_points);
+
+            \App\Models\MemberPointHistory::create([
+                'member_id' => $member->id,
+                'store_id' => $storeId,
+                'sale_id' => null,
+                'mutation_type' => 'adjust',
+                'points' => $settings->welcome_points,
+                'balance_after' => $member->total_points,
+                'notes' => 'Bonus pendaftaran member baru (Welcome Points)',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member berhasil ditambahkan.',
+            'data' => [
+                'id' => $member->id,
+                'name' => $member->name,
+                'phone' => $member->phone,
+                'email' => $member->email,
+                'total_points' => $member->total_points,
+                'birth_date' => $member->birth_date ? $member->birth_date->format('Y-m-d') : null,
+            ],
+        ]);
+    }
+
     public function apiRekening(Request $request)
     {
         $storeId = $request->integer('store_id');
