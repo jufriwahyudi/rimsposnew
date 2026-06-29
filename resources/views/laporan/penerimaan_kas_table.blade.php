@@ -2,7 +2,7 @@
     <div class="card-header mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <h5 class="fw-bold mb-0" style="color: #7c3aed">Penerimaan Kas</h5>
-            <small class="text-muted">Tanggal: {{ $tanggal }}</small>
+            <small class="text-muted">Periode: {{ $mulai === $akhir ? $mulai : $mulai . ' s/d ' . $akhir }}</small>
         </div>
     </div>
     <div class="card-body">
@@ -28,11 +28,11 @@
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h6 class="fw-bold mb-0"><i class="bi bi-cash"></i> Rekapan Cash</h6>
                     <div class="d-flex gap-2">
-                        <a href="{{ route('laporan.penerimaan_kas.export', ['tanggal' => $tanggal, 'user_id' => $userId ?? '', 'payment_method' => 'cash']) }}"
+                        <a href="{{ route('laporan.penerimaan_kas.export', ['mulai' => $mulai, 'akhir' => $akhir, 'user_id' => $userId ?? '', 'payment_method' => 'cash']) }}"
                             class="btn btn-sm btn-success">
                             <i class="bi bi-file-earmark-excel"></i> Export Excel
                         </a>
-                        <a href="{{ route('laporan.cetak_penerimaan_kas', ['tanggal' => $tanggal, 'user_id' => $userId ?? '', 'payment_method' => 'cash']) }}"
+                        <a href="{{ route('laporan.cetak_penerimaan_kas', ['mulai' => $mulai, 'akhir' => $akhir, 'user_id' => $userId ?? '', 'payment_method' => 'cash']) }}"
                             target="_blank"
                             class="btn btn-sm btn-danger">
                             <i class="bi bi-file-earmark-pdf"></i> Cetak PDF
@@ -81,7 +81,7 @@
                                     <tr>
                                         <td class="text-center">{{ $row->no }}</td>
                                         <td class="text-center">
-                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format('H:i:s') }}</td>
+                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format($mulai === $akhir ? 'H:i:s' : 'd/m/Y H:i') }}</td>
                                         <td>
                                             @php
                                                 $typeLabel = match ($row->transaction_type) {
@@ -123,7 +123,7 @@
                                 </tr>
                             @else
                                 <tr>
-                                    <td colspan="8" class="text-center py-3">Tidak ada transaksi kas (Cash) pada tanggal ini</td>
+                                    <td colspan="8" class="text-center py-3">Tidak ada transaksi kas (Cash) pada periode ini</td>
                                 </tr>
                             @endif
                         </tbody>
@@ -137,11 +137,11 @@
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                     <h6 class="fw-bold mb-0"><i class="bi bi-credit-card"></i> Rekapan Transfer</h6>
                     <div class="d-flex gap-2">
-                        <a href="{{ route('laporan.penerimaan_kas.export', ['tanggal' => $tanggal, 'user_id' => $userId ?? '', 'payment_method' => 'transfer']) }}"
+                        <a href="{{ route('laporan.penerimaan_kas.export', ['mulai' => $mulai, 'akhir' => $akhir, 'user_id' => $userId ?? '', 'payment_method' => 'transfer']) }}"
                             class="btn btn-sm btn-success">
                             <i class="bi bi-file-earmark-excel"></i> Export Excel
                         </a>
-                        <a href="{{ route('laporan.cetak_penerimaan_kas', ['tanggal' => $tanggal, 'user_id' => $userId ?? '', 'payment_method' => 'transfer']) }}"
+                        <a href="{{ route('laporan.cetak_penerimaan_kas', ['mulai' => $mulai, 'akhir' => $akhir, 'user_id' => $userId ?? '', 'payment_method' => 'transfer']) }}"
                             target="_blank"
                             class="btn btn-sm btn-danger">
                             <i class="bi bi-file-earmark-pdf"></i> Cetak PDF
@@ -190,7 +190,7 @@
                                     <tr>
                                         <td class="text-center">{{ $row->no }}</td>
                                         <td class="text-center">
-                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format('H:i:s') }}</td>
+                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format($mulai === $akhir ? 'H:i:s' : 'd/m/Y H:i') }}</td>
                                         <td>
                                             @php
                                                 $typeLabel = match ($row->transaction_type) {
@@ -232,7 +232,7 @@
                                 </tr>
                             @else
                                 <tr>
-                                    <td colspan="8" class="text-center py-3">Tidak ada transaksi transfer pada tanggal ini</td>
+                                    <td colspan="8" class="text-center py-3">Tidak ada transaksi transfer pada periode ini</td>
                                 </tr>
                             @endif
                         </tbody>

@@ -16,6 +16,8 @@ class Expense extends Model
         'expense_category_id',
         'transaction_date',
         'amount',
+        'paid_amount',
+        'payment_status',
         'description',
         'payment_method',
         'notes',
@@ -25,7 +27,13 @@ class Expense extends Model
     protected $casts = [
         'transaction_date' => 'date',
         'amount'           => 'decimal:2',
+        'paid_amount'      => 'decimal:2',
     ];
+
+    public function getRemainingAmountAttribute()
+    {
+        return max(0, $this->amount - $this->paid_amount);
+    }
 
     public function category()
     {
@@ -40,5 +48,10 @@ class Expense extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(ExpensePayment::class, 'expense_id');
     }
 }

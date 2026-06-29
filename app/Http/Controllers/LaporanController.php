@@ -15,12 +15,15 @@ use App\Models\NseCalonSiswa;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Customer;
+use App\Models\Member;
+use App\Models\Store;
 use App\Exports\LaporanBiayaExport;
 use App\Exports\LaporanStokExport;
 use App\Exports\LaporanPenjualanExport;
 use App\Exports\LaporanPenjualanNSEExport;
 use App\Exports\LaporanLabaRugiExport;
 use App\Exports\LaporanHutangExport;
+use App\Exports\LaporanMemberExport;
 use Maatwebsite\Excel\Facades\Excel;
 use PDF;
 
@@ -480,13 +483,14 @@ class LaporanController extends Controller
 
     public function getPenerimaanKas(Request $request)
     {
-        $tanggal = $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? $request->tanggal ?? now()->toDateString();
+        $akhir = $request->akhir ?? $request->tanggal ?? now()->toDateString();
 
         $userId = $request->user_id;
 
         // Ambil semua transaksi kas (cash & transfer)
         $kasTransactions = CashTransaction::with('user')
-            ->whereBetween('transaction_date', [$tanggal . ' 00:00:00', $tanggal . ' 23:59:59'])
+            ->whereBetween('transaction_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->orderBy('transaction_date', 'asc')
             ->get();
@@ -541,35 +545,39 @@ class LaporanController extends Controller
             return view('laporan.penerimaan_kas_table', compact(
                 'cashRows', 'totalCashMasuk', 'totalCashKeluar', 'saldoCash',
                 'transferRows', 'totalTransferMasuk', 'totalTransferKeluar', 'saldoTransfer',
-                'tanggal', 'userId'
+                'mulai', 'akhir', 'userId'
             ));
         }
 
         return view('laporan.penerimaan_kas_frontliner', compact(
             'cashRows', 'totalCashMasuk', 'totalCashKeluar', 'saldoCash',
             'transferRows', 'totalTransferMasuk', 'totalTransferKeluar', 'saldoTransfer',
-            'tanggal'
+            'mulai', 'akhir'
         ));
     }
 
     public function exportPenerimaanKas(Request $request)
     {
-        $tanggal = $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? $request->tanggal ?? now()->toDateString();
+        $akhir = $request->akhir ?? $request->tanggal ?? now()->toDateString();
         $userId = $request->user_id;
         $paymentMethod = $request->payment_method ?? 'cash';
 
         return Excel::download(
-            new \App\Exports\PenerimaanKasExport($tanggal, $userId, $paymentMethod),
-            'Laporan_Penerimaan_Kas_' . ($paymentMethod === 'transfer' ? 'Transfer' : 'Cash') . '_' . $tanggal . '.xlsx'
+            new \App\Exports\PenerimaanKasExport($mulai, $akhir, $userId, $paymentMethod),
+            'Laporan_Penerimaan_Kas_' . ($paymentMethod === 'transfer' ? 'Transfer' : 'Cash') . '_' . $mulai . '_to_' . $akhir . '.xlsx'
         );
     }
 
-    public function cetakPenerimaanKas(Request $request, $tanggal, $userId = null)
+    public function cetakPenerimaanKas(Request $request, $tanggal = null, $userId = null)
     {
+        $mulai = $request->mulai ?? $tanggal ?? $request->tanggal ?? now()->toDateString();
+        $akhir = $request->akhir ?? $tanggal ?? $request->tanggal ?? now()->toDateString();
+        $userId = $request->user_id ?? $userId;
         $paymentMethod = $request->payment_method ?? 'cash';
 
         $transactions = CashTransaction::with('user')
-            ->whereBetween('transaction_date', [$tanggal . ' 00:00:00', $tanggal . ' 23:59:59'])
+            ->whereBetween('transaction_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
             ->where('payment_method', $paymentMethod)
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->orderBy('transaction_date', 'asc')
@@ -590,7 +598,8 @@ class LaporanController extends Controller
 
         $pdf = PDF::loadView('laporan.cetakpenerimaankas', compact(
             'transactions',
-            'tanggal',
+            'mulai',
+            'akhir',
             'totalMasuk',
             'totalKeluar',
             'saldo',
@@ -621,9 +630,11 @@ class LaporanController extends Controller
             ->orderBy('transaction_date')
             ->get();
 
-        $total         = $expenses->sum('amount');
-        $totalCash     = $expenses->where('payment_method', 'cash')->sum('amount');
-        $totalTransfer = $expenses->where('payment_method', 'transfer')->sum('amount');
+        $total             = $expenses->sum('amount');
+        $totalTerbayar     = $expenses->sum('paid_amount');
+        $totalSisaHutang   = $expenses->sum(fn($e) => $e->remaining_amount);
+        $totalCash         = $expenses->where('payment_method', 'cash')->sum('paid_amount');
+        $totalTransfer     = $expenses->where('payment_method', 'transfer')->sum('paid_amount');
 
         if ($jenis === 'rekap') {
             $rows = $expenses
@@ -632,9 +643,11 @@ class LaporanController extends Controller
                     return (object) [
                         'kategori'         => $items->first()->category->name ?? '-',
                         'jumlah_transaksi' => $items->count(),
-                        'total_cash'       => $items->where('payment_method', 'cash')->sum('amount'),
-                        'total_transfer'   => $items->where('payment_method', 'transfer')->sum('amount'),
+                        'total_cash'       => $items->where('payment_method', 'cash')->sum('paid_amount'),
+                        'total_transfer'   => $items->where('payment_method', 'transfer')->sum('paid_amount'),
                         'total'            => $items->sum('amount'),
+                        'total_terbayar'   => $items->sum('paid_amount'),
+                        'total_sisa'       => $items->sum(fn($e) => $e->remaining_amount),
                     ];
                 })
                 ->sortByDesc('total')
@@ -642,14 +655,17 @@ class LaporanController extends Controller
         } else {
             $rows = $expenses->values()->map(function ($e, $i) {
                 return (object) [
-                    'no'           => $i + 1,
-                    'tanggal'      => $e->transaction_date->format('d/m/Y'),
-                    'kategori'     => $e->category->name ?? '-',
-                    'keterangan'   => $e->description,
-                    'metode'       => ucfirst($e->payment_method),
-                    'jumlah'       => $e->amount,
-                    'dicatat_oleh' => optional($e->user)->name ?? '-',
-                    'notes'        => $e->notes,
+                    'no'             => $i + 1,
+                    'tanggal'        => $e->transaction_date->format('d/m/Y'),
+                    'kategori'       => $e->category->name ?? '-',
+                    'keterangan'     => $e->description,
+                    'metode'         => ucfirst($e->payment_method),
+                    'jumlah'         => $e->amount,
+                    'terbayar'       => $e->paid_amount,
+                    'sisa_hutang'    => $e->remaining_amount,
+                    'payment_status' => $e->payment_status,
+                    'dicatat_oleh'   => optional($e->user)->name ?? '-',
+                    'notes'          => $e->notes,
                 ];
             });
         }
@@ -657,13 +673,13 @@ class LaporanController extends Controller
         if ($request->ajax()) {
             return view(
                 'laporan.biaya_operasional_table',
-                compact('rows', 'jenis', 'total', 'totalCash', 'totalTransfer', 'mulai', 'akhir', 'metode')
+                compact('rows', 'jenis', 'total', 'totalTerbayar', 'totalSisaHutang', 'totalCash', 'totalTransfer', 'mulai', 'akhir', 'metode')
             );
         }
 
         return view(
             'laporan.biaya_operasional',
-            compact('rows', 'jenis', 'total', 'totalCash', 'totalTransfer', 'mulai', 'akhir')
+            compact('rows', 'jenis', 'total', 'totalTerbayar', 'totalSisaHutang', 'totalCash', 'totalTransfer', 'mulai', 'akhir')
         );
     }
 
@@ -1050,6 +1066,66 @@ class LaporanController extends Controller
 
         return Excel::download(
             new \App\Exports\LaporanCustomerExport($mulai, $akhir, $search),
+            $filename . '.xlsx'
+        );
+    }
+
+    public function laporanMember(Request $request)
+    {
+        return view('laporan.member');
+    }
+
+    public function getLaporanMember(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+        $search = $request->search;
+
+        $storeId = session('store_id');
+        $store = Store::find($storeId);
+        $businessId = $store ? ($store->business_id ?: 1) : 1;
+
+        $query = Member::where('business_id', $businessId);
+
+        if ($request->filled('mulai') && $request->filled('akhir')) {
+            $query->whereBetween('created_at', [$mulai . " 00:00:00", $akhir . " 23:59:59"]);
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $members = $query->orderBy('name', 'asc')->get();
+        $totalMember = $members->count();
+        $totalPoin = $members->sum('total_points');
+        $memberAktif = $members->where('is_active', true)->count();
+
+        if ($request->ajax()) {
+            return view('laporan.member_table', compact('members', 'totalMember', 'totalPoin', 'memberAktif', 'mulai', 'akhir', 'search'));
+        }
+
+        return view('laporan.member', compact('members', 'totalMember', 'totalPoin', 'memberAktif', 'mulai', 'akhir', 'search'));
+    }
+
+    public function exportLaporanMember(Request $request)
+    {
+        $mulai = $request->mulai;
+        $akhir = $request->akhir;
+        $search = $request->search;
+
+        $filename = 'Laporan_Member';
+        if ($mulai && $akhir) {
+            $filename .= '_' . $mulai . '_' . $akhir;
+        } else {
+            $filename .= '_Semua_Periode';
+        }
+
+        return Excel::download(
+            new LaporanMemberExport($mulai, $akhir, $search),
             $filename . '.xlsx'
         );
     }

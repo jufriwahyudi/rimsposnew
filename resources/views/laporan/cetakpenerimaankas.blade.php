@@ -61,7 +61,7 @@
 <body>
 
     <div class="title">Laporan Penerimaan Kas ({{ ucfirst($paymentMethod ?? 'cash') }})</div>
-    <div class="subtitle">Tanggal: {{ $tanggal }}</div>
+    <div class="subtitle">Periode: {{ $mulai === $akhir ? $mulai : $mulai . ' s/d ' . $akhir }}</div>
 
     <table>
         <thead>
@@ -97,7 +97,7 @@
                 <tr>
                     <td class="text-center">{{ $no++ }}</td>
                     <td class="text-center">
-                        {{ \Carbon\Carbon::parse($trx->transaction_date)->format('H:i:s') }}
+                        {{ \Carbon\Carbon::parse($trx->transaction_date)->format($mulai === $akhir ? 'H:i:s' : 'd/m/Y H:i') }}
                     </td>
                     <td>{{ $typeLabel }}</td>
                     <td>

@@ -165,7 +165,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
 
     // Biaya Operasional
     Route::get('/expenses/datatables', [ExpenseController::class, 'datatables'])->name('expenses.datatables');
-    Route::resource('expenses', ExpenseController::class)->except(['create', 'show']);
+    Route::post('/expenses/{expense}/pay', [ExpenseController::class, 'pay'])->name('expenses.pay');
+    Route::resource('expenses', ExpenseController::class)->except(['create']);
 
     Route::get('produk/{product}/variants/{variant}', [ProdukController::class, 'showVariantDetail'])->name('produk.variants.detail');
     Route::post('produk/{product}/variants/{variant}/adjust-stock', [ProdukController::class, 'adjustStock'])->name('produk.variants.adjust-stock');
@@ -347,12 +348,16 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/laporan/customer/data', [LaporanController::class, 'getLaporanCustomer'])->name('laporan.customer.data');
     Route::get('/laporan/customer/export', [LaporanController::class, 'exportLaporanCustomer'])->name('laporan.customer.export');
 
+    Route::get('/laporan/member', [LaporanController::class, 'laporanMember'])->name('laporan.member');
+    Route::post('/laporan/member/data', [LaporanController::class, 'getLaporanMember'])->name('laporan.member.data');
+    Route::get('/laporan/member/export', [LaporanController::class, 'exportLaporanMember'])->name('laporan.member.export');
+
     #export excel laporan stok
     Route::get('/laporan-stok/excel', [LaporanController::class, 'exportExcel'])
         ->name('laporan.stok.excel');
 
     #export pdf penerimaan kas
-    Route::get('/cetakkaspdf/{tanggal}/{user_id?}', [LaporanController::class, 'cetakPenerimaanKas'])->name('laporan.cetak_penerimaan_kas');
+    Route::get('/cetakkaspdf/{tanggal?}/{user_id?}', [LaporanController::class, 'cetakPenerimaanKas'])->name('laporan.cetak_penerimaan_kas');
 
     #JADWAL
     Route::get('/jadwal/index', [JadwalController::class, 'index']);

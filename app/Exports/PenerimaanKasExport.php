@@ -19,16 +19,18 @@ class PenerimaanKasExport implements
     ShouldAutoSize,
     WithEvents
 {
-    protected $tanggal;
+    protected $mulai;
+    protected $akhir;
     protected $userId;
     protected $paymentMethod;
     protected $totalMasuk = 0;
     protected $totalKeluar = 0;
     protected $rowCount = 0;
 
-    public function __construct($tanggal, $userId = null, $paymentMethod = 'cash')
+    public function __construct($mulai, $akhir = null, $userId = null, $paymentMethod = 'cash')
     {
-        $this->tanggal = $tanggal;
+        $this->mulai = $mulai;
+        $this->akhir = $akhir ?? $mulai;
         $this->userId = $userId;
         $this->paymentMethod = $paymentMethod;
     }
@@ -38,10 +40,13 @@ class PenerimaanKasExport implements
         $title = $this->paymentMethod === 'transfer' ? 'Laporan Penerimaan Transfer' : 'Laporan Penerimaan Kas (Cash)';
         $inLabel = $this->paymentMethod === 'transfer' ? 'Transfer Masuk' : 'Kas Masuk';
         $outLabel = $this->paymentMethod === 'transfer' ? 'Transfer Keluar' : 'Kas Keluar';
+        $periodeText = $this->mulai === $this->akhir 
+            ? 'Tanggal: ' . $this->mulai 
+            : 'Periode: ' . $this->mulai . ' s/d ' . $this->akhir;
 
         return [
             [$title],
-            ['Tanggal: ' . $this->tanggal],
+            [$periodeText],
             [],
             [
                 'No',
@@ -59,7 +64,7 @@ class PenerimaanKasExport implements
     public function array(): array
     {
         $transactions = CashTransaction::with('user')
-            ->whereBetween('transaction_date', [$this->tanggal . ' 00:00:00', $this->tanggal . ' 23:59:59'])
+            ->whereBetween('transaction_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59'])
             ->where('payment_method', $this->paymentMethod)
             ->when($this->userId, fn($q) => $q->where('user_id', $this->userId))
             ->orderBy('transaction_date', 'asc')
@@ -83,7 +88,7 @@ class PenerimaanKasExport implements
 
             $rows[] = [
                 $i + 1,
-                \Carbon\Carbon::parse($trx->transaction_date)->format('H:i:s'),
+                \Carbon\Carbon::parse($trx->transaction_date)->format($this->mulai === $this->akhir ? 'H:i:s' : 'd/m/Y H:i'),
                 $typeLabel,
                 $trx->ref_type ? $trx->ref_type . '#' . $trx->ref_id : '-',
                 $trx->notes ?: '-',

@@ -1,5 +1,5 @@
 @extends('layouts.main.main')
-@section('title', 'Penerimaan Kas Harian')
+@section('title', 'Penerimaan Kas')
 
 @section('breadcrumb')
     <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
@@ -7,7 +7,7 @@
         <div class="ps-3">
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-0 p-0">
-                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Penerimaan Kas Harian</a></li>
+                    <li class="breadcrumb-item"><a href="#"><i class="bx bx-home-alt"></i> Penerimaan Kas</a></li>
                 </ol>
             </nav>
         </div>
@@ -27,7 +27,7 @@
                             <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo"
                                 style="width: 35px; height: 35px;" class="me-2 mt-1">
                             <div>
-                                <h5 class="fw-bold mb-0" style="color: #7c3aed">Penerimaan Kas Harian (Cash)</h5>
+                                <h5 class="fw-bold mb-0" style="color: #7c3aed">Penerimaan Kas</h5>
                                 <small class="text-muted">{{ session('store_name') }}</small>
                             </div>
                         </div>
@@ -38,10 +38,9 @@
                             <div class="row g-2">
                                 <div class="col-md-6 col-sm-12">
                                     <div class="input-group">
-                                        <label for="datefilter" class="input-group-text">Tanggal</label>
-                                        <input type="date" name="date_filter" id="datefilter" class="form-control"
-                                            required max="{{ date('Y-m-d') }}"
-                                            value="{{ old('date_filter') ?? date('Y-m-d') }}">
+                                        <span class="input-group-text"><i class="fa fa-calendar"></i></span>
+                                        <input type="text" name="datefilter" id="datefilter" class="form-control"
+                                            placeholder="Pilih Periode Tanggal">
                                     </div>
                                 </div>
                                 <div class="col-md-4 col-sm-12">
@@ -70,21 +69,43 @@
     </div>
 @endsection
 
+@push('styles')
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+@endpush
+
 @push('scripts')
+    <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script>
         $(function() {
-            loadData($('#datefilter').val());
+            var start = moment().startOf('month');
+            var end = moment();
+
+            $('#datefilter').daterangepicker({
+                startDate: start,
+                endDate: end,
+                locale: {
+                    format: 'MM/DD/YYYY'
+                }
+            });
+
+            $('#datefilter').val(start.format('MM/DD/YYYY') + ' - ' + end.format('MM/DD/YYYY'));
+
+            loadData(start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD'));
 
             $('#searchBtn').click(function() {
-                var tanggal = $('#datefilter').val();
-                if (!tanggal) {
+                var datefilter = $('#datefilter').val();
+                if (!datefilter) {
                     alert('Silakan pilih tanggal terlebih dahulu');
                     return;
                 }
-                loadData(tanggal);
+                var dates = datefilter.split(' - ');
+                var mulai = moment(dates[0], 'MM/DD/YYYY').format('YYYY-MM-DD');
+                var akhir = moment(dates[1], 'MM/DD/YYYY').format('YYYY-MM-DD');
+                loadData(mulai, akhir);
             });
 
-            function loadData(tanggal) {
+            function loadData(mulai, akhir) {
                 $('#dataContainer').html(
                     '<div class="text-center py-4"><i class="fa fa-spinner fa-spin fa-2x"></i></div>');
 
@@ -93,7 +114,8 @@
                     type: "POST",
                     data: {
                         _token: $('input[name="_token"]').val(),
-                        tanggal: tanggal,
+                        mulai: mulai,
+                        akhir: akhir,
                         user_id: $('#userFilter').val()
                     },
                     success: function(response) {
