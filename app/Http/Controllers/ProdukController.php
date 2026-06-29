@@ -541,9 +541,11 @@ $product->update($productData);
         $isFnB = $store && $store->business_type === 'fnb';
 
         $rules = [
-            'product_id'          => 'required|exists:products,id',
-            'variants'            => 'required|array|min:1',
-            'variants.*.nama'     => 'required|string|max:150',
+            'product_id'            => 'required|exists:products,id',
+            'variants'              => 'required|array|min:1',
+            'variants.*.nama'       => 'required|string|max:150',
+            'variants.*.sku'        => 'nullable|string|max:100',
+            'variants.*.barcode'    => 'nullable|string|max:100',
             'variants.*.harga_jual' => 'nullable|numeric|min:0',
             'variants.*.reward_points' => 'nullable|integer|min:0',
         ];
@@ -563,11 +565,29 @@ $product->update($productData);
                 $existingCount = $product->variants()->count();
 
                 foreach ($request->variants as $i => $v) {
-                    do {
-                        $barcode = strtoupper(Str::random(8));
-                    } while (ProductVariant::where('barcode', $barcode)->exists());
+                    if (!empty($v['barcode'])) {
+                        $barcode = strtoupper($v['barcode']);
+                        if (ProductVariant::where('barcode', $barcode)->exists() || ProductVariantBarcode::where('barcode', $barcode)->exists()) {
+                            throw new \Exception("Barcode '{$barcode}' sudah digunakan.");
+                        }
+                    } else {
+                        do {
+                            $barcode = strtoupper(Str::random(8));
+                        } while (ProductVariant::where('barcode', $barcode)->exists() || ProductVariantBarcode::where('barcode', $barcode)->exists());
+                    }
 
-                    $sku = $product->kode_produk . '-' . str_pad($existingCount + $i + 1, 3, '0', STR_PAD_LEFT);
+                    if (!empty($v['sku'])) {
+                        $sku = strtoupper($v['sku']);
+                        if (ProductVariant::where('store_id', session('store_id'))->where('sku', $sku)->exists()) {
+                            throw new \Exception("SKU '{$sku}' sudah digunakan.");
+                        }
+                    } else {
+                        $counter = $existingCount + $i + 1;
+                        do {
+                            $sku = $product->kode_produk . '-' . str_pad($counter, 3, '0', STR_PAD_LEFT);
+                            $counter++;
+                        } while (ProductVariant::where('store_id', session('store_id'))->where('sku', $sku)->exists());
+                    }
 
                     $variantData = [
                         'store_id'     => session('store_id'),

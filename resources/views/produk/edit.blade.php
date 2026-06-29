@@ -446,16 +446,24 @@
                         <div class="col-md-${isFnB ? '6' : '12'} ${isFnB ? 'border-end pe-3' : ''}">
                             <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
                             <div class="row g-2">
-                                <div class="col-md-6">
+                                <div class="col-md-6 mb-2">
                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
                                     <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Nama varian" required>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6 mb-2">
                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Harga Jual</label>
                                     <div class="input-group input-group-sm">
                                         <span class="input-group-text">Rp</span>
                                         <input name="variants[${i}][harga_jual]" class="form-control" type="number" min="0" placeholder="0" required>
                                     </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">SKU (Opsional)</label>
+                                    <input name="variants[${i}][sku]" class="form-control form-control-sm" placeholder="Otomatis jika kosong">
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Barcode (Opsional)</label>
+                                    <input name="variants[${i}][barcode]" class="form-control form-control-sm" placeholder="Otomatis jika kosong">
                                 </div>
                                 ${rewardPointsField}
                             </div>
