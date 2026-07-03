@@ -15,12 +15,31 @@ use Illuminate\Support\Str;
 
 class PurchaseOrderController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $pos = PurchaseOrder::with(['vendor'])
-            ->latest()
-            ->get();
-        // dd(json_encode($pos, JSON_PRETTY_PRINT));
+        $query = PurchaseOrder::with(['vendor'])->latest();
+
+        // Filter: Date Range (dari DateRangePicker, format: "DD/MM/YYYY - DD/MM/YYYY")
+        if ($request->filled('date_range')) {
+            $parts = explode(' - ', $request->date_range);
+            if (count($parts) === 2) {
+                $dateFrom = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[0]))->startOfDay();
+                $dateTo   = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[1]))->endOfDay();
+                $query->whereBetween('request_date', [$dateFrom, $dateTo]);
+            }
+        }
+
+        // Filter: No PO
+        if ($request->filled('po_number')) {
+            $query->where('po_number', 'like', '%' . $request->po_number . '%');
+        }
+
+        // Filter: Status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $pos = $query->paginate(15)->appends($request->query());
 
         return view('purchase_orders.index', compact('pos'));
     }
@@ -164,12 +183,14 @@ class PurchaseOrderController extends Controller
     }
 
     /* =========================
-     * DELETE DRAFT PO
+     * DELETE DRAFT / APPROVED PO
      * ========================= */
     public function destroy(PurchaseOrder $po)
     {
-        if ($po->status !== 'DRAFT') {
-            return back()->with('error', 'Hanya PO berstatus DRAFT yang dapat dihapus.');
+        // APPROVED = belum ada goods receipt, aman untuk dihapus
+        // PARTIAL_RECEIVED / RECEIVED tidak boleh dihapus
+        if (!in_array($po->status, ['DRAFT', 'APPROVED'])) {
+            return back()->with('error', 'Hanya PO berstatus DRAFT atau APPROVED yang dapat dihapus.');
         }
 
         DB::transaction(function () use ($po) {
