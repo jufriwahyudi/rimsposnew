@@ -73,8 +73,8 @@ class GenerateDailyNewspaper extends Command
                     'raw_payload' => $aggregatedData
                 ]);
 
-                // 2. Generate daily newspaper using Gemini
-                $result = $gemini->generateDailyNewspaper($aggregatedData);
+                // 2. Generate daily newspaper using DeepSeek v4
+                $result = $gemini->generateDailyNewspaperWithDeepSeek($aggregatedData);
 
                 // 3. Update status to success
                 $newspaper->update([
