@@ -300,6 +300,13 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::get('/{dailyAudit}', [DailyAuditController::class, 'show'])->name('show');
     });
 
+    // Stock Batches (Monitor & Edit Harga Beli)
+    Route::middleware('role.type:ADMIN,WAREHOUSE,SUPERADMIN')->prefix('stock-batches')->name('stock-batches.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\StockBatchController::class, 'index'])->name('index');
+        Route::get('/{batch}', [\App\Http\Controllers\StockBatchController::class, 'show'])->name('show');
+        Route::put('/{batch}/update-harga', [\App\Http\Controllers\StockBatchController::class, 'updateHarga'])->name('update-harga');
+    });
+
     // Koran Toko Digital
     Route::middleware('role.type:ADMIN,SUPERADMIN')->prefix('koran-toko')->name('newspaper.')->group(function () {
         Route::get('/', [\App\Http\Controllers\DigitalNewspaperController::class, 'index'])->name('index');

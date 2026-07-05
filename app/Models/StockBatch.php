@@ -40,4 +40,14 @@ class StockBatch extends Model
     {
         return $this->hasMany(StockMovement::class, 'stock_batch_id');
     }
+
+    public function purchaseOrderItem()
+    {
+        return $this->belongsTo(PurchaseOrderItem::class, 'purchase_item_id');
+    }
+
+    public function saleItemBatches()
+    {
+        return $this->hasMany(SaleItemBatch::class, 'stock_batch_id');
+    }
 }
