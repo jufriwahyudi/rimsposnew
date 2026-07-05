@@ -148,7 +148,7 @@
 </div>
 @endsection
 
-@section('script')
+@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 function confirmUpdate() {
@@ -168,4 +168,4 @@ function confirmUpdate() {
     })
 }
 </script>
-@endsection
+@endpush
