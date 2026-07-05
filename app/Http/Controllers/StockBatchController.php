@@ -12,7 +12,10 @@ class StockBatchController extends Controller
 {
     public function index(Request $request)
     {
-        $query = StockBatch::with(['variant.product']);
+        $query = StockBatch::whereHas('variant')->with([
+            'variant' => fn($q) => $q->withoutGlobalScopes(),
+            'variant.product' => fn($q) => $q->withoutGlobalScopes()->withTrashed()
+        ]);
         
         // Filter: Date Range
         if ($request->filled('date_range')) {
@@ -24,14 +27,13 @@ class StockBatchController extends Controller
             }
         }
 
-        // Filter: Product/Variant name
         if ($request->filled('product_name')) {
             $productName = $request->product_name;
             $query->where(function ($q) use ($productName) {
                 $q->whereHas('variant.product', function ($q2) use ($productName) {
-                    $q2->where('nama_produk', 'like', '%' . $productName . '%');
+                    $q2->withoutGlobalScopes()->where('nama_produk', 'like', '%' . $productName . '%');
                 })->orWhereHas('variant', function ($q2) use ($productName) {
-                    $q2->where('variant_name', 'like', '%' . $productName . '%');
+                    $q2->withoutGlobalScopes()->where('variant_name', 'like', '%' . $productName . '%');
                 });
             });
         }
@@ -56,7 +58,12 @@ class StockBatchController extends Controller
 
     public function show(StockBatch $batch)
     {
-        $batch->load(['variant.product', 'purchaseOrderItem.purchaseOrder', 'movements']);
+        $batch->load([
+            'variant' => fn($q) => $q->withoutGlobalScopes(),
+            'variant.product' => fn($q) => $q->withoutGlobalScopes()->withTrashed(),
+            'purchaseOrderItem.purchaseOrder',
+            'movements'
+        ]);
         
         $saleItemBatches = SaleItemBatch::with(['saleItem.sale'])
             ->where('stock_batch_id', $batch->id)
