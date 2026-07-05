@@ -303,6 +303,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     // Stock Batches (Monitor & Edit Harga Beli)
     Route::middleware('role.type:ADMIN,WAREHOUSE,SUPERADMIN')->prefix('stock-batches')->name('stock-batches.')->group(function () {
         Route::get('/', [\App\Http\Controllers\StockBatchController::class, 'index'])->name('index');
+        Route::get('/variant/{variant}', [\App\Http\Controllers\StockBatchController::class, 'variantBatches'])->name('variant-batches');
         Route::get('/{batch}', [\App\Http\Controllers\StockBatchController::class, 'show'])->name('show');
         Route::put('/{batch}/update-harga', [\App\Http\Controllers\StockBatchController::class, 'updateHarga'])->name('update-harga');
     });

@@ -12,11 +12,67 @@ class StockBatchController extends Controller
 {
     public function index(Request $request)
     {
-        $query = StockBatch::whereHas('variant')->with([
-            'variant' => fn($q) => $q->withoutGlobalScopes(),
-            'variant.product' => fn($q) => $q->withoutGlobalScopes()->withTrashed()
+        $query = \App\Models\ProductVariant::whereHas('batches', function ($q) use ($request) {
+            // Filter: Date Range
+            if ($request->filled('date_range')) {
+                $parts = explode(' - ', $request->date_range);
+                if (count($parts) === 2) {
+                    $dateFrom = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[0]))->startOfDay();
+                    $dateTo   = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[1]))->endOfDay();
+                    $q->whereBetween('tanggal_masuk', [$dateFrom, $dateTo]);
+                }
+            }
+
+            // Filter: Posisi
+            if ($request->filled('posisi')) {
+                $q->where('posisi', $request->posisi);
+            }
+
+            // Filter: Sumber
+            if ($request->filled('sumber')) {
+                $q->where('sumber', $request->sumber);
+            }
+        })->with([
+            'product' => fn($q) => $q->withoutGlobalScopes()->withTrashed()
         ]);
         
+        if ($request->filled('product_name')) {
+            $productName = $request->product_name;
+            $query->where(function ($q) use ($productName) {
+                $q->whereHas('product', function ($q2) use ($productName) {
+                    $q2->withoutGlobalScopes()->where('nama_produk', 'like', '%' . $productName . '%');
+                })->orWhere('variant_name', 'like', '%' . $productName . '%');
+            });
+        }
+
+        $query->withSum(['batches' => function($q) use ($request) {
+            if ($request->filled('date_range')) {
+                $parts = explode(' - ', $request->date_range);
+                if (count($parts) === 2) {
+                    $dateFrom = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[0]))->startOfDay();
+                    $dateTo   = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[1]))->endOfDay();
+                    $q->whereBetween('tanggal_masuk', [$dateFrom, $dateTo]);
+                }
+            }
+            if ($request->filled('posisi')) {
+                $q->where('posisi', $request->posisi);
+            }
+            if ($request->filled('sumber')) {
+                $q->where('sumber', $request->sumber);
+            }
+        }], 'qty_sisa');
+
+        $variants = $query->paginate(15)->appends($request->query());
+
+        return view('stock_batches.index', compact('variants'));
+    }
+
+    public function variantBatches(Request $request, \App\Models\ProductVariant $variant)
+    {
+        $variant->load(['product' => fn($q) => $q->withoutGlobalScopes()->withTrashed()]);
+
+        $query = StockBatch::where('product_variant_id', $variant->id);
+
         // Filter: Date Range
         if ($request->filled('date_range')) {
             $parts = explode(' - ', $request->date_range);
@@ -25,17 +81,6 @@ class StockBatchController extends Controller
                 $dateTo   = \Carbon\Carbon::createFromFormat('d/m/Y', trim($parts[1]))->endOfDay();
                 $query->whereBetween('tanggal_masuk', [$dateFrom, $dateTo]);
             }
-        }
-
-        if ($request->filled('product_name')) {
-            $productName = $request->product_name;
-            $query->where(function ($q) use ($productName) {
-                $q->whereHas('variant.product', function ($q2) use ($productName) {
-                    $q2->withoutGlobalScopes()->where('nama_produk', 'like', '%' . $productName . '%');
-                })->orWhereHas('variant', function ($q2) use ($productName) {
-                    $q2->withoutGlobalScopes()->where('variant_name', 'like', '%' . $productName . '%');
-                });
-            });
         }
 
         // Filter: Posisi
@@ -53,7 +98,7 @@ class StockBatchController extends Controller
             ->paginate(15)
             ->appends($request->query());
 
-        return view('stock_batches.index', compact('batches'));
+        return view('stock_batches.variant_batches', compact('variant', 'batches'));
     }
 
     public function show(StockBatch $batch)
