@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.main.main')
 @section('title', 'Detail Stock Batch')
 
 @section('content')

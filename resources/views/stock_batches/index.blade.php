@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.main.main')
 @section('title', 'Monitor Harga Modal Batch')
 
 @section('content')
