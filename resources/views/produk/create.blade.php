@@ -147,7 +147,7 @@
                                                                 <h6 class="fw-semibold text-success mb-3" style="font-size: 0.85rem;"><i class="bi bi-gear-fill me-1"></i> Pengaturan FnB (Stok & Komisi)</h6>
                                                                 <div class="row g-2">
                                                                     <div class="col-md-6">
-                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">Track Stock</label>
+                                                                        <label class="form-label fw-semibold" style="font-size: 0.8rem;">Track Stock (Punya Stok)?</label>
                                                                         <select name="variants[{{ $i }}][track_stock]" class="form-select form-select-sm">
                                                                             <option value="1" {{ ($v['track_stock'] ?? '1') == '1' ? 'selected' : '' }}>Ya</option>
                                                                             <option value="0" {{ ($v['track_stock'] ?? '1') == '0' ? 'selected' : '' }}>Tidak</option>
