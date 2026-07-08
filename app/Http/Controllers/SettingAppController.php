@@ -242,15 +242,29 @@ class SettingAppController extends Controller
     public function search(Request $request)
     {
         $search = $request->search;
+        $storeId = session('store_id');
+        $selectedRole = session('selected_role');
+        $role = \App\Models\RoleMaster::find($selectedRole);
+        $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
 
-        if ($search == '') {
-            $users = User::orderby('name', 'asc')->limit(5)->get();
-        } else {
-            $users = User::orderby('name', 'asc')
-                ->where('name', 'like', '%' . $search . '%')
-                ->orWhere('email', 'like', '%' . $search . '%')
-                ->limit(5)->get();
+        $query = User::orderby('name', 'asc');
+
+        // Scope to active store for non-superadmins
+        if (!$isSuperAdmin && $storeId) {
+            $query->whereHas('stores', function ($q) use ($storeId) {
+                $q->where('stores.id', $storeId);
+            });
         }
+
+        if ($search != '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                  ->orWhere('email', 'like', '%' . $search . '%');
+            });
+        }
+
+        $users = $query->limit(5)->get();
+
         // dd($users);
 
         $response = [];
