@@ -81,11 +81,16 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
             Route::get('/impersonate/{store}', [SuperadminDashboardController::class, 'impersonate'])->name('impersonate');
             Route::get('/stop-impersonate', [SuperadminDashboardController::class, 'stopImpersonate'])->name('stop-impersonate');
             Route::get('/activity-logs', [SuperadminDashboardController::class, 'activityLogs'])->name('activity-logs');
-            Route::get('/consolidated-reports', [SuperadminDashboardController::class, 'consolidatedReports'])->name('consolidated-reports');
-            Route::post('/consolidated-reports/laba-rugi', [SuperadminDashboardController::class, 'getConsolidatedLabaRugi'])->name('consolidated-reports.laba-rugi');
-            Route::post('/consolidated-reports/stok-kritis', [SuperadminDashboardController::class, 'getConsolidatedStokKritis'])->name('consolidated-reports.stok-kritis');
         });
     });
+
+    // Consolidated Reports (Accessible by SUPERADMIN or Users with > 1 Store)
+    Route::prefix('superadmin')->name('superadmin.')->group(function () {
+        Route::get('/consolidated-reports', [SuperadminDashboardController::class, 'consolidatedReports'])->name('consolidated-reports');
+        Route::post('/consolidated-reports/laba-rugi', [SuperadminDashboardController::class, 'getConsolidatedLabaRugi'])->name('consolidated-reports.laba-rugi');
+        Route::post('/consolidated-reports/stok-kritis', [SuperadminDashboardController::class, 'getConsolidatedStokKritis'])->name('consolidated-reports.stok-kritis');
+    });
+
 
     // Manage User
     Route::controller(ManageUserController::class)->prefix('manage-users')->name('manage-users.')->group(function () {

@@ -194,11 +194,45 @@ class SuperadminDashboardController extends Controller
     }
 
     /**
+     * Check if user is Superadmin OR has more than 1 active store assigned.
+     */
+    private function checkConsolidatedReportAccess()
+    {
+        $user = auth()->user();
+        if (!$user) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $selectedRole = session('selected_role');
+        $role = \App\Models\RoleMaster::find($selectedRole);
+        $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
+
+        if (!$isSuperAdmin) {
+            $assignedStoreCount = $user->stores()->where('is_active', true)->count();
+            if ($assignedStoreCount <= 1) {
+                abort(403, 'Anda tidak memiliki akses ke laporan konsolidasi multi-toko.');
+            }
+        }
+    }
+
+    /**
      * View Consolidated Reports Dashboard.
      */
     public function consolidatedReports(Request $request)
     {
-        $stores = Store::where('is_active', true)->orderBy('name')->get();
+        $this->checkConsolidatedReportAccess();
+
+        $user = auth()->user();
+        $selectedRole = session('selected_role');
+        $role = \App\Models\RoleMaster::find($selectedRole);
+        $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
+
+        if (!$isSuperAdmin) {
+            $stores = $user->stores()->where('is_active', true)->orderBy('name')->get();
+        } else {
+            $stores = Store::where('is_active', true)->orderBy('name')->get();
+        }
+
         return view('superadmin.consolidated_reports', compact('stores'));
     }
 
@@ -207,15 +241,34 @@ class SuperadminDashboardController extends Controller
      */
     public function getConsolidatedLabaRugi(Request $request)
     {
+        $this->checkConsolidatedReportAccess();
+
         $mulai = $request->input('mulai') ?: Carbon::now()->startOfMonth()->toDateString();
         $akhir = $request->input('akhir') ?: Carbon::now()->toDateString();
         $storeIdsFilter = $request->input('store_ids');
 
-        $storesQuery = Store::where('is_active', true);
-        if ($storeIdsFilter) {
-            $storeIdsFilter = is_array($storeIdsFilter) ? $storeIdsFilter : [$storeIdsFilter];
-            $storesQuery->whereIn('id', $storeIdsFilter);
+        $user = auth()->user();
+        $selectedRole = session('selected_role');
+        $role = \App\Models\RoleMaster::find($selectedRole);
+        $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
+
+        if (!$isSuperAdmin) {
+            $assignedStoreIds = $user->stores()->where('is_active', true)->pluck('id')->toArray();
+            
+            $storesQuery = Store::whereIn('id', $assignedStoreIds);
+            if ($storeIdsFilter) {
+                $storeIdsFilter = is_array($storeIdsFilter) ? $storeIdsFilter : [$storeIdsFilter];
+                $filteredStoreIds = array_intersect($storeIdsFilter, $assignedStoreIds);
+                $storesQuery->whereIn('id', $filteredStoreIds);
+            }
+        } else {
+            $storesQuery = Store::where('is_active', true);
+            if ($storeIdsFilter) {
+                $storeIdsFilter = is_array($storeIdsFilter) ? $storeIdsFilter : [$storeIdsFilter];
+                $storesQuery->whereIn('id', $storeIdsFilter);
+            }
         }
+
         $stores = $storesQuery->orderBy('name')->get();
         $storeIds = $stores->pluck('id')->toArray();
 
@@ -322,13 +375,33 @@ class SuperadminDashboardController extends Controller
      */
     public function getConsolidatedStokKritis(Request $request)
     {
+        $this->checkConsolidatedReportAccess();
+
         $threshold = $request->input('threshold') ?? 10;
         $storeIdFilter = $request->input('store_id');
 
-        $variantsQuery = \App\Models\ProductVariant::withoutGlobalScopes()
-            ->with(['product', 'store'])
-            ->where('is_active', 'Y')
-            ->when($storeIdFilter, fn($q) => $q->where('store_id', $storeIdFilter));
+        $user = auth()->user();
+        $selectedRole = session('selected_role');
+        $role = \App\Models\RoleMaster::find($selectedRole);
+        $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
+
+        if (!$isSuperAdmin) {
+            $assignedStoreIds = $user->stores()->where('is_active', true)->pluck('id')->toArray();
+            
+            $variantsQuery = \App\Models\ProductVariant::withoutGlobalScopes()
+                ->with(['product', 'store'])
+                ->where('is_active', 'Y')
+                ->whereIn('store_id', $assignedStoreIds);
+
+            if ($storeIdFilter && in_array($storeIdFilter, $assignedStoreIds)) {
+                $variantsQuery->where('store_id', $storeIdFilter);
+            }
+        } else {
+            $variantsQuery = \App\Models\ProductVariant::withoutGlobalScopes()
+                ->with(['product', 'store'])
+                ->where('is_active', 'Y')
+                ->when($storeIdFilter, fn($q) => $q->where('store_id', $storeIdFilter));
+        }
 
         $criticalVariants = $variantsQuery->get()
             ->filter(function ($variant) use ($threshold) {

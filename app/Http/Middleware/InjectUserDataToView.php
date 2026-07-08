@@ -53,17 +53,48 @@ class InjectUserDataToView
 
             $roleactive = Cache::remember("role_access_{$selectedRole}", 360, fn() => RoleMaster::find($selectedRole));
 
+            // Dynamic Injection: If user is NOT a SUPERADMIN but has more than 1 active store, inject the "Laporan Konsolidasi" menu.
+            $isSuperAdmin = $roleactive && strtoupper($roleactive->role_type) === 'SUPERADMIN';
+            if (!$isSuperAdmin && $user->stores()->where('is_active', true)->count() > 1) {
+                // Clone the collection to prevent altering the cached memory directly
+                $menus = clone $menus;
+
+                $laporanMenu = $menus->first(fn($m) => strtolower($m->nama) === 'laporan');
+                if ($laporanMenu) {
+                    $laporanMenu = clone $laporanMenu;
+                    $laporanMenu->setRelation('children', clone $laporanMenu->children);
+                    
+                    // Replace in $menus
+                    $menus = $menus->map(fn($m) => strtolower($m->nama) === 'laporan' ? $laporanMenu : $m);
+                    
+                    $hasConsolidated = $laporanMenu->children->contains(fn($child) => $child->routename === 'superadmin.consolidated-reports');
+                    if (!$hasConsolidated) {
+                        $consolidatedMenu = MenuList::where('routename', 'superadmin.consolidated-reports')->first();
+                        if ($consolidatedMenu) {
+                            $laporanMenu->children->push($consolidatedMenu);
+                        }
+                    }
+                } else {
+                    $parentLaporan = MenuList::where('nama', 'Laporan')->where('id_parent', 0)->first();
+                    if ($parentLaporan) {
+                        $parentLaporan = clone $parentLaporan;
+                        $consolidatedMenu = MenuList::where('routename', 'superadmin.consolidated-reports')->first();
+                        if ($consolidatedMenu) {
+                            $parentLaporan->setRelation('children', collect([$consolidatedMenu]));
+                            $menus->push($parentLaporan);
+                        }
+                    }
+                }
+            }
+
             $rolelist = Cache::remember("role_list_{$userId}", 360, fn() => RoleUser::where('user_id', $userId)->with('roles')->get());
 
             view()->share('menucache', $menus);
             view()->share('roleactive', $roleactive);
             view()->share('roleuserlist', $rolelist);
             view()->share('storelist', $user->stores);
-
-            // if ($user->id_divisi == 6 || $user->multidivisi === 'Y') {
-            //     view()->share('listdivisi', Divisi::getActiveSchool()->get());
-            // }
         }
+
         return $next($request);
     }
 }
