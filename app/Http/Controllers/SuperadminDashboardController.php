@@ -208,7 +208,7 @@ class SuperadminDashboardController extends Controller
         $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
 
         if (!$isSuperAdmin) {
-            $assignedStoreCount = $user->stores()->where('is_active', true)->count();
+            $assignedStoreCount = $user->stores()->where('stores.is_active', true)->count();
             if ($assignedStoreCount <= 1) {
                 abort(403, 'Anda tidak memiliki akses ke laporan konsolidasi multi-toko.');
             }
@@ -228,7 +228,7 @@ class SuperadminDashboardController extends Controller
         $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
 
         if (!$isSuperAdmin) {
-            $stores = $user->stores()->where('is_active', true)->orderBy('name')->get();
+            $stores = $user->stores()->where('stores.is_active', true)->orderBy('name')->get();
         } else {
             $stores = Store::where('is_active', true)->orderBy('name')->get();
         }
@@ -253,7 +253,7 @@ class SuperadminDashboardController extends Controller
         $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
 
         if (!$isSuperAdmin) {
-            $assignedStoreIds = $user->stores()->where('is_active', true)->pluck('id')->toArray();
+            $assignedStoreIds = $user->stores()->where('stores.is_active', true)->pluck('stores.id')->toArray();
             
             $storesQuery = Store::whereIn('id', $assignedStoreIds);
             if ($storeIdsFilter) {
@@ -386,7 +386,7 @@ class SuperadminDashboardController extends Controller
         $isSuperAdmin = $role && strtoupper($role->role_type) === 'SUPERADMIN';
 
         if (!$isSuperAdmin) {
-            $assignedStoreIds = $user->stores()->where('is_active', true)->pluck('id')->toArray();
+            $assignedStoreIds = $user->stores()->where('stores.is_active', true)->pluck('stores.id')->toArray();
             
             $variantsQuery = \App\Models\ProductVariant::withoutGlobalScopes()
                 ->with(['product', 'store'])

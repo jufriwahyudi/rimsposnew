@@ -55,8 +55,9 @@ class InjectUserDataToView
 
             // Dynamic Injection: If user is NOT a SUPERADMIN but has more than 1 active store, inject the "Laporan Konsolidasi" menu.
             $isSuperAdmin = $roleactive && strtoupper($roleactive->role_type) === 'SUPERADMIN';
-            if (!$isSuperAdmin && $user->stores()->where('is_active', true)->count() > 1) {
+            if (!$isSuperAdmin && $user->stores()->where('stores.is_active', true)->count() > 1) {
                 // Clone the collection to prevent altering the cached memory directly
+
                 $menus = clone $menus;
 
                 $laporanMenu = $menus->first(fn($m) => strtolower($m->nama) === 'laporan');
