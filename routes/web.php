@@ -154,6 +154,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     // Member Loyalty Management
     Route::resource('members', MemberController::class);
     Route::get('/members/{member}/history', [MemberController::class, 'history'])->name('members.history');
+    Route::post('/members/{member}/adjust-points', [MemberController::class, 'adjustPoints'])->name('members.adjust-points');
     // routes/web.php
     Route::prefix('settings/attribute-nilai')->group(function () {
         Route::get('/', [AttributeValueController::class, 'index'])->name('attribute-nilai.index');

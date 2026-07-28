@@ -90,6 +90,44 @@
             </form>
         </div>
     </div>
+
+    {{-- Modal Adjust Poin Member --}}
+    <div class="modal fade" id="modalAdjustPoints" tabindex="-1">
+        <div class="modal-dialog">
+            <form id="formAdjustPoints">
+                @csrf
+                <input type="hidden" id="adjust_member_id" value="">
+                <div class="modal-content rounded-4 shadow">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">Penyesuaian Poin Member</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Nama Member</label>
+                            <input type="text" class="form-control bg-light" id="adjust_member_name" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Poin Saat Ini</label>
+                            <input type="text" class="form-control bg-light font-monospace fw-bold" id="adjust_current_points" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Poin Baru <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control font-monospace fw-bold" id="adjust_new_points" placeholder="Masukkan poin baru" min="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Catatan Penyesuaian</label>
+                            <textarea class="form-control" id="adjust_notes" rows="3" placeholder="Contoh: Koreksi data / Bonus event khusus"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-3">Simpan</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -119,6 +157,7 @@
                 drawCallback: function() {
                     bindEditButtons();
                     bindDeleteButtons();
+                    bindAdjustPointsButtons();
                 }
             });
         });
@@ -205,6 +244,59 @@
             .then(data => {
                 if (data.success) {
                     bootstrap.Modal.getInstance(document.getElementById('modalMember'))?.hide();
+                    table.ajax.reload(null, false);
+                } else {
+                    alert(data.message || 'Gagal menyimpan.');
+                }
+            })
+            .catch(err => {
+                alert(err.message || 'Terjadi kesalahan sistem.');
+            });
+        });
+
+        function bindAdjustPointsButtons() {
+            document.querySelectorAll('.btn-adjust-points').forEach(btn => {
+                btn.removeEventListener('click', handleAdjustPoints);
+                btn.addEventListener('click', handleAdjustPoints);
+            });
+        }
+
+        function handleAdjustPoints() {
+            document.getElementById('adjust_member_id').value = this.dataset.id;
+            document.getElementById('adjust_member_name').value = this.dataset.name;
+            document.getElementById('adjust_current_points').value = this.dataset.points;
+            document.getElementById('adjust_new_points').value = this.dataset.points;
+            document.getElementById('adjust_notes').value = '';
+            new bootstrap.Modal(document.getElementById('modalAdjustPoints')).show();
+        }
+
+        // Submit form adjust points
+        document.getElementById('formAdjustPoints').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = document.getElementById('adjust_member_id').value;
+            const url = `/members/${id}/adjust-points`;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    new_points: document.getElementById('adjust_new_points').value,
+                    notes: document.getElementById('adjust_notes').value,
+                }),
+            })
+            .then(r => {
+                if (!r.ok) {
+                    return r.json().then(err => { throw err; });
+                }
+                return r.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('modalAdjustPoints'))?.hide();
                     table.ajax.reload(null, false);
                 } else {
                     alert(data.message || 'Gagal menyimpan.');

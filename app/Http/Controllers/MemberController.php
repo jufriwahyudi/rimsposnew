@@ -28,6 +28,11 @@ class MemberController extends Controller
                         <a href="' . route('members.history', $member->id) . '" class="btn btn-sm btn-info text-white" title="Riwayat Poin">
                             <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">history</i>
                         </a>
+                        <button class="btn btn-sm btn-success text-white btn-adjust-points" data-id="' . $member->id . '"
+                            data-name="' . htmlspecialchars($member->name) . '"
+                            data-points="' . $member->total_points . '" title="Adjust Poin">
+                            <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">star</i>
+                        </button>
                         <button class="btn btn-sm btn-warning btn-edit-member" data-id="' . $member->id . '"
                             data-name="' . htmlspecialchars($member->name) . '"
                             data-phone="' . htmlspecialchars($member->phone) . '"
@@ -212,5 +217,46 @@ class MemberController extends Controller
         }
 
         return view('members.history', compact('member'));
+    }
+
+    /**
+     * Adjust member points manually.
+     */
+    public function adjustPoints(Request $request, $id)
+    {
+        $storeId = session('store_id');
+        $store = Store::findOrFail($storeId);
+        $businessId = $store->business_id ?: 1;
+
+        $request->validate([
+            'new_points' => 'required|integer|min:0',
+            'notes' => 'nullable|string|max:255',
+        ]);
+
+        $member = Member::where('business_id', $businessId)->findOrFail($id);
+        $oldPoints = $member->total_points;
+        $newPoints = intval($request->new_points);
+        $pointsDelta = $newPoints - $oldPoints;
+
+        if ($pointsDelta !== 0) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($member, $storeId, $pointsDelta, $newPoints, $request) {
+                $member->update(['total_points' => $newPoints]);
+
+                MemberPointHistory::create([
+                    'member_id' => $member->id,
+                    'store_id' => $storeId,
+                    'sale_id' => null,
+                    'mutation_type' => 'adjust',
+                    'points' => $pointsDelta,
+                    'balance_after' => $newPoints,
+                    'notes' => $request->notes ?? 'Penyesuaian poin manual',
+                ]);
+            });
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Poin member berhasil disesuaikan.',
+        ]);
     }
 }
