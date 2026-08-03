@@ -150,7 +150,7 @@
                     { data: 'total_points', name: 'total_points', className: 'text-end font-monospace fw-bold' },
                     { data: 'action', name: 'action', orderable: false, searchable: false, className: 'text-center' },
                 ],
-                order: [[0, 'asc']],
+                order: [[4, 'desc']],
                 language: {
                     url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/id.json'
                 },

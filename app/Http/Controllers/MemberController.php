@@ -21,7 +21,7 @@ class MemberController extends Controller
         $businessId = $store->business_id ?: 1;
 
         if ($request->ajax()) {
-            $members = Member::where('business_id', $businessId)->orderBy('name');
+            $members = Member::where('business_id', $businessId)->orderBy('total_points', 'desc');
             return DataTables::of($members)
                 ->addColumn('action', function ($member) {
                     return '
