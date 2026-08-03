@@ -8,9 +8,25 @@ use App\Models\PointSetting;
 use App\Models\MemberPointHistory;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
+use App\Exports\LaporanMemberExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class MemberController extends Controller
 {
+    /**
+     * Export members to Excel.
+     */
+    public function export(Request $request)
+    {
+        $search = $request->search;
+        $filename = 'Daftar_Member_' . date('Ymd_His') . '.xlsx';
+
+        return Excel::download(
+            new LaporanMemberExport(null, null, $search, true),
+            $filename
+        );
+    }
+
     /**
      * Display a listing of members.
      */

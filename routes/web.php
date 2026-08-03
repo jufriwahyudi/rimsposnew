@@ -152,6 +152,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     });
 
     // Member Loyalty Management
+    Route::get('/members/export', [MemberController::class, 'export'])->name('members.export');
     Route::resource('members', MemberController::class);
     Route::get('/members/{member}/history', [MemberController::class, 'history'])->name('members.history');
     Route::post('/members/{member}/adjust-points', [MemberController::class, 'adjustPoints'])->name('members.adjust-points');

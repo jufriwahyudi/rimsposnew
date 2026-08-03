@@ -20,7 +20,8 @@ class LaporanMemberExport implements FromArray, WithHeadings, WithStyles, Should
     public function __construct(
         protected ?string $mulai,
         protected ?string $akhir,
-        protected ?string $search
+        protected ?string $search,
+        protected bool $sortByPoints = false
     ) {}
 
     public function headings(): array
@@ -68,7 +69,11 @@ class LaporanMemberExport implements FromArray, WithHeadings, WithStyles, Should
             });
         }
 
-        $members = $query->orderBy('name', 'asc')->get();
+        if ($this->sortByPoints) {
+            $members = $query->orderBy('total_points', 'desc')->orderBy('name', 'asc')->get();
+        } else {
+            $members = $query->orderBy('name', 'asc')->get();
+        }
 
         $rows = [];
         foreach ($members as $i => $item) {

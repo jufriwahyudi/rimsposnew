@@ -29,9 +29,14 @@
                             <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
-                    <button class="btn btn-primary rounded-pill btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalMember">
-                        <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah Member
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success rounded-pill btn-sm px-3" id="btn-export-excel">
+                            <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">file_download</i> Export Excel
+                        </button>
+                        <button class="btn btn-primary rounded-pill btn-sm px-3" data-bs-toggle="modal" data-bs-target="#modalMember">
+                            <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah Member
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <table id="tbl-members" class="table table-bordered w-100 table-hover">
@@ -159,6 +164,17 @@
                     bindDeleteButtons();
                     bindAdjustPointsButtons();
                 }
+            });
+
+            // Handle Export Excel
+            $('#btn-export-excel').on('click', function(e) {
+                e.preventDefault();
+                let search = table.search();
+                let url = '{{ route('members.export') }}';
+                if (search) {
+                    url += '?search=' + encodeURIComponent(search);
+                }
+                window.location.href = url;
             });
         });
 

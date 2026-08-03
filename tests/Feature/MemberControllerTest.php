@@ -165,4 +165,12 @@ class MemberControllerTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    public function test_export_excel()
+    {
+        $response = $this->get(route('members.export'));
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Daftar_Member_', $response->headers->get('content-disposition'));
+    }
 }
