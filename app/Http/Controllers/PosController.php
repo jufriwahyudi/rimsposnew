@@ -460,6 +460,7 @@ class PosController extends Controller
                         $q3->where('barcode', $q);
                     });
             })
+            ->where('is_active', 'Y')
             ->first();
 
         if ($variant) {
@@ -520,7 +521,7 @@ class PosController extends Controller
         $gemini = app(\App\Services\GeminiService::class);
         $parsed = $gemini->parseVoiceCommand($text);
         Log::info('Voice command parsed: ' . json_encode($parsed));
-        
+
         $searchTerm = $parsed['product_name'] ?? '';
         $quantity = $parsed['quantity'] ?? 1;
 
@@ -1023,10 +1024,10 @@ class PosController extends Controller
                     $existingItems  = $sale->items->keyBy('product_variant_id');
 
                     // Build a map of incoming items keyed by variant_id
-                    $incomingByVariant = $incomingItems->keyBy(fn ($i) => $i['variant_id'] ?? 0);
+                    $incomingByVariant = $incomingItems->keyBy(fn($i) => $i['variant_id'] ?? 0);
 
                     // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
-                    $removedItems = $existingItems->filter(fn ($ei) => !$incomingByVariant->has($ei->product_variant_id));
+                    $removedItems = $existingItems->filter(fn($ei) => !$incomingByVariant->has($ei->product_variant_id));
 
                     // 2. Revert stock & delete ONLY removed items
                     foreach ($removedItems as $removedItem) {
@@ -1299,7 +1300,7 @@ class PosController extends Controller
             ->where('status', 'hold')
             ->where(function ($query) {
                 $query->where('invoice_number', 'not like', 'QR-%')
-                      ->orWhereNotNull('user_id');
+                    ->orWhereNotNull('user_id');
             })
             ->orderBy('sale_date', 'desc')
             ->get();
@@ -1759,7 +1760,7 @@ class PosController extends Controller
                 'total'    => round($sale->grand_total),
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
-                'tip'      => round($sale->tip_amount ?? 0),    
+                'tip'      => round($sale->tip_amount ?? 0),
             ],
         ];
 
@@ -2183,7 +2184,7 @@ class PosController extends Controller
                     ]
                 ];
                 $url = "https://firestore.googleapis.com/v1/projects/{$projectId}/databases/(default)/documents/stores/{$sale->store_id}/self_service_orders/{$sale->invoice_number}?updateMask.fieldPaths=status&updateMask.fieldPaths=status_reason&updateMask.fieldPaths=updated_at";
-                
+
                 \Illuminate\Support\Facades\Http::withHeaders([
                     'Authorization' => "Bearer {$accessToken}",
                     'Content-Type' => 'application/json'
@@ -2812,7 +2813,6 @@ class PosController extends Controller
             }
 
             return back()->with('success', $successMsg);
-
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal partial void: ' . $e->getMessage());
         }
