@@ -212,6 +212,25 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
 
 
 
+    // F&B Ingredient & Recipe Management Module Routes
+    Route::resource('ingredients', \App\Http\Controllers\IngredientController::class)->except(['show']);
+    Route::post('ingredients/{ingredient}/conversions', [\App\Http\Controllers\IngredientController::class, 'storeConversion'])->name('ingredients.conversions.store');
+    Route::delete('ingredients/conversions/{conversion}', [\App\Http\Controllers\IngredientController::class, 'destroyConversion'])->name('ingredients.conversions.destroy');
+
+    Route::resource('recipes', \App\Http\Controllers\RecipeController::class)->only(['index']);
+    Route::get('recipes/{product}/manage', [\App\Http\Controllers\RecipeController::class, 'manage'])->name('recipes.manage');
+    Route::post('recipes/{product}/save', [\App\Http\Controllers\RecipeController::class, 'save'])->name('recipes.save');
+
+    Route::prefix('ingredient-stocks')->name('ingredient-stocks.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\IngredientStockController::class, 'index'])->name('index');
+        Route::get('/transfer', [\App\Http\Controllers\IngredientStockController::class, 'transferForm'])->name('transfer');
+        Route::post('/transfer', [\App\Http\Controllers\IngredientStockController::class, 'transfer'])->name('transfer.store');
+        Route::get('/adjust', [\App\Http\Controllers\IngredientStockController::class, 'adjustForm'])->name('adjust');
+        Route::post('/adjust', [\App\Http\Controllers\IngredientStockController::class, 'adjust'])->name('adjust.store');
+        Route::post('/stock-in', [\App\Http\Controllers\IngredientStockController::class, 'stockIn'])->name('stock-in');
+        Route::get('/report', [\App\Http\Controllers\IngredientStockController::class, 'report'])->name('report');
+    });
+
     // Stock Transfer Routes
     Route::prefix('stock-transfers')->group(function () {
         Route::get('/', [StockTransferController::class, 'index'])->name('stock-transfers.index');

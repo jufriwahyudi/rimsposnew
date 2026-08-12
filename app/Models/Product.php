@@ -21,6 +21,7 @@ class Product extends Model
         'nama_produk',
         'deskripsi',
         'image',
+        'product_type',
     ];
 
     protected $appends = ['image_url'];
@@ -102,5 +103,10 @@ class Product extends Model
             $b->where('posisi', 'store')
                 ->where('qty_sisa', '>', '0')
         ], 'qty_sisa');
+    }
+
+    public function recipes()
+    {
+        return $this->hasMany(ProductRecipe::class, 'product_id');
     }
 }

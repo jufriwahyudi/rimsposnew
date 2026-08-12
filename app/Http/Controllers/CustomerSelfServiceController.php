@@ -162,14 +162,23 @@ class CustomerSelfServiceController extends Controller
                             $saleItem->kds_status = 'pending';
                         }
 
-                        // Decrement FIFO stocks immediately
-                        $this->issueFIFOWithBatchLog(
-                            now()->format('Y-m-d H:i:s'),
-                            $variant->id,
-                            'store',
-                            $item['qty'],
-                            $saleItem
-                        );
+                        $product = \App\Models\Product::find($variant->product_id);
+                        if ($product && $product->product_type === 'RECIPE') {
+                            app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
+                                $storeId,
+                                $product->id,
+                                (float) $item['qty'],
+                                $existingSale->id
+                            );
+                        } else {
+                            $this->issueFIFOWithBatchLog(
+                                now()->format('Y-m-d H:i:s'),
+                                $variant->id,
+                                'store',
+                                $item['qty'],
+                                $saleItem
+                            );
+                        }
                     }
 
                     // Recalculate parent sale totals
@@ -218,14 +227,23 @@ class CustomerSelfServiceController extends Controller
                             'notes'              => $item['notes'],
                         ]);
 
-                        // Decrement FIFO stocks immediately
-                        $this->issueFIFOWithBatchLog(
-                            now()->format('Y-m-d H:i:s'),
-                            $variant->id,
-                            'store',
-                            $item['qty'],
-                            $saleItem
-                        );
+                        $product = \App\Models\Product::find($variant->product_id);
+                        if ($product && $product->product_type === 'RECIPE') {
+                            app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
+                                $storeId,
+                                $product->id,
+                                (float) $item['qty'],
+                                $sale->id
+                            );
+                        } else {
+                            $this->issueFIFOWithBatchLog(
+                                now()->format('Y-m-d H:i:s'),
+                                $variant->id,
+                                'store',
+                                $item['qty'],
+                                $saleItem
+                            );
+                        }
                     }
 
                     return $sale;

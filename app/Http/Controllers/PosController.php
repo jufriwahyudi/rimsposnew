@@ -762,9 +762,6 @@ class PosController extends Controller
                     'payment_status' => $paymentMethod === 'hutang' ? 'hutang' : 'lunas',
                 ]);
 
-                // =========================
-                // 3️⃣ SALE ITEMS + FIFO
-                // =========================
                 foreach ($cart['items'] as $item) {
 
                     $saleItem = SaleItem::create([
@@ -779,13 +776,23 @@ class PosController extends Controller
                         'subtotal'           => $item['subtotal'],
                     ]);
 
-                    $this->issueFIFOWithBatchLog(
-                        $transactionDate,
-                        $item['variant_id'],
-                        'store',
-                        $item['qty'],
-                        $saleItem
-                    );
+                    $product = \App\Models\Product::find($item['product_id']);
+                    if ($product && $product->product_type === 'RECIPE') {
+                        app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
+                            session('store_id'),
+                            $product->id,
+                            (float) $item['qty'],
+                            $sale->id
+                        );
+                    } else {
+                        $this->issueFIFOWithBatchLog(
+                            $transactionDate,
+                            $item['variant_id'],
+                            'store',
+                            $item['qty'],
+                            $saleItem
+                        );
+                    }
                 }
 
                 // Process loyalty points inside the transaction
@@ -1031,23 +1038,33 @@ class PosController extends Controller
 
                     // 2. Revert stock & delete ONLY removed items
                     foreach ($removedItems as $removedItem) {
-                        foreach ($removedItem->batches as $batch) {
-                            StockBatch::where('id', $batch->stock_batch_id)
-                                ->increment('qty_sisa', $batch->qty);
+                        $product = \App\Models\Product::find($removedItem->product_id);
+                        if ($product && $product->product_type === 'RECIPE') {
+                            app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
+                                $storeId,
+                                $product->id,
+                                (float) $removedItem->qty,
+                                $sale->id
+                            );
+                        } else {
+                            foreach ($removedItem->batches as $batch) {
+                                StockBatch::where('id', $batch->stock_batch_id)
+                                    ->increment('qty_sisa', $batch->qty);
 
-                            StockMovement::create([
-                                'product_variant_id' => $removedItem->product_variant_id,
-                                'stock_batch_id'     => $batch->stock_batch_id,
-                                'posisi'             => 'store',
-                                'tanggal'            => now(),
-                                'tipe'               => 'in',
-                                'direction'          => 'in',
-                                'qty'                => $batch->qty,
-                                'ref_type'           => 'SaleHoldUpdateRevert',
-                                'ref_id'             => $sale->id,
-                            ]);
+                                StockMovement::create([
+                                    'product_variant_id' => $removedItem->product_variant_id,
+                                    'stock_batch_id'     => $batch->stock_batch_id,
+                                    'posisi'             => 'store',
+                                    'tanggal'            => now(),
+                                    'tipe'               => 'in',
+                                    'direction'          => 'in',
+                                    'qty'                => $batch->qty,
+                                    'ref_type'           => 'SaleHoldUpdateRevert',
+                                    'ref_id'             => $sale->id,
+                                ]);
+                            }
+                            $removedItem->batches()->delete();
                         }
-                        $removedItem->batches()->delete();
                         $removedItem->delete();
                     }
 
@@ -1075,33 +1092,49 @@ class PosController extends Controller
                             ]);
 
                             if ($qtyDiff != 0) {
-                                // Revert ALL existing stock batches for this item
-                                foreach ($existing->batches as $batch) {
-                                    StockBatch::where('id', $batch->stock_batch_id)
-                                        ->increment('qty_sisa', $batch->qty);
+                                $product = \App\Models\Product::find($existing->product_id);
+                                if ($product && $product->product_type === 'RECIPE') {
+                                    app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
+                                        $storeId,
+                                        $product->id,
+                                        (float) $oldQty,
+                                        $sale->id
+                                    );
+                                    app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
+                                        $storeId,
+                                        $product->id,
+                                        (float) $newQty,
+                                        $sale->id
+                                    );
+                                } else {
+                                    // Revert ALL existing stock batches for this item
+                                    foreach ($existing->batches as $batch) {
+                                        StockBatch::where('id', $batch->stock_batch_id)
+                                            ->increment('qty_sisa', $batch->qty);
 
-                                    StockMovement::create([
-                                        'product_variant_id' => $existing->product_variant_id,
-                                        'stock_batch_id'     => $batch->stock_batch_id,
-                                        'posisi'             => 'store',
-                                        'tanggal'            => now(),
-                                        'tipe'               => 'in',
-                                        'direction'          => 'in',
-                                        'qty'                => $batch->qty,
-                                        'ref_type'           => 'SaleHoldUpdateRevert',
-                                        'ref_id'             => $sale->id,
-                                    ]);
+                                        StockMovement::create([
+                                            'product_variant_id' => $existing->product_variant_id,
+                                            'stock_batch_id'     => $batch->stock_batch_id,
+                                            'posisi'             => 'store',
+                                            'tanggal'            => now(),
+                                            'tipe'               => 'in',
+                                            'direction'          => 'in',
+                                            'qty'                => $batch->qty,
+                                            'ref_type'           => 'SaleHoldUpdateRevert',
+                                            'ref_id'             => $sale->id,
+                                        ]);
+                                    }
+                                    $existing->batches()->delete();
+
+                                    // Re-issue FIFO with new qty
+                                    $this->issueFIFOWithBatchLog(
+                                        $transactionDate,
+                                        $variantId,
+                                        'store',
+                                        $newQty,
+                                        $existing
+                                    );
                                 }
-                                $existing->batches()->delete();
-
-                                // Re-issue FIFO with new qty
-                                $this->issueFIFOWithBatchLog(
-                                    $transactionDate,
-                                    $variantId,
-                                    'store',
-                                    $newQty,
-                                    $existing
-                                );
                             }
                             // If qty unchanged, stock batches remain untouched
                         } else {
@@ -1119,13 +1152,23 @@ class PosController extends Controller
                                 'notes'              => $item['notes'] ?? null,
                             ]);
 
-                            $this->issueFIFOWithBatchLog(
-                                $transactionDate,
-                                $variantId,
-                                'store',
-                                $newQty,
-                                $saleItem
-                            );
+                            $product = \App\Models\Product::find($item['product_id'] ?? null);
+                            if ($product && $product->product_type === 'RECIPE') {
+                                app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
+                                    $storeId,
+                                    $product->id,
+                                    (float) $newQty,
+                                    $sale->id
+                                );
+                            } else {
+                                $this->issueFIFOWithBatchLog(
+                                    $transactionDate,
+                                    $variantId,
+                                    'store',
+                                    $newQty,
+                                    $saleItem
+                                );
+                            }
                         }
                     }
 
@@ -1191,13 +1234,23 @@ class PosController extends Controller
                             'notes'              => $item['notes'] ?? null,
                         ]);
 
-                        $this->issueFIFOWithBatchLog(
-                            $transactionDate,
-                            $item['variant_id'] ?? null,
-                            'store',
-                            $item['qty'] ?? 0,
-                            $saleItem
-                        );
+                        $product = \App\Models\Product::find($item['product_id'] ?? null);
+                        if ($product && $product->product_type === 'RECIPE') {
+                            app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
+                                $storeId,
+                                $product->id,
+                                (float) ($item['qty'] ?? 0),
+                                $sale->id
+                            );
+                        } else {
+                            $this->issueFIFOWithBatchLog(
+                                $transactionDate,
+                                $item['variant_id'] ?? null,
+                                'store',
+                                $item['qty'] ?? 0,
+                                $saleItem
+                            );
+                        }
                     }
                 }
 
@@ -2583,26 +2636,36 @@ class PosController extends Controller
         try {
             DB::transaction(function () use ($sale) {
 
-                // 1️⃣ Kembalikan stok (reverse FIFO)
+                // 1️⃣ Kembalikan stok (reverse FIFO atau resep)
                 foreach ($sale->items->whereIn('status', ['sold', 'exchanged_in']) as $item) {
-                    foreach ($item->batches as $batch) {
+                    $product = \App\Models\Product::find($item->product_id);
+                    if ($product && $product->product_type === 'RECIPE') {
+                        app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
+                            $sale->store_id,
+                            $product->id,
+                            (float) $item->qty,
+                            $sale->id
+                        );
+                    } else {
+                        foreach ($item->batches as $batch) {
 
-                        // Tambah kembali qty_sisa batch
-                        StockBatch::where('id', $batch->stock_batch_id)
-                            ->increment('qty_sisa', $batch->qty);
+                            // Tambah kembali qty_sisa batch
+                            StockBatch::where('id', $batch->stock_batch_id)
+                                ->increment('qty_sisa', $batch->qty);
 
-                        // Log movement IN
-                        StockMovement::create([
-                            'product_variant_id' => $item->product_variant_id,
-                            'stock_batch_id'     => $batch->stock_batch_id,
-                            'posisi'             => 'store',
-                            'tanggal'            => now(),
-                            'tipe'               => 'in',
-                            'direction'          => 'in',
-                            'qty'                => $batch->qty,
-                            'ref_type'           => $sale->sale_type === 'nse' ? 'NSEVoid' : 'SaleVoid',
-                            'ref_id'             => $sale->id,
-                        ]);
+                            // Log movement IN
+                            StockMovement::create([
+                                'product_variant_id' => $item->product_variant_id,
+                                'stock_batch_id'     => $batch->stock_batch_id,
+                                'posisi'             => 'store',
+                                'tanggal'            => now(),
+                                'tipe'               => 'in',
+                                'direction'          => 'in',
+                                'qty'                => $batch->qty,
+                                'ref_type'           => $sale->sale_type === 'nse' ? 'NSEVoid' : 'SaleVoid',
+                                'ref_id'             => $sale->id,
+                            ]);
+                        }
                     }
                     $item->update([
                         'status' => 'voided'
