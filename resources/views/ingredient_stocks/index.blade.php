@@ -193,6 +193,19 @@
                             <input type="number" step="0.0001" class="form-control" name="qty_purchased" placeholder="Contoh: 1" required>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">Total Biaya Pembelian <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">Rp</span>
+                                <input type="number" step="0.01" class="form-control" name="total_cost" placeholder="Total harga nota invoice" required>
+                            </div>
+                            <small class="text-muted d-block mt-1">Total uang yang dikeluarkan untuk pembelian ini (digunakan untuk menghitung HPP riil batch).</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">No. Referensi / PO / Invoice</label>
+                            <input type="text" class="form-control" name="reference_id" placeholder="Contoh: INV-9921, PO-221A (Kosongkan untuk nomor otomatis)">
+                            <small class="text-muted d-block mt-1">Nomor bukti transaksi supplier.</small>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Tanggal Pembelian <span class="text-danger">*</span></label>
                             <input type="date" class="form-control" name="tanggal" value="{{ date('Y-m-d') }}" required>
                         </div>

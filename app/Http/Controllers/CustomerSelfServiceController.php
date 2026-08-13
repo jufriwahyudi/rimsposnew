@@ -168,7 +168,8 @@ class CustomerSelfServiceController extends Controller
                                 $storeId,
                                 $product->id,
                                 (float) $item['qty'],
-                                $existingSale->id
+                                $existingSale->id,
+                                $saleItem
                             );
                         } else {
                             $this->issueFIFOWithBatchLog(
@@ -233,7 +234,8 @@ class CustomerSelfServiceController extends Controller
                                 $storeId,
                                 $product->id,
                                 (float) $item['qty'],
-                                $sale->id
+                                $sale->id,
+                                $saleItem
                             );
                         } else {
                             $this->issueFIFOWithBatchLog(

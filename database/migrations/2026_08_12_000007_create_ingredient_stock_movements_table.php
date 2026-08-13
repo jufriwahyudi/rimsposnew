@@ -20,6 +20,7 @@ return new class extends Migration
             $table->decimal('quantity_change', 12, 4);
             $table->string('reference_id', 100)->nullable();
             $table->text('notes')->nullable();
+            $table->foreignId('inventory_stock_id')->nullable()->constrained('inventory_stocks')->nullOnDelete(); // Target batch link
             $table->dateTime('tanggal')->useCurrent(); // Transaction date (supports backdating)
             $table->timestamp('created_at')->useCurrent();
         });

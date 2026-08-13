@@ -782,7 +782,8 @@ class PosController extends Controller
                             session('store_id'),
                             $product->id,
                             (float) $item['qty'],
-                            $sale->id
+                            $sale->id,
+                            $saleItem
                         );
                     } else {
                         $this->issueFIFOWithBatchLog(
@@ -1093,18 +1094,19 @@ class PosController extends Controller
 
                             if ($qtyDiff != 0) {
                                 $product = \App\Models\Product::find($existing->product_id);
-                                if ($product && $product->product_type === 'RECIPE') {
                                     app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
                                         $storeId,
                                         $product->id,
                                         (float) $oldQty,
-                                        $sale->id
+                                        $sale->id,
+                                        $existing
                                     );
                                     app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                                         $storeId,
                                         $product->id,
                                         (float) $newQty,
-                                        $sale->id
+                                        $sale->id,
+                                        $existing
                                     );
                                 } else {
                                     // Revert ALL existing stock batches for this item
@@ -1158,7 +1160,8 @@ class PosController extends Controller
                                     $storeId,
                                     $product->id,
                                     (float) $newQty,
-                                    $sale->id
+                                    $sale->id,
+                                    $saleItem
                                 );
                             } else {
                                 $this->issueFIFOWithBatchLog(
@@ -1240,7 +1243,8 @@ class PosController extends Controller
                                 $storeId,
                                 $product->id,
                                 (float) ($item['qty'] ?? 0),
-                                $sale->id
+                                $sale->id,
+                                $saleItem
                             );
                         } else {
                             $this->issueFIFOWithBatchLog(
@@ -2644,7 +2648,8 @@ class PosController extends Controller
                             $sale->store_id,
                             $product->id,
                             (float) $item->qty,
-                            $sale->id
+                            $sale->id,
+                            $item
                         );
                     } else {
                         foreach ($item->batches as $batch) {

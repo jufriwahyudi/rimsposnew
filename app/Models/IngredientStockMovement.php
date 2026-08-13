@@ -17,6 +17,7 @@ class IngredientStockMovement extends Model
         'quantity_change',
         'reference_id',
         'notes',
+        'inventory_stock_id',
         'tanggal',
     ];
 
@@ -30,5 +31,10 @@ class IngredientStockMovement extends Model
     public function location()
     {
         return $this->belongsTo(Store::class, 'location_id');
+    }
+
+    public function stock()
+    {
+        return $this->belongsTo(InventoryStock::class, 'inventory_stock_id');
     }
 }

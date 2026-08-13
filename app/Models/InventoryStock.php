@@ -13,7 +13,13 @@ class InventoryStock extends Model
         'ingredient_id',
         'location_type',
         'location_id',
+        'qty_original',
         'quantity',
+        'cost_per_unit',
+        'tanggal',
+        'reference_id',
+        'notes',
+        'parent_id',
     ];
 
     public $timestamps = false;
@@ -26,5 +32,15 @@ class InventoryStock extends Model
     public function location()
     {
         return $this->belongsTo(Store::class, 'location_id');
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(InventoryStock::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(InventoryStock::class, 'parent_id');
     }
 }

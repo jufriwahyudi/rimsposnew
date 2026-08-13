@@ -75,24 +75,24 @@ return new class extends Migration
                 ],
             ];
 
-            // $roles = DB::table('role_master')->get();
+            $roles = DB::table('role_master')->get();
 
-            // foreach ($menusToInsert as $menuData) {
-            //     $menuData['created_at'] = now();
-            //     $menuData['updated_at'] = now();
+            foreach ($menusToInsert as $menuData) {
+                $menuData['created_at'] = now();
+                $menuData['updated_at'] = now();
 
-            //     $menuId = DB::table('menu_list')->insertGetId($menuData);
+                $menuId = DB::table('menu_list')->insertGetId($menuData);
 
-            //     // Map to all roles
-            //     if (Schema::hasTable('menuby_role')) {
-            //         foreach ($roles as $role) {
-            //             DB::table('menuby_role')->insert([
-            //                 'role_id' => $role->id,
-            //                 'menu_id' => $menuId,
-            //             ]);
-            //         }
-            //     }
-            // }
+                // Map to all roles
+                if (Schema::hasTable('menuby_role')) {
+                    foreach ($roles as $role) {
+                        DB::table('menuby_role')->insert([
+                            'role_id' => $role->id,
+                            'menu_id' => $menuId,
+                        ]);
+                    }
+                }
+            }
         }
     }
 

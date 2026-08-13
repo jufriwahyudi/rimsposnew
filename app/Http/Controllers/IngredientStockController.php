@@ -36,13 +36,13 @@ class IngredientStockController extends Controller
                 'ingredient_id' => $ingredient->id,
                 'location_type' => 'WAREHOUSE',
                 'location_id'   => $storeId,
-            ])->value('quantity') ?? 0.0000;
+            ])->sum('quantity') ?? 0.0000;
 
             $storeStock = InventoryStock::where([
                 'ingredient_id' => $ingredient->id,
                 'location_type' => 'STORE',
                 'location_id'   => $storeId,
-            ])->value('quantity') ?? 0.0000;
+            ])->sum('quantity') ?? 0.0000;
 
             $stocks[$ingredient->id] = [
                 'warehouse' => $warehouseStock,
@@ -69,22 +69,26 @@ class IngredientStockController extends Controller
             'ingredient_id'    => 'required|exists:ingredients,id',
             'conversion_id'    => 'required|string',
             'qty_purchased'    => 'required|numeric|min:0.0001',
+            'total_cost'       => 'required|numeric|min:0',
             'tanggal'          => 'required|date',
+            'reference_id'     => 'nullable|string|max:100',
             'notes'            => 'nullable|string|max:255',
         ]);
 
         try {
             $tanggal = $request->tanggal . ' ' . now()->format('H:i:s');
             $conversionId = $request->conversion_id === 'base' ? null : (int) $request->conversion_id;
+            $referenceId = $request->reference_id ?: 'PO-' . now()->format('Ymd') . '-' . rand(1000, 9999);
 
             $this->stockService->purchaseStock(
                 $request->ingredient_id,
                 $conversionId,
                 (float) $request->qty_purchased,
                 $storeId,
-                null,
+                $referenceId,
                 $request->notes,
-                $tanggal
+                $tanggal,
+                (float) $request->total_cost
             );
 
             return redirect()->route('ingredient-stocks.index')->with('success', 'Stok masuk berhasil disimpan.');
@@ -110,7 +114,7 @@ class IngredientStockController extends Controller
                 'ingredient_id' => $ingredient->id,
                 'location_type' => 'WAREHOUSE',
                 'location_id'   => $storeId,
-            ])->value('quantity') ?? 0.0000;
+            ])->sum('quantity') ?? 0.0000;
         }
 
         return view('ingredient_stocks.transfer', compact('ingredients', 'stocks'));
@@ -122,16 +126,19 @@ class IngredientStockController extends Controller
         $request->validate([
             'ingredient_id'   => 'required|exists:ingredients,id',
             'qty_to_transfer' => 'required|numeric|min:0.0001',
+            'reference_id'    => 'nullable|string|max:100',
             'notes'           => 'nullable|string|max:255',
         ]);
 
         try {
+            $referenceId = $request->reference_id ?: 'TRF-' . now()->format('Ymd') . '-' . rand(1000, 9999);
+
             $this->stockService->transferStock(
                 $request->ingredient_id,
                 (float) $request->qty_to_transfer,
                 $storeId,
                 $storeId,
-                null,
+                $referenceId,
                 $request->notes
             );
 
@@ -158,13 +165,13 @@ class IngredientStockController extends Controller
                 'ingredient_id' => $ingredient->id,
                 'location_type' => 'WAREHOUSE',
                 'location_id'   => $storeId,
-            ])->value('quantity') ?? 0.0000;
+            ])->sum('quantity') ?? 0.0000;
 
             $storeStock = InventoryStock::where([
                 'ingredient_id' => $ingredient->id,
                 'location_type' => 'STORE',
                 'location_id'   => $storeId,
-            ])->value('quantity') ?? 0.0000;
+            ])->sum('quantity') ?? 0.0000;
 
             $stocks[$ingredient->id] = [
                 'WAREHOUSE' => $warehouseStock,

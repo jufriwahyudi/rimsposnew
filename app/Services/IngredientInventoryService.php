@@ -22,9 +22,10 @@ class IngredientInventoryService
         int $storeId,
         string $referenceId = null,
         string $notes = null,
-        string $tanggal = null
+        string $tanggal = null,
+        float $totalCost = 0.0
     ): InventoryStock {
-        return DB::transaction(function () use ($ingredientId, $conversionId, $qtyPurchased, $storeId, $referenceId, $notes, $tanggal) {
+        return DB::transaction(function () use ($ingredientId, $conversionId, $qtyPurchased, $storeId, $referenceId, $notes, $tanggal, $totalCost) {
             $ingredient = Ingredient::findOrFail($ingredientId);
 
             $conversionFactor = 1.0;
@@ -40,30 +41,45 @@ class IngredientInventoryService
             }
 
             $baseQtyAdded = $qtyPurchased * $conversionFactor;
+            $costPerBaseUnit = $baseQtyAdded > 0 ? ($totalCost / $baseQtyAdded) : 0.0;
 
-            $stock = InventoryStock::lockForUpdate()->firstOrCreate(
-                [
-                    'ingredient_id' => $ingredientId,
-                    'location_type' => 'WAREHOUSE',
-                    'location_id'   => $storeId,
-                ],
-                [
-                    'quantity' => 0.0000,
-                ]
-            );
+            // Create a new batch for this purchase (parent_id is null as it is the root)
+            $stock = InventoryStock::create([
+                'ingredient_id' => $ingredientId,
+                'location_type' => 'WAREHOUSE',
+                'location_id'   => $storeId,
+                'qty_original'  => $baseQtyAdded,
+                'quantity'      => $baseQtyAdded,
+                'cost_per_unit' => $costPerBaseUnit,
+                'tanggal'       => $tanggal ?? now(),
+                'reference_id'  => $referenceId,
+                'notes'         => $notes ?? "Pembelian supplier (Batch)",
+                'parent_id'     => null,
+            ]);
 
-            $stock->quantity += $baseQtyAdded;
-            $stock->save();
+            // Update average price on ingredients table as a fallback estimate
+            $totalRemainingQty = InventoryStock::where('ingredient_id', $ingredientId)->sum('quantity');
+            if ($totalRemainingQty > 0) {
+                $totalValuation = InventoryStock::where('ingredient_id', $ingredientId)
+                    ->select(DB::raw('SUM(quantity * cost_per_unit) as total_val'))
+                    ->value('total_val');
+                $newAvgCost = $totalValuation / $totalRemainingQty;
+                $ingredient->update(['cost_per_unit' => $newAvgCost]);
+            } else {
+                $ingredient->update(['cost_per_unit' => $costPerBaseUnit]);
+            }
 
+            // Log movement (linked to the batch)
             IngredientStockMovement::create([
-                'ingredient_id'   => $ingredientId,
-                'location_type'   => 'WAREHOUSE',
-                'location_id'     => $storeId,
-                'type'            => 'PURCHASE',
-                'quantity_change' => $baseQtyAdded,
-                'reference_id'    => $referenceId,
-                'notes'           => $notes ?? "Pembelian bahan baku (Stock In)",
-                'tanggal'         => $tanggal ?? now(),
+                'ingredient_id'      => $ingredientId,
+                'location_type'      => 'WAREHOUSE',
+                'location_id'        => $storeId,
+                'type'               => 'PURCHASE',
+                'quantity_change'    => $baseQtyAdded,
+                'reference_id'       => $referenceId,
+                'inventory_stock_id' => $stock->id,
+                'notes'              => $notes ?? "Pembelian bahan baku (Stock In). Harga beli riil: Rp " . number_format($costPerBaseUnit, 2, ',', '.') . " per satuan dasar.",
+                'tanggal'            => $tanggal ?? now(),
             ]);
 
             return $stock;
@@ -84,99 +100,185 @@ class IngredientInventoryService
         return DB::transaction(function () use ($ingredientId, $qtyToTransfer, $sourceStoreId, $targetStoreId, $referenceId, $notes) {
             $ingredient = Ingredient::findOrFail($ingredientId);
 
-            // 1. Cek kecukupan stok di source_location_id (Gudang)
-            $sourceStock = InventoryStock::lockForUpdate()->where([
-                'ingredient_id' => $ingredientId,
-                'location_type' => 'WAREHOUSE',
-                'location_id'   => $sourceStoreId,
-            ])->first();
+            // 1. Get warehouse batches in FIFO order
+            $batches = InventoryStock::lockForUpdate()
+                ->where([
+                    'ingredient_id' => $ingredientId,
+                    'location_type' => 'WAREHOUSE',
+                    'location_id'   => $sourceStoreId,
+                ])
+                ->where('quantity', '>', 0)
+                ->orderBy('tanggal', 'asc')
+                ->get();
 
-            if (!$sourceStock || $sourceStock->quantity < $qtyToTransfer) {
-                $available = $sourceStock ? $sourceStock->quantity : 0;
+            $available = $batches->sum('quantity');
+            if ($available < $qtyToTransfer) {
                 throw new Exception("Stok di Gudang tidak mencukupi untuk mentransfer " . $ingredient->name . " (Tersedia: " . number_format($available, 2) . ")");
             }
 
-            // 2. Kurangi stok Gudang
-            $sourceStock->quantity -= $qtyToTransfer;
-            $sourceStock->save();
+            $remainingToTransfer = $qtyToTransfer;
+            $storeStocksCreated = [];
 
-            // 3. Tambahkan ke stok Toko
-            $targetStock = InventoryStock::lockForUpdate()->firstOrCreate(
-                [
+            // 2. Deduct warehouse batches and copy to Toko (Store)
+            foreach ($batches as $batch) {
+                if ($remainingToTransfer <= 0) break;
+
+                $deduct = min($batch->quantity, $remainingToTransfer);
+                $batch->quantity -= $deduct;
+                $batch->save();
+
+                // Log TRANSFER_OUT for this specific warehouse batch
+                IngredientStockMovement::create([
+                    'ingredient_id'      => $ingredientId,
+                    'location_type'      => 'WAREHOUSE',
+                    'location_id'        => $sourceStoreId,
+                    'type'               => 'TRANSFER_OUT',
+                    'quantity_change'    => -$deduct,
+                    'reference_id'       => $referenceId,
+                    'inventory_stock_id' => $batch->id,
+                    'notes'              => $notes ?? "Transfer keluar ke Toko",
+                    'tanggal'            => now(),
+                ]);
+
+                // Create a store batch with parent_id pointing to the warehouse batch
+                $storeStock = InventoryStock::create([
                     'ingredient_id' => $ingredientId,
                     'location_type' => 'STORE',
                     'location_id'   => $targetStoreId,
-                ],
-                [
-                    'quantity' => 0.0000,
-                ]
-            );
-            $targetStock->quantity += $qtyToTransfer;
-            $targetStock->save();
+                    'qty_original'  => $deduct,
+                    'quantity'      => $deduct,
+                    'cost_per_unit' => $batch->cost_per_unit, // HPP follows!
+                    'tanggal'       => now(),
+                    'reference_id'  => $referenceId,
+                    'parent_id'     => $batch->id, // Linked genealogy!
+                    'notes'         => "Transfer dari Gudang batch ID: " . $batch->id,
+                ]);
 
-            // 4. Catat logs
-            IngredientStockMovement::create([
-                'ingredient_id'   => $ingredientId,
-                'location_type'   => 'WAREHOUSE',
-                'location_id'     => $sourceStoreId,
-                'type'            => 'TRANSFER_OUT',
-                'quantity_change' => -$qtyToTransfer,
-                'reference_id'    => $referenceId,
-                'notes'           => $notes ?? "Transfer keluar ke toko",
-                'tanggal'         => now(),
-            ]);
+                // Log TRANSFER_IN for this specific store batch
+                IngredientStockMovement::create([
+                    'ingredient_id'      => $ingredientId,
+                    'location_type'      => 'STORE',
+                    'location_id'        => $targetStoreId,
+                    'type'               => 'TRANSFER_IN',
+                    'quantity_change'    => $deduct,
+                    'reference_id'       => $referenceId,
+                    'inventory_stock_id' => $storeStock->id,
+                    'notes'              => $notes ?? "Transfer masuk dari Gudang",
+                    'tanggal'            => now(),
+                ]);
 
-            IngredientStockMovement::create([
-                'ingredient_id'   => $ingredientId,
-                'location_type'   => 'STORE',
-                'location_id'     => $targetStoreId,
-                'type'            => 'TRANSFER_IN',
-                'quantity_change' => $qtyToTransfer,
-                'reference_id'    => $referenceId,
-                'notes'           => $notes ?? "Transfer masuk dari gudang",
-                'tanggal'         => now(),
-            ]);
+                $storeStocksCreated[] = $storeStock;
+                $remainingToTransfer -= $deduct;
+            }
 
-            return [$sourceStock, $targetStock];
+            return $storeStocksCreated;
         });
     }
 
     /**
-     * POS CHECKOUT / ORDER EXECUTION (Auto-Deduction via Recipe)
+     * POS CHECKOUT / ORDER EXECUTION (Auto-Deduction via Recipe & Actual Cost Assignment)
      */
-    public function deductRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId): void
+    public function deductRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId, $saleItem = null): void
     {
-        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId) {
-            $recipes = ProductRecipe::where('product_id', $productId)->get();
+        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId, $saleItem) {
+            $recipes = ProductRecipe::where('product_id', $productId)->with('ingredient')->get();
+            $totalRecipeCost = 0.0;
 
             foreach ($recipes as $recipe) {
                 $totalDeductQty = $recipe->quantity_required * $salesQty;
 
-                $stock = InventoryStock::lockForUpdate()->firstOrCreate(
-                    [
+                // 1. Get store batches in FIFO order
+                $batches = InventoryStock::lockForUpdate()
+                    ->where([
                         'ingredient_id' => $recipe->ingredient_id,
                         'location_type' => 'STORE',
                         'location_id'   => $storeId,
-                    ],
-                    [
-                        'quantity' => 0.0000,
-                    ]
-                );
+                    ])
+                    ->where('quantity', '>', 0)
+                    ->orderBy('tanggal', 'asc')
+                    ->get();
 
-                // Deduct from store stock
-                $stock->quantity -= $totalDeductQty;
-                $stock->save();
+                $remainingToDeduct = $totalDeductQty;
+                $deductedCost = 0.0;
 
-                // Log movement
-                IngredientStockMovement::create([
-                    'ingredient_id'   => $recipe->ingredient_id,
-                    'location_type'   => 'STORE',
-                    'location_id'     => $storeId,
-                    'type'            => 'SALE',
-                    'quantity_change' => -$totalDeductQty,
-                    'reference_id'    => $referenceId,
-                    'notes'           => "Penjualan menu produk resep. Ref ID: " . $referenceId,
-                    'tanggal'         => now(),
+                // 2. Deduct from store batches
+                foreach ($batches as $batch) {
+                    if ($remainingToDeduct <= 0) break;
+
+                    $deduct = min($batch->quantity, $remainingToDeduct);
+                    $batch->quantity -= $deduct;
+                    $batch->save();
+
+                    $deductedCost += $deduct * (float) $batch->cost_per_unit;
+                    $remainingToDeduct -= $deduct;
+
+                    // Log SALE movement per store batch
+                    IngredientStockMovement::create([
+                        'ingredient_id'      => $recipe->ingredient_id,
+                        'location_type'      => 'STORE',
+                        'location_id'        => $storeId,
+                        'type'               => 'SALE',
+                        'quantity_change'    => -$deduct,
+                        'reference_id'       => $referenceId,
+                        'inventory_stock_id' => $batch->id,
+                        'notes'              => "Penjualan resep. Ref ID: " . $referenceId,
+                        'tanggal'            => now(),
+                    ]);
+                }
+
+                // 3. Fallback if stock is insufficient (stok minus)
+                if ($remainingToDeduct > 0) {
+                    $fallbackCost = 0.0;
+                    $lastBatch = InventoryStock::where([
+                        'ingredient_id' => $recipe->ingredient_id,
+                        'location_type' => 'STORE',
+                        'location_id'   => $storeId,
+                    ])->orderBy('tanggal', 'desc')->first();
+
+                    if ($lastBatch) {
+                        $fallbackCost = (float) $lastBatch->cost_per_unit;
+                    } else {
+                        $fallbackCost = (float) ($recipe->ingredient->cost_per_unit ?? 0);
+                    }
+
+                    // Create negative batch row to represent stock deficit
+                    $negativeStock = InventoryStock::create([
+                        'ingredient_id' => $recipe->ingredient_id,
+                        'location_type' => 'STORE',
+                        'location_id'   => $storeId,
+                        'qty_original'  => -$remainingToDeduct,
+                        'quantity'      => -$remainingToDeduct,
+                        'cost_per_unit' => $fallbackCost,
+                        'tanggal'       => now(),
+                        'reference_id'  => $referenceId,
+                        'notes'         => 'Defisit stok kasir (stok minus)',
+                    ]);
+
+                    $deductedCost += $remainingToDeduct * $fallbackCost;
+
+                    // Log SALE movement for deficit
+                    IngredientStockMovement::create([
+                        'ingredient_id'      => $recipe->ingredient_id,
+                        'location_type'      => 'STORE',
+                        'location_id'        => $storeId,
+                        'type'               => 'SALE',
+                        'quantity_change'    => -$remainingToDeduct,
+                        'reference_id'       => $referenceId,
+                        'inventory_stock_id' => $negativeStock->id,
+                        'notes'              => "Penjualan resep (Defisit). Ref ID: " . $referenceId,
+                        'tanggal'            => now(),
+                    ]);
+                }
+
+                // Add to recipe cost total
+                $totalRecipeCost += $deductedCost;
+            }
+
+            // 4. Update the sale item's cost_price with the actual portion cost!
+            if ($saleItem && $salesQty > 0) {
+                $costPricePerPortion = $totalRecipeCost / $salesQty;
+                $saleItem->update([
+                    'cost_price' => $costPricePerPortion
                 ]);
             }
         });
@@ -185,46 +287,61 @@ class IngredientInventoryService
     /**
      * RESTORE STOCK ON VOID
      */
-    public function restoreRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId): void
+    public function restoreRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId, $saleItem = null): void
     {
-        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId) {
+        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId, $saleItem) {
             $recipes = ProductRecipe::where('product_id', $productId)->get();
+
+            // If saleItem has a saved cost_price, we can calculate the restoring HPP
+            $costPricePerPortion = $saleItem ? (float) $saleItem->cost_price : 0.0;
 
             foreach ($recipes as $recipe) {
                 $totalRestoreQty = $recipe->quantity_required * $salesQty;
 
-                $stock = InventoryStock::lockForUpdate()->firstOrCreate(
-                    [
+                // Estimate cost for this ingredient during restoration
+                $fallbackCost = 0.0;
+                if ($costPricePerPortion > 0) {
+                    $lastBatch = InventoryStock::where([
                         'ingredient_id' => $recipe->ingredient_id,
                         'location_type' => 'STORE',
                         'location_id'   => $storeId,
-                    ],
-                    [
-                        'quantity' => 0.0000,
-                    ]
-                );
+                    ])->orderBy('tanggal', 'desc')->first();
+                    $fallbackCost = $lastBatch ? (float)$lastBatch->cost_per_unit : (float)($recipe->ingredient->cost_per_unit ?? 0);
+                } else {
+                    $fallbackCost = (float) ($recipe->ingredient->cost_per_unit ?? 0);
+                }
 
-                // Add back to store stock
-                $stock->quantity += $totalRestoreQty;
-                $stock->save();
+                // Add back to store stock as a fresh batch
+                $restoredStock = InventoryStock::create([
+                    'ingredient_id' => $recipe->ingredient_id,
+                    'location_type' => 'STORE',
+                    'location_id'   => $storeId,
+                    'qty_original'  => $totalRestoreQty,
+                    'quantity'      => $totalRestoreQty,
+                    'cost_per_unit' => $fallbackCost,
+                    'tanggal'       => now(),
+                    'reference_id'  => $referenceId,
+                    'notes'         => 'Restorasi stok dari transaksi void kasir',
+                ]);
 
                 // Log movement
                 IngredientStockMovement::create([
-                    'ingredient_id'   => $recipe->ingredient_id,
-                    'location_type'   => 'STORE',
-                    'location_id'     => $storeId,
-                    'type'            => 'ADJUSTMENT',
-                    'quantity_change' => $totalRestoreQty,
-                    'reference_id'    => $referenceId,
-                    'notes'           => "Pembatalan/Void penjualan resep. Ref ID: " . $referenceId,
-                    'tanggal'         => now(),
+                    'ingredient_id'      => $recipe->ingredient_id,
+                    'location_type'      => 'STORE',
+                    'location_id'        => $storeId,
+                    'type'               => 'ADJUSTMENT',
+                    'quantity_change'    => $totalRestoreQty,
+                    'reference_id'       => $referenceId,
+                    'inventory_stock_id' => $restoredStock->id,
+                    'notes'              => "Pembatalan/Void penjualan resep. Ref ID: " . $referenceId,
+                    'tanggal'            => now(),
                 ]);
             }
         });
     }
 
     /**
-     * STOCK WASTAGE & ADJUSTMENT
+     * STOCK WASTAGE & ADJUSTMENT (FIFO Deduction or Surplus Addition)
      */
     public function adjustStock(
         string $ingredientId,
@@ -233,43 +350,102 @@ class IngredientInventoryService
         string $locationType, // WAREHOUSE | STORE
         string $reason,
         string $referenceId = null
-    ): InventoryStock {
-        return DB::transaction(function () use ($ingredientId, $actualQuantity, $locationId, $locationType, $reason, $referenceId) {
-            $stock = InventoryStock::lockForUpdate()->firstOrCreate(
-                [
-                    'ingredient_id' => $ingredientId,
-                    'location_type' => $locationType,
-                    'location_id'   => $locationId,
-                ],
-                [
-                    'quantity' => 0.0000,
-                ]
-            );
+    ): void {
+        DB::transaction(function () use ($ingredientId, $actualQuantity, $locationId, $locationType, $reason, $referenceId) {
+            $ingredient = Ingredient::findOrFail($ingredientId);
 
-            $currentSystemQuantity = (float) $stock->quantity;
-            $difference = $actualQuantity - $currentSystemQuantity;
+            // Calculate current total quantity at this location
+            $currentQty = (float) InventoryStock::where([
+                'ingredient_id' => $ingredientId,
+                'location_type' => $locationType,
+                'location_id'   => $locationId,
+            ])->sum('quantity');
 
-            $stock->quantity = $actualQuantity;
-            $stock->save();
+            $difference = $actualQuantity - $currentQty;
+            if ($difference == 0) return;
 
-            // Determine if it's WASTAGE or general ADJUSTMENT based on difference or reason
+            // Determine movement type
             $type = 'ADJUSTMENT';
             if (str_contains(strtolower($reason), ['rusak', 'busuk', 'gosong', 'hilang', 'wastage'])) {
                 $type = 'WASTAGE';
             }
 
-            IngredientStockMovement::create([
-                'ingredient_id'   => $ingredientId,
-                'location_type'   => $locationType,
-                'location_id'     => $locationId,
-                'type'            => $type,
-                'quantity_change' => $difference,
-                'reference_id'    => $referenceId,
-                'notes'           => $reason ?? "Opname / Penyesuaian stok",
-                'tanggal'         => now(),
-            ]);
+            if ($difference < 0) {
+                // Shortage/Wastage: Deduct from active batches via FIFO
+                $shortageAmount = abs($difference);
+                $batches = InventoryStock::lockForUpdate()
+                    ->where([
+                        'ingredient_id' => $ingredientId,
+                        'location_type' => $locationType,
+                        'location_id'   => $locationId,
+                    ])
+                    ->where('quantity', '>', 0)
+                    ->orderBy('tanggal', 'asc')
+                    ->get();
 
-            return $stock;
+                $remainingToDeduct = $shortageAmount;
+                foreach ($batches as $batch) {
+                    if ($remainingToDeduct <= 0) break;
+
+                    $deduct = min($batch->quantity, $remainingToDeduct);
+                    $batch->quantity -= $deduct;
+                    $batch->save();
+
+                    // Log movement per batch
+                    IngredientStockMovement::create([
+                        'ingredient_id'      => $ingredientId,
+                        'location_type'      => $locationType,
+                        'location_id'        => $locationId,
+                        'type'               => $type,
+                        'quantity_change'    => -$deduct,
+                        'reference_id'       => $referenceId,
+                        'inventory_stock_id' => $batch->id,
+                        'notes'              => $reason ?? "Penyesuaian stok fisik (Opname minus)",
+                        'tanggal'            => now(),
+                    ]);
+
+                    $remainingToDeduct -= $deduct;
+                }
+            } else {
+                // Surplus: Create a new adjusting batch
+                $fallbackCost = 0.0;
+                $lastBatch = InventoryStock::where([
+                    'ingredient_id' => $ingredientId,
+                    'location_type' => $locationType,
+                    'location_id'   => $locationId,
+                ])->orderBy('tanggal', 'desc')->first();
+
+                if ($lastBatch) {
+                    $fallbackCost = (float)$lastBatch->cost_per_unit;
+                } else {
+                    $fallbackCost = (float)($ingredient->cost_per_unit ?? 0);
+                }
+
+                $newBatch = InventoryStock::create([
+                    'ingredient_id' => $ingredientId,
+                    'location_type' => $locationType,
+                    'location_id'   => $locationId,
+                    'qty_original'  => $difference,
+                    'quantity'      => $difference,
+                    'cost_per_unit' => $fallbackCost,
+                    'tanggal'       => now(),
+                    'reference_id'  => $referenceId,
+                    'notes'         => $reason ?? 'Penyesuaian stok (Surplus)',
+                ]);
+
+                // Log movement
+                IngredientStockMovement::create([
+                    'ingredient_id'      => $ingredientId,
+                    'location_type'      => $locationType,
+                    'location_id'        => $locationId,
+                    'type'               => $type,
+                    'quantity_change'    => $difference,
+                    'reference_id'       => $referenceId,
+                    'inventory_stock_id' => $newBatch->id,
+                    'notes'              => $reason ?? "Penyesuaian stok fisik (Opname plus)",
+                    'tanggal'            => now(),
+                ]);
+            }
         });
     }
 }

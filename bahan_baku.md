@@ -70,17 +70,22 @@ CREATE TABLE ingredient_unit_conversions (
 );
 ```
 
-### D. Tabel: `inventory_stocks`
-Menyimpan saldo kuantitas stok bahan baku riil per lokasi.
+#### D. Tabel: `inventory_stocks`
+Menyimpan data per batch stok bahan baku riil per lokasi untuk melacak HPP riil (FIFO).
 ```sql
 CREATE TABLE inventory_stocks (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     ingredient_id BIGINT UNSIGNED NOT NULL FOREIGN KEY REFERENCES ingredients(id) ON DELETE CASCADE,
     location_type VARCHAR(20) NOT NULL, -- 'WAREHOUSE' atau 'STORE'
     location_id BIGINT UNSIGNED NOT NULL FOREIGN KEY REFERENCES stores(id) ON DELETE CASCADE,
-    quantity DECIMAL(12, 4) NOT NULL DEFAULT 0.0000, -- disimpan dalam satuan dasar (base_unit)
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE(ingredient_id, location_type, location_id)
+    qty_original DECIMAL(12, 4) NOT NULL DEFAULT 0.0000, -- Kuantitas awal batch masuk
+    quantity DECIMAL(12, 4) NOT NULL DEFAULT 0.0000, -- Kuantitas sisa (sisa stok batch)
+    cost_per_unit DECIMAL(12, 2) NOT NULL DEFAULT 0.00, -- Harga modal riil per satuan dasar untuk batch ini
+    tanggal DATETIME NOT NULL, -- Tanggal batch dibuat (untuk urutan FIFO)
+    reference_id VARCHAR(100) NULL, -- Referensi PO / Invoice / Transfer
+    notes TEXT NULL,
+    parent_id BIGINT UNSIGNED NULL FOREIGN KEY REFERENCES inventory_stocks(id) ON DELETE SET NULL, -- Silsilah: Batch Gudang asalnya
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 ```
 
@@ -96,8 +101,8 @@ CREATE TABLE product_recipes (
 );
 ```
 
-### F. Tabel: `ingredient_stock_movements` (Audit Trail)
-Mencatat riwayat keluar-masuk stok bahan baku untuk transparansi audit.
+### F. Tabel: `ingredient_stock_movements` (Audit Trail Ledger)
+Mencatat riwayat keluar-masuk stok bahan baku untuk transparansi audit, terhubung ke batch aslinya.
 ```sql
 CREATE TABLE ingredient_stock_movements (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -106,8 +111,9 @@ CREATE TABLE ingredient_stock_movements (
     location_id BIGINT UNSIGNED NOT NULL FOREIGN KEY REFERENCES stores(id) ON DELETE CASCADE,
     type VARCHAR(20) NOT NULL, -- 'PURCHASE', 'TRANSFER_IN', 'TRANSFER_OUT', 'SALE', 'WASTAGE', 'ADJUSTMENT'
     quantity_change DECIMAL(12, 4) NOT NULL, -- Nilai (+/-) dalam satuan dasar (base_unit)
-    reference_id VARCHAR(100) NULL, -- ID Transaksi / PO / Transfer
+    reference_id VARCHAR(100) NULL, -- ID Transaksi / PO / Surat Jalan Transfer / Invoice
     notes TEXT NULL,
+    inventory_stock_id BIGINT UNSIGNED NULL FOREIGN KEY REFERENCES inventory_stocks(id) ON DELETE SET NULL, -- Link ke batch spesifik
     tanggal DATETIME NOT NULL, -- Tanggal Transaksi (mendukung backdate)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

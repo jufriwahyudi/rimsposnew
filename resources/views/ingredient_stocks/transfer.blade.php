@@ -77,6 +77,12 @@
                             <small class="text-muted d-block mt-1" id="max-stock-hint">Pilih bahan baku untuk melihat stok Gudang yang tersedia.</small>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label">No. Referensi / Surat Jalan Transfer</label>
+                            <input type="text" class="form-control" name="reference_id" placeholder="Contoh: TRF-001A (Kosongkan untuk nomor otomatis)">
+                            <small class="text-muted d-block mt-1">Nomor referensi atau surat jalan pemindahan barang.</small>
+                        </div>
+
                         <div class="mb-4">
                             <label class="form-label">Catatan / Keterangan</label>
                             <textarea class="form-control" name="notes" rows="2" placeholder="Tulis catatan jika diperlukan..."></textarea>
