@@ -1094,6 +1094,7 @@ class PosController extends Controller
 
                             if ($qtyDiff != 0) {
                                 $product = \App\Models\Product::find($existing->product_id);
+                                if ($product && $product->product_type === 'RECIPE') {
                                     app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
                                         $storeId,
                                         $product->id,
