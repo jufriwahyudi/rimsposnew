@@ -65,7 +65,7 @@ class SettingAppController extends Controller
         // Validasi input
         $request->validate([
             'nama_role' => 'required|string|max:200',
-            'jenis_role' => 'required|string|in:ADMIN,WAREHOUSE,STORE',
+            'jenis_role' => 'required|string|in:ADMIN,WAREHOUSE,STORE,SUPERADMIN,STELLING',
         ]);
 
         // Simpan role ke database

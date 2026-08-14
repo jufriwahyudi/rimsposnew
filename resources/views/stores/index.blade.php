@@ -147,16 +147,21 @@
                                                     <span class="badge bg-{{ $store->business_type === 'fnb' ? 'warning text-dark' : 'info' }} d-block mb-1">
                                                         {{ $store->business_type === 'fnb' ? 'F&B' : 'Retail' }}
                                                     </span>
-                                                    @if($store->business_type === 'fnb')
-                                                        <div style="font-size: 10px;" class="mt-1 d-flex flex-column gap-1">
+                                                    <div style="font-size: 10px;" class="mt-1 d-flex flex-column gap-1">
+                                                        @if($store->enable_cash_register)
+                                                            <span class="badge bg-purple text-white" style="background-color: #7c3aed; font-size: 9px;">
+                                                                <i class="bi bi-clock-history"></i> Buka/Tutup Kasir: Wajib
+                                                            </span>
+                                                        @endif
+                                                        @if($store->business_type === 'fnb')
                                                             <span class="badge bg-{{ $store->addon_self_service ? 'success' : 'secondary' }}" style="font-size: 9px;">
                                                                 Self-Service: {{ $store->addon_self_service ? 'Aktif' : 'Non-aktif' }}
                                                             </span>
                                                             <span class="badge bg-{{ $store->addon_kds ? 'success' : 'secondary' }}" style="font-size: 9px;">
                                                                 KDS: {{ $store->addon_kds ? 'Aktif' : 'Non-aktif' }}
                                                             </span>
-                                                        </div>
-                                                    @endif
+                                                        @endif
+                                                    </div>
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-{{ $store->printer_type === '58mm' ? 'info' : ($store->printer_type === 'pdf' ? 'warning text-dark' : 'primary') }}">
@@ -353,6 +358,19 @@
                                     <label class="form-check-label fw-semibold" for="is_active">Toko Aktif</label>
                                 </div>
                             </div>
+                            <div class="col-12 mt-2">
+                                <div class="p-2 border rounded-3 bg-light">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="enable_cash_register">
+                                        <label class="form-check-label fw-bold text-dark" for="enable_cash_register">
+                                            <i class="bi bi-clock-history text-primary me-1"></i> Wajib Buka/Tutup Kasir (Shift & Rekonsiliasi Kas)
+                                        </label>
+                                        <div class="text-muted small" style="font-size: 11px;">
+                                            Jika diaktifkan, kasir wajib input modal kas awal (Buka Kasir) sebelum transaksi dan wajib rekonsiliasi kas fisik sebelum menutup sesi kasir.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer border-top">
@@ -501,6 +519,7 @@
             document.getElementById('storeId').value   = '';
             document.getElementById('logo_data').value = '';
             document.getElementById('is_active').checked = true;
+            document.getElementById('enable_cash_register').checked = false;
             document.getElementById('business_id').selectedIndex = 0;
             document.getElementById('bussiness_type').value = 'retail';
             document.getElementById('addon_self_service').checked = false;
@@ -525,6 +544,7 @@
                     document.getElementById('address').value      = data.address ?? '';
                     document.getElementById('printer_type').value = data.printer_type ?? '80mm';
                     document.getElementById('is_active').checked  = data.is_active == 1;
+                    document.getElementById('enable_cash_register').checked = data.enable_cash_register == 1;
                     document.getElementById('logo_data').value    = '';
                     document.getElementById('business_id').value  = data.business_id ?? '';
                     document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
@@ -552,6 +572,7 @@
                 address:       document.getElementById('address').value,
                 printer_type:  document.getElementById('printer_type').value,
                 is_active:     document.getElementById('is_active').checked ? 1 : 0,
+                enable_cash_register: document.getElementById('enable_cash_register').checked ? 1 : 0,
                 logo_data:     document.getElementById('logo_data').value || null,
                 bussiness_type:document.getElementById('bussiness_type').value,
                 addon_self_service: document.getElementById('addon_self_service').checked ? 1 : 0,

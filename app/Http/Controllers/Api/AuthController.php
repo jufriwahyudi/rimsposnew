@@ -101,12 +101,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => [
-                'id'     => $user->id,
-                'name'   => $user->name,
-                'email'  => $user->email,
-                'stores' => $storesData,
-            ],
+            'user'  => $this->formatUserData($user, $storesData),
         ]);
     }
 
@@ -127,11 +122,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        return response()->json([
-            'id'    => $user->id,
-            'name'  => $user->name,
-            'email' => $user->email,
-        ]);
+        return response()->json($this->formatUserData($user));
     }
 
     /**
@@ -254,12 +245,38 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => [
-                'id'     => $user->id,
-                'name'   => $user->name,
-                'email'  => $user->email,
-                'stores' => $storesData,
-            ],
+            'user'  => $this->formatUserData($user, $storesData),
         ]);
+    }
+
+    /**
+     * Format user data with tenant and role information.
+     */
+    protected function formatUserData(User $user, $storesData = null): array
+    {
+        $user->loadMissing(['tenant', 'roles.roles']);
+
+        $isStelling = ($user->tenant_id !== null) || $user->roles->contains(function ($ru) {
+            return $ru->roles && $ru->roles->role_type === 'STELLING';
+        });
+
+        $activeRole = $user->roles->first()?->roles;
+        $roleType = $isStelling ? 'STELLING' : ($activeRole?->role_type ?? 'STORE');
+
+        $data = [
+            'id'          => $user->id,
+            'name'        => $user->name,
+            'email'       => $user->email,
+            'is_tenant'   => (bool) $isStelling,
+            'tenant_id'   => $user->tenant_id,
+            'tenant_name' => $user->tenant?->nama_tenant,
+            'role_type'   => $roleType,
+        ];
+
+        if ($storesData !== null) {
+            $data['stores'] = $storesData;
+        }
+
+        return $data;
     }
 }

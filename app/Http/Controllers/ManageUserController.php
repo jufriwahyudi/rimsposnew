@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\RoleMaster;
 use App\Models\RoleUser;
 use App\Models\Store;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,7 @@ class ManageUserController extends Controller
     public function index()
     {
         $selectedRole = session('selected_role');
-        $users = User::with(['roles.roles', 'stores'])
+        $users = User::with(['roles.roles', 'stores', 'tenant'])
             ->when($selectedRole != 1, function ($query) use ($selectedRole) {
                 $query->whereHas('stores', function ($q) use ($selectedRole) {
                     $q->where('stores.id', session('store_id'));
@@ -34,31 +35,38 @@ class ManageUserController extends Controller
             })
             ->orderBy('name')
             ->get();
-        $roles  = RoleMaster::where('stts', 'Y')
+        $roles = RoleMaster::where('stts', 'Y')
             ->when($selectedRole != 1, function ($query) {
                 $query->where('store_id', session('store_id'));
             })
             ->orderBy('nama')
             ->get();
+        $tenants = Tenant::when($selectedRole != 1, function ($query) {
+                $query->where('store_id', session('store_id'));
+            })
+            ->orderBy('nama_tenant')
+            ->get();
 
-        return view('users.index', compact('users', 'stores', 'roles'));
+        return view('users.index', compact('users', 'stores', 'roles', 'tenants'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email',
-            'password' => ['required', Password::min(8)],
-            'role_id'  => 'nullable|exists:role_master,id',
-            'store_ids' => 'nullable|array',
+            'name'        => 'required|string|max:255',
+            'email'       => 'required|email|unique:users,email',
+            'password'    => ['required', Password::min(8)],
+            'role_id'     => 'nullable|exists:role_master,id',
+            'tenant_id'   => 'nullable|exists:tenants,id',
+            'store_ids'   => 'nullable|array',
             'store_ids.*' => 'exists:stores,id',
         ]);
 
         $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'password' => Hash::make($request->password),
+            'name'      => $request->name,
+            'email'     => $request->email,
+            'password'  => Hash::make($request->password),
+            'tenant_id' => $request->tenant_id,
         ]);
 
         if ($request->filled('role_id')) {
@@ -77,16 +85,17 @@ class ManageUserController extends Controller
 
     public function edit(User $user)
     {
-        $user->load(['roles', 'stores']);
+        $user->load(['roles', 'stores', 'tenant']);
         $currentRoleId = $user->roles->first()?->role_id;
         $currentStoreIds = $user->stores->pluck('id')->toArray();
 
         return response()->json([
-            'id'              => $user->id,
-            'name'            => $user->name,
-            'email'           => $user->email,
-            'role_id'         => $currentRoleId,
-            'store_ids'       => $currentStoreIds,
+            'id'        => $user->id,
+            'name'      => $user->name,
+            'email'     => $user->email,
+            'role_id'   => $currentRoleId,
+            'tenant_id' => $user->tenant_id,
+            'store_ids' => $currentStoreIds,
         ]);
     }
 
@@ -97,13 +106,15 @@ class ManageUserController extends Controller
             'email'       => 'required|email|unique:users,email,' . $user->id,
             'password'    => ['nullable', Password::min(8)],
             'role_id'     => 'nullable|exists:role_master,id',
+            'tenant_id'   => 'nullable|exists:tenants,id',
             'store_ids'   => 'nullable|array',
             'store_ids.*' => 'exists:stores,id',
         ]);
 
         $user->update([
-            'name'  => $request->name,
-            'email' => $request->email,
+            'name'      => $request->name,
+            'email'     => $request->email,
+            'tenant_id' => $request->tenant_id,
             ...$request->filled('password')
                 ? ['password' => Hash::make($request->password)]
                 : [],

@@ -21,6 +21,7 @@ class CashTransaction extends Model
         'direction',
         'transaction_date',
         'user_id',
+        'cash_register_id',
         'notes',
         'bukti_bayar',
         'nojurnal'
@@ -38,5 +39,10 @@ class CashTransaction extends Model
     public function rekening()
     {
         return $this->belongsTo(Rekening::class, 'account_code', 'id');
+    }
+
+    public function cashRegister()
+    {
+        return $this->belongsTo(CashRegister::class, 'cash_register_id');
     }
 }

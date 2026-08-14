@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\RewardRedemptionController;
+use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\PosController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,14 @@ Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
 
 // ── POS (protected + subscription check) ─────────────────────────────────────
 Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
+    // ── Cash Register / Shift Kasir ──────────────────────────────────────────
+    Route::get('/pos/cash-register/status',      [CashRegisterController::class, 'status']);
+    Route::post('/pos/cash-register/open',       [CashRegisterController::class, 'open']);
+    Route::get('/pos/cash-register/summary',     [CashRegisterController::class, 'summary']);
+    Route::post('/pos/cash-register/movement',   [CashRegisterController::class, 'cashMovement']);
+    Route::post('/pos/cash-register/close',      [CashRegisterController::class, 'close']);
+    Route::get('/pos/expense-categories',        [PosController::class, 'apiExpenseCategories']);
+
     Route::get('/pos/product',               [PosController::class, 'findProduct']);
     Route::post('/pos/voice-search',         [PosController::class, 'apiVoiceSearch']);
     Route::post('/pos/product/register-barcode', [PosController::class, 'apiRegisterBarcode']);
@@ -51,6 +60,16 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::get('/pos/self-service/pending', [PosController::class, 'apiPendingSelfService']);
     Route::post('/pos/self-service/{id}/confirm', [PosController::class, 'apiConfirmSelfService']);
     Route::post('/pos/self-service/{id}/decline', [PosController::class, 'apiDeclineSelfService']);
+
+    // ── Tenant Order KDS & Thermal Printing ──────────────────────────────────
+    Route::prefix('tenant')->group(function () {
+        Route::get('/orders',                       [\App\Http\Controllers\Api\TenantOrderApiController::class, 'orders']);
+        Route::post('/orders/{id}/confirm',         [\App\Http\Controllers\Api\TenantOrderApiController::class, 'confirmOrder']);
+        Route::post('/orders/{id}/ready',           [\App\Http\Controllers\Api\TenantOrderApiController::class, 'readyOrder']);
+        Route::post('/items/{id}/status',           [\App\Http\Controllers\Api\TenantOrderApiController::class, 'updateItemStatus']);
+        Route::get('/orders/{id}/receipt',          [\App\Http\Controllers\Api\TenantOrderApiController::class, 'receipt']);
+        Route::get('/history',                      [\App\Http\Controllers\Api\TenantOrderApiController::class, 'history']);
+    });
 });
 
 // ── Self-Service Status (public fallback) ─────────────────────────────────────

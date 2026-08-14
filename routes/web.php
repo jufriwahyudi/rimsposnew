@@ -36,7 +36,7 @@ use App\Http\Controllers\TenantController;
 use App\Http\Controllers\PointSettingController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\CustomerController;
-use App\Services\JournalFromCashTransactionService;
+use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\KitchenController;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -270,6 +270,19 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     // RawBT halaman redirect – untuk Android/mobile (backup)
     Route::get('/sales/{id}/rawbt-print/{paper?}', [PosController::class, 'printRawbtPage'])->name('sales.rawbt-print')
         ->where('paper', '58mm|80mm');
+
+    // Sesi Kasir & Rekonsiliasi Kas (Cash Register / Shift)
+    Route::prefix('cash-registers')->name('cash-registers.')->group(function () {
+        Route::get('/status', [CashRegisterController::class, 'status'])->name('status');
+        Route::post('/open', [CashRegisterController::class, 'open'])->name('open');
+        Route::get('/summary', [CashRegisterController::class, 'summary'])->name('summary');
+        Route::post('/movement', [CashRegisterController::class, 'cashMovement'])->name('movement');
+        Route::post('/close', [CashRegisterController::class, 'close'])->name('close');
+        Route::get('/print/{id}', [CashRegisterController::class, 'printSummary'])->name('print');
+        Route::get('/', [CashRegisterController::class, 'index'])->name('index');
+        Route::get('/datatables', [CashRegisterController::class, 'datatables'])->name('datatables');
+        Route::get('/{id}', [CashRegisterController::class, 'show'])->name('show');
+    });
 
     // Kitchen Display System (KDS)
     Route::middleware('addon:kds')->group(function () {

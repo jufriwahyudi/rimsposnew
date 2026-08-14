@@ -23,12 +23,14 @@ class Store extends Model
         'business_type',
         'addon_self_service',
         'addon_kds',
+        'enable_cash_register',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'addon_self_service' => 'boolean',
         'addon_kds' => 'boolean',
+        'enable_cash_register' => 'boolean',
     ];
 
     protected static function booted()
@@ -66,5 +68,10 @@ class Store extends Model
     public function invoices()
     {
         return $this->hasMany(SubscribedInvoice::class);
+    }
+
+    public function cashRegisters()
+    {
+        return $this->hasMany(CashRegister::class);
     }
 }

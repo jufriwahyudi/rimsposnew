@@ -24,6 +24,7 @@ class Sale extends Model
         'customer_phone',
         'receipt_name',
         'user_id',
+        'cash_register_id',
         'subtotal',
         'discount_total',
         'trans_discount',
@@ -89,6 +90,16 @@ class Sale extends Model
     public function cashier()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function cashRegister()
+    {
+        return $this->belongsTo(CashRegister::class, 'cash_register_id');
     }
 
     public function refundOf()

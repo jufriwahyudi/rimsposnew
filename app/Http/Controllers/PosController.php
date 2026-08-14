@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashTransaction;
+use App\Models\ExpenseCategory;
 use App\Models\NseCalonSiswa;
 use App\Models\ProductVariant;
 use App\Models\Rekening;
@@ -57,6 +58,28 @@ class PosController extends Controller
             ->get(['id', 'name', 'phone']);
 
         return response()->json(['data' => $customers]);
+    }
+
+    /**
+     * GET /api/pos/expense-categories?store_id=N
+     * Returns active expense categories for a given store.
+     */
+    public function apiExpenseCategories(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->integer('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $categories = ExpenseCategory::where('is_active', true)
+            ->where('store_id', $storeId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'description']);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $categories,
+        ]);
     }
 
     /**
@@ -232,14 +255,22 @@ class PosController extends Controller
 
     public function index()
     {
-        // dd($roleuserlist);
         $akunkas = Rekening::where('store_id', session('store_id'))->get();
-        // dd($akunkas);
         $akunkasir = 0;
         $customers = \App\Models\Customer::orderBy('name')->get();
         $store = Store::findOrFail(session('store_id'));
 
-        return view('pos.index', compact('akunkas', 'akunkasir', 'customers', 'store'));
+        $cashRegisterService = app(\App\Services\CashRegisterService::class);
+        $activeRegister = $cashRegisterService->getActiveRegister($store->id, auth()->id());
+        $registerSummary = $activeRegister ? $cashRegisterService->calculateSummary($activeRegister) : null;
+        $registerFreshness = $activeRegister ? $cashRegisterService->evaluateShiftFreshness($activeRegister) : null;
+
+        $expenseCategories = ExpenseCategory::where('is_active', true)
+            ->where('store_id', session('store_id'))
+            ->orderBy('name')
+            ->get();
+
+        return view('pos.index', compact('akunkas', 'akunkasir', 'customers', 'store', 'activeRegister', 'registerSummary', 'registerFreshness', 'expenseCategories'));
     }
     public function sales()
     {
@@ -733,6 +764,15 @@ class PosController extends Controller
                     }
                 }
 
+                // Check active cashier register if required by store
+                $store = Store::find(session('store_id'));
+                $activeRegister = app(\App\Services\CashRegisterService::class)->getActiveRegister(session('store_id'), auth()->id());
+
+                if ($store && $store->enable_cash_register && !$activeRegister) {
+                    throw new \Exception('Kasir belum dibuka. Silakan lakukan Buka Kasir terlebih dahulu sebelum transaksi.');
+                }
+                $cashRegisterId = $activeRegister?->id;
+
                 // =========================
                 // 2️⃣ CREATE SALE
                 // =========================
@@ -746,6 +786,7 @@ class PosController extends Controller
                     'member_id'      => $memberId,
                     'customer_name'  => $customerName,
                     'user_id'        => auth()->id(),
+                    'cash_register_id' => $cashRegisterId,
 
                     'subtotal'       => $cart['subtotal'],
                     'discount_total' => $cart['discount_total'],
@@ -821,6 +862,7 @@ class PosController extends Controller
                         'direction'        => 'in',
                         'transaction_date' => $transactionDate,
                         'user_id'          => auth()->id(),
+                        'cash_register_id' => $cashRegisterId,
                         'notes'            => 'Penjualan POS (Cash) #' . $sale->invoice_number,
                     ]);
                 }
@@ -840,6 +882,7 @@ class PosController extends Controller
                         'direction'        => 'in',
                         'transaction_date' => $transactionDate,
                         'user_id'          => auth()->id(),
+                        'cash_register_id' => $cashRegisterId,
                         'notes'            => 'Penjualan POS (Transfer) #' . $sale->invoice_number,
                     ]);
                 }
@@ -857,6 +900,7 @@ class PosController extends Controller
                         'direction'        => 'in',
                         'transaction_date' => $transactionDate,
                         'user_id'          => auth()->id(),
+                        'cash_register_id' => $cashRegisterId,
                         'notes'            => 'Penjualan POS (Gratis) #' . $sale->invoice_number,
                     ]);
                 }
@@ -935,6 +979,7 @@ class PosController extends Controller
                 $paidAmount     = $cart['paid_amount'] ?? 0;
                 $cashAmount     = $cart['cash_amount'] ?? 0;
                 $transferAmount = $cart['transfer_amount'] ?? 0;
+                $tipAmount      = (float) ($cart['tip_amount'] ?? 0);
                 $akunBank       = $cart['akun_bank'] ?? null;
                 $transactionDate = !empty($cart['transaction_date'])
                     ? $cart['transaction_date'] . ' ' . now()->format('H:i:s')
@@ -1023,6 +1068,15 @@ class PosController extends Controller
                     throw new \Exception('Pembayaran kurang dari total belanja');
                 }
 
+                // Check active cashier register if required by store
+                $store = Store::find($storeId);
+                $activeRegister = app(\App\Services\CashRegisterService::class)->getActiveRegister($storeId, auth()->id());
+
+                if ($store && $store->enable_cash_register && !$activeRegister && $paymentMethod !== 'hold') {
+                    throw new \Exception('Kasir belum dibuka. Silakan lakukan Buka Kasir terlebih dahulu.');
+                }
+                $cashRegisterId = $activeRegister?->id;
+
                 $existingSaleId = $cart['existing_sale_id'] ?? null;
                 if ($existingSaleId) {
                     $sale = Sale::with(['items.batches', 'items.fnbDetail'])->where('store_id', $storeId)->findOrFail($existingSaleId);
@@ -1086,37 +1140,50 @@ class PosController extends Controller
                                 'price'               => $item['price'] ?? $existing->price,
                                 'qty'                 => $newQty,
                                 'kitchen_printed_qty' => min($existing->kitchen_printed_qty, $newQty),
-                                'discount_amount'     => $item['discount_amount'] ?? $existing->discount_amount,
-                                'subtotal'            => $item['subtotal'] ?? $existing->subtotal,
+                                'discount_amount'     => $item['discount_amount'] ?? 0,
+                                'subtotal'            => $item['subtotal'] ?? 0,
                                 'notes'               => $item['notes'] ?? $existing->notes,
-                                // kds_status is NOT touched — it stays as-is
                             ]);
 
-                            if ($qtyDiff != 0) {
-                                $product = \App\Models\Product::find($existing->product_id);
+                            // Adjust stock only if qty increased
+                            if ($qtyDiff > 0) {
+                                $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
                                 if ($product && $product->product_type === 'RECIPE') {
-                                    app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
-                                        $storeId,
-                                        $product->id,
-                                        (float) $oldQty,
-                                        $sale->id,
-                                        $existing
-                                    );
                                     app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                                         $storeId,
                                         $product->id,
-                                        (float) $newQty,
+                                        (float) $qtyDiff,
                                         $sale->id,
                                         $existing
                                     );
                                 } else {
-                                    // Revert ALL existing stock batches for this item
+                                    $this->issueFIFOWithBatchLog(
+                                        $transactionDate,
+                                        $variantId,
+                                        'store',
+                                        $qtyDiff,
+                                        $existing
+                                    );
+                                }
+                            } elseif ($qtyDiff < 0) {
+                                // Qty decreased: restore excess stock
+                                $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
+                                $absDiff = abs($qtyDiff);
+                                if ($product && $product->product_type === 'RECIPE') {
+                                    app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
+                                        $storeId,
+                                        $product->id,
+                                        (float) $absDiff,
+                                        $sale->id
+                                    );
+                                } else {
+                                    // Delete old batch logs and re-issue FIFO for new total qty
                                     foreach ($existing->batches as $batch) {
                                         StockBatch::where('id', $batch->stock_batch_id)
                                             ->increment('qty_sisa', $batch->qty);
 
                                         StockMovement::create([
-                                            'product_variant_id' => $existing->product_variant_id,
+                                            'product_variant_id' => $variantId,
                                             'stock_batch_id'     => $batch->stock_batch_id,
                                             'posisi'             => 'store',
                                             'tanggal'            => now(),
@@ -1129,7 +1196,6 @@ class PosController extends Controller
                                     }
                                     $existing->batches()->delete();
 
-                                    // Re-issue FIFO with new qty
                                     $this->issueFIFOWithBatchLog(
                                         $transactionDate,
                                         $variantId,
@@ -1139,7 +1205,6 @@ class PosController extends Controller
                                     );
                                 }
                             }
-                            // If qty unchanged, stock batches remain untouched
                         } else {
                             // Brand new item — create with default kds_status (pending)
                             $saleItem = SaleItem::create([
@@ -1182,6 +1247,7 @@ class PosController extends Controller
                         'member_id'      => $memberId,
                         'customer_name'  => $customerName,
                         'customer_phone' => $customerPhone,
+                        'cash_register_id' => $cashRegisterId ?: $sale->cash_register_id,
                         'subtotal'       => $cart['subtotal'] ?? 0,
                         'discount_total' => $cart['discount_total'] ?? 0,
                         'trans_discount' => $cart['transaction_discount'] ?? 0,
@@ -1189,7 +1255,8 @@ class PosController extends Controller
                         'points_redeemed' => $pointsRedeemed,
                         'point_discount_amount' => $pointDiscountAmount,
                         'paid_amount'    => $paymentMethod === 'hold' ? 0 : $paidAmount,
-                        'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
+                        'change_amount'  => $paymentMethod === 'hold' ? 0 : ($paymentMethod === 'hutang' ? 0 : max(0, $cashAmount - $cartTotal - $tipAmount)),
+                        'tip_amount'     => $tipAmount,
                         'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
                         'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
                         'voucher_code'   => $voucherCode,
@@ -1207,6 +1274,7 @@ class PosController extends Controller
                         'customer_name'  => $customerName,
                         'customer_phone' => $customerPhone,
                         'user_id'        => auth()->id(),
+                        'cash_register_id' => $cashRegisterId,
                         'subtotal'       => $cart['subtotal'] ?? 0,
                         'discount_total' => $cart['discount_total'] ?? 0,
                         'trans_discount' => $cart['transaction_discount'] ?? 0,
@@ -1215,7 +1283,8 @@ class PosController extends Controller
                         'points_redeemed' => $pointsRedeemed,
                         'point_discount_amount' => $pointDiscountAmount,
                         'paid_amount'    => $paymentMethod === 'hold' ? 0 : $paidAmount,
-                        'change_amount'  => $paymentMethod === 'hold' ? 0 : max(0, $cashAmount - $cartTotal),
+                        'change_amount'  => $paymentMethod === 'hold' ? 0 : ($paymentMethod === 'hutang' ? 0 : max(0, $cashAmount - $cartTotal - $tipAmount)),
+                        'tip_amount'     => $tipAmount,
                         'status'         => $paymentMethod === 'hold' ? 'hold' : 'paid',
                         'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
                         'voucher_code'   => $voucherCode,
@@ -1280,6 +1349,7 @@ class PosController extends Controller
                             'direction'        => 'in',
                             'transaction_date' => $transactionDate,
                             'user_id'          => auth()->id(),
+                            'cash_register_id' => $cashRegisterId,
                             'notes'            => 'POS Mobile (Cash) #' . $sale->invoice_number,
                         ]);
                     }
@@ -1296,8 +1366,29 @@ class PosController extends Controller
                             'direction'        => 'in',
                             'transaction_date' => $transactionDate,
                             'user_id'          => auth()->id(),
+                            'cash_register_id' => $cashRegisterId,
                             'notes'            => 'POS Mobile (Transfer) #' . $sale->invoice_number,
                             'bukti_bayar'      => $buktiBayarPath,
+                        ]);
+                    }
+
+                    if ($tipAmount > 0) {
+                        $tipPaymentMethod = ($paymentMethod === 'transfer') ? 'transfer' : 'cash';
+                        $tipAccountCode   = ($paymentMethod === 'transfer') ? $akunBank : 0;
+
+                        CashTransaction::create([
+                            'store_id'         => $storeId,
+                            'ref_type'         => 'SalePos',
+                            'ref_id'           => $sale->id,
+                            'transaction_type' => 'tip',
+                            'payment_method'   => $tipPaymentMethod,
+                            'account_code'     => $tipAccountCode,
+                            'amount'           => $tipAmount,
+                            'direction'        => 'in',
+                            'transaction_date' => $transactionDate,
+                            'user_id'          => auth()->id(),
+                            'cash_register_id' => $cashRegisterId,
+                            'notes'            => 'Tip POS Mobile #' . $sale->invoice_number,
                         ]);
                     }
                 }
@@ -1684,6 +1775,7 @@ class PosController extends Controller
                 'grand_total'     => (float) $sale->grand_total,
                 'paid_amount'     => (float) $sale->paid_amount,
                 'change_amount'   => (float) $sale->change_amount,
+                'tip_amount'      => (float) ($sale->tip_amount ?? 0),
                 'status'          => $sale->status,
                 'payment_status'  => $sale->payment_status,
                 'payment_methods' => $paymentMethods,
@@ -1819,6 +1911,12 @@ class PosController extends Controller
                 'paid'     => round($sale->paid_amount),
                 'change'   => round($sale->change_amount),
                 'tip'      => round($sale->tip_amount ?? 0),
+                'payment_status' => $sale->payment_status,
+                'remaining_debt' => round($sale->grand_total - $sale->paid_amount),
+                'voucher_code' => $sale->voucher_code,
+                'voucher_discount_amount' => round($sale->voucher_discount_amount ?? 0),
+                'points_redeemed' => (int) ($sale->points_redeemed ?? 0),
+                'point_discount_amount' => round($sale->point_discount_amount ?? 0),
             ],
         ];
 
@@ -2555,6 +2653,7 @@ class PosController extends Controller
             'grand_total'      => (float) $sale->grand_total,
             'paid_amount'      => (float) $sale->paid_amount,
             'change_amount'    => (float) $sale->change_amount,
+            'tip_amount'       => (float) ($sale->tip_amount ?? 0),
             'payment_status'   => $sale->payment_status,
             'status'           => $sale->status,
             'voucher_code'     => $sale->voucher_code,

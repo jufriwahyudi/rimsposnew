@@ -50,6 +50,7 @@
                                     <th>Nama</th>
                                     <th>Email</th>
                                     <th>Role</th>
+                                    <th>Tenant / Stelling</th>
                                     <th>Toko</th>
                                     <th width="10%" class="text-center">Aksi</th>
                                 </tr>
@@ -64,6 +65,15 @@
                                             @if ($user->roles->first()?->roles)
                                                 <span class="badge bg-primary">
                                                     {{ $user->roles->first()->roles->nama }}
+                                                </span>
+                                            @else
+                                                <span class="text-muted small">-</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if ($user->tenant)
+                                                <span class="badge bg-info text-dark">
+                                                    <i class="fa fa-cutlery me-1"></i>{{ $user->tenant->nama_tenant }}
                                                 </span>
                                             @else
                                                 <span class="text-muted small">-</span>
@@ -90,7 +100,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted">Belum ada data user.</td>
+                                        <td colspan="7" class="text-center text-muted">Belum ada data user.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -139,6 +149,15 @@
                                     <option value="">-- Pilih Role --</option>
                                     @foreach ($roles as $role)
                                         <option value="{{ $role->id }}">{{ $role->nama }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Tenant / Stelling <small class="text-muted">(Khusus Role Stelling/Tenant)</small></label>
+                                <select id="tenant_id" name="tenant_id" class="form-select">
+                                    <option value="">-- Bukan Akun Tenant --</option>
+                                    @foreach ($tenants as $tenant)
+                                        <option value="{{ $tenant->id }}">{{ $tenant->nama_tenant }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -206,6 +225,7 @@
             document.getElementById('modalUserTitle').textContent = 'Tambah User';
             document.getElementById('passwordHint').classList.add('d-none');
             document.getElementById('password').setAttribute('required', 'required');
+            document.getElementById('tenant_id').value = '';
             document.querySelectorAll('.store-check').forEach(c => c.checked = false);
         }
 
@@ -224,6 +244,7 @@
                     document.getElementById('password').value = '';
                     document.getElementById('password').removeAttribute('required');
                     document.getElementById('role_id').value = data.role_id ?? '';
+                    document.getElementById('tenant_id').value = data.tenant_id ?? '';
                     document.getElementById('modalUserTitle').textContent = 'Edit User';
                     document.getElementById('passwordHint').classList.remove('d-none');
 

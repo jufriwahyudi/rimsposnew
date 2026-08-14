@@ -77,8 +77,14 @@ class EscPosReceiptService
         $this->printer = new Printer($connector, $profile);
 
         $isChecklist = $data['is_checklist'] ?? false;
+        $isTenantSlip = $data['is_tenant_slip'] ?? false;
 
-        if ($isChecklist) {
+        if ($isTenantSlip) {
+            $this->printTenantSlipHeader($data['store'] ?? [], $data['tenant'] ?? []);
+            $this->printChecklistTransaction($data['transaction'] ?? []);
+            $this->printChecklistItems($data['items'] ?? []);
+            $this->printTenantSlipFooter($data['summary'] ?? []);
+        } elseif ($isChecklist) {
             $this->printChecklistHeader($data['store'] ?? []);
             $this->printChecklistTransaction($data['transaction'] ?? []);
             $this->printChecklistItems($data['items'] ?? []);
@@ -90,6 +96,42 @@ class EscPosReceiptService
             $this->printSummary($data['summary']         ?? []);
             $this->printFooter();
         }
+    }
+
+    protected function printTenantSlipHeader(array $store, array $tenant): void
+    {
+        $this->printer->initialize();
+        $this->printer->setFont(Printer::FONT_A);
+
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->printer->setTextSize(2, 1);
+        $this->printer->setEmphasis(true);
+        $this->writeLine('SLIP PESANAN TENANT');
+        $this->printer->setTextSize(1, 1);
+        if (!empty($tenant['name'])) {
+            $this->writeLine('[ TENANT: ' . strtoupper($tenant['name']) . ' ]');
+        }
+        $this->printer->setEmphasis(false);
+        $this->writeLine($store['name'] ?? 'RIMS POS');
+        
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->separator();
+    }
+
+    protected function printTenantSlipFooter(array $summary): void
+    {
+        $this->separator();
+        if (isset($summary['total_qty'])) {
+            $this->printer->setEmphasis(true);
+            $this->writeLine($this->cols('Total Menu:', $summary['total_qty'] . ' Porsi'));
+            $this->printer->setEmphasis(false);
+            $this->separator();
+        }
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->writeLine('[ Dicetak: ' . date('d/m/Y H:i') . ' ]');
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->printer->feed(3);
+        $this->printer->cut();
     }
 
     protected function printChecklistHeader(array $store): void
@@ -333,6 +375,11 @@ class EscPosReceiptService
         $total    = (int) ($summary['total']    ?? 0);
         $paid     = (int) ($summary['paid']     ?? 0);
         $change   = (int) ($summary['change']   ?? 0);
+        $tip      = (int) ($summary['tip']      ?? 0);
+        $pointDisc = (int) ($summary['point_discount_amount'] ?? 0);
+        $voucherDisc = (int) ($summary['voucher_discount_amount'] ?? 0);
+        $remDebt   = (int) ($summary['remaining_debt'] ?? 0);
+        $payStatus = (string) ($summary['payment_status'] ?? '');
 
         $this->separator();
         $this->writeLine($this->cols('Subtotal',  $this->rupiah($subtotal)));
@@ -341,13 +388,30 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Diskon', '-' . $this->rupiah($discount)));
         }
 
+        if ($pointDisc > 0) {
+            $this->writeLine($this->cols('Poin Diskon', '-' . $this->rupiah($pointDisc)));
+        }
+
+        if ($voucherDisc > 0) {
+            $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
+        }
+
         $this->printer->setEmphasis(true);
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total)));
         $this->printer->setEmphasis(false);
 
         $this->separator();
         $this->writeLine($this->cols('Bayar',   $this->rupiah($paid)));
+        if ($tip > 0) {
+            $this->writeLine($this->cols('Tip',     $this->rupiah($tip)));
+        }
         $this->writeLine($this->cols('Kembali', $this->rupiah($change)));
+
+        if ($payStatus === 'hutang' || $remDebt > 0) {
+            $this->printer->setEmphasis(true);
+            $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt)));
+            $this->printer->setEmphasis(false);
+        }
     }
 
     protected function printFooter(): void
@@ -359,9 +423,8 @@ class EscPosReceiptService
         $this->writeLine('tidak dapat dikembalikan');
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
 
-        // Feed & cut
-        // $this->printer->feed(1);
-        // deteksi otomatis: jika printer mendukung, ini akan memotong kertas setelah print selesai
+        // Feed 3-4 baris agar seluruh teks footer keluar melewati pisau pemotong / gerigi sobek kertas
+        $this->printer->feed(3);
         $this->printer->cut();
     }
 
