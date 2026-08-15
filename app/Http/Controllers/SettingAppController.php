@@ -196,7 +196,7 @@ class SettingAppController extends Controller
         MenubyRole::where('role_id', $role_id)->delete();
         // menu_role_
         try {
-            MenuByRole::insert($menuData); // Masukkan data secara massal
+            MenubyRole::insert($menuData); // Masukkan data secara massal
             Cache::forget('menu_role_' . $role_id);
             return response()->json(['success' => true, 'message' => 'Data berhasil disimpan.']);
         } catch (\Exception $e) {

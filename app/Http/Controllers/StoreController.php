@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Business;
-use App\Models\MenuByRole;
+use App\Models\MenubyRole;
 use App\Models\MenuList;
 use App\Models\Rekening;
 use App\Models\RoleMaster;
@@ -159,9 +159,9 @@ class StoreController extends Controller
 
                     // Assign menu permissions (copy or preset)
                     if ($request->filled('copy_role_from')) {
-                        $sourceMenus = MenuByRole::where('role_id', $request->copy_role_from)->get();
+                        $sourceMenus = MenubyRole::where('role_id', $request->copy_role_from)->get();
                         foreach ($sourceMenus as $m) {
-                            MenuByRole::create([
+                            MenubyRole::create([
                                 'role_id' => $newRole->id,
                                 'menu_id' => $m->menu_id,
                             ]);
@@ -365,9 +365,9 @@ class StoreController extends Controller
         ]);
 
         if ($request->filled('copy_role_from')) {
-            $sourceMenus = MenuByRole::where('role_id', $request->copy_role_from)->get();
+            $sourceMenus = MenubyRole::where('role_id', $request->copy_role_from)->get();
             foreach ($sourceMenus as $m) {
-                MenuByRole::create([
+                MenubyRole::create([
                     'role_id' => $role->id,
                     'menu_id' => $m->menu_id,
                 ]);
@@ -430,7 +430,7 @@ class StoreController extends Controller
         $menuIds = array_unique($menuIds);
 
         foreach ($menuIds as $mId) {
-            MenuByRole::firstOrCreate([
+            MenubyRole::firstOrCreate([
                 'role_id' => $roleId,
                 'menu_id' => $mId,
             ]);
