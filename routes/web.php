@@ -65,8 +65,13 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     // Menu Management
     Route::resource('menu', MenuListController::class);
     // Manage Store
-    Route::middleware('role.type:SUPERADMIN')->resource('stores', StoreController::class)->except(['create', 'show']);
-    Route::post('/stores/{id}/restore', [StoreController::class, 'restore'])->name('stores.restore');
+    Route::middleware('role.type:SUPERADMIN')->group(function () {
+        Route::get('/stores/{store}/summary', [StoreController::class, 'summary'])->name('stores.summary');
+        Route::post('/stores/{store}/quick-user', [StoreController::class, 'quickUser'])->name('stores.quick-user');
+        Route::post('/stores/{store}/quick-role', [StoreController::class, 'quickRole'])->name('stores.quick-role');
+        Route::post('/stores/{id}/restore', [StoreController::class, 'restore'])->name('stores.restore');
+        Route::resource('stores', StoreController::class)->except(['create', 'show']);
+    });
 
     // SaaS Billing (SUPERADMIN only)
     Route::middleware('role.type:SUPERADMIN')->group(function () {

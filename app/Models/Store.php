@@ -74,4 +74,14 @@ class Store extends Model
     {
         return $this->hasMany(CashRegister::class);
     }
+
+    public function rekenings()
+    {
+        return $this->hasMany(Rekening::class);
+    }
+
+    public function tenants()
+    {
+        return $this->hasMany(Tenant::class);
+    }
 }

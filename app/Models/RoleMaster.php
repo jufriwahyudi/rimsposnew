@@ -13,11 +13,17 @@ class RoleMaster extends Model
     protected $table = 'role_master';
 
     protected $fillable = [
+        'store_id',
         'nama',
         'role_type',
         'can_access_all_divisi',
         'stts'
     ];
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class, 'store_id');
+    }
 
     public function menus()
     {
