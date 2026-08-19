@@ -469,22 +469,24 @@ class PosController extends Controller
         // helper biar tidak nulis berulang
         $format = function ($v) {
             return [
-                'id'          => $v->id,
-                'product_id'  => $v->product_id,
-                'sku'         => $v->sku,
-                'name'        => $v->product->nama_produk,
-                'variant'     => $v->variant_label,
-                'price'       => (float) $v->harga_jual,
-                'stok'        => (int) $v->stok_store,
-                'track_stock' => (bool) $v->track_stock,
-                'image_url'   => $v->product->image_url,
-                'tenant_id'   => $v->product->tenant_id,
-                'tenant_name' => $v->product->tenant?->nama_tenant ?? 'Umum',
+                'id'            => $v->id,
+                'product_id'    => $v->product_id,
+                'sku'           => $v->sku,
+                'name'          => $v->product->nama_produk,
+                'variant'       => $v->variant_label,
+                'price'         => (float) $v->harga_jual,
+                'stok'          => (int) $v->stok_store,
+                'track_stock'   => (bool) $v->track_stock,
+                'image_url'     => $v->product->image_url,
+                'category_id'   => $v->product->category_id,
+                'category_name' => $v->product->category?->name ?? 'Tanpa Kategori',
+                'tenant_id'     => $v->product->tenant_id,
+                'tenant_name'   => $v->product->tenant?->nama_tenant ?? 'Umum',
             ];
         };
 
         // 1. Cek SKU / barcode aktif
-        $variant = ProductVariant::with(['product.tenant', 'variantAttributes.value', 'barcodeActive'])
+        $variant = ProductVariant::with(['product.tenant', 'product.category', 'variantAttributes.value', 'barcodeActive'])
             ->where(function ($q2) use ($q) {
                 $q2->where('sku', $q)
                     ->orWhereHas('barcodes', function ($q3) use ($q) {
@@ -502,7 +504,7 @@ class PosController extends Controller
         }
 
         // 2. Search nama produk
-        $variants = ProductVariant::with(['product.tenant', 'variantAttributes.value'])
+        $variants = ProductVariant::with(['product.tenant', 'product.category', 'variantAttributes.value'])
             ->where(function ($q2) use ($q) {
                 $q2->where('variant_name', 'like', "%{$q}%")
                     ->orWhereHas('product', function ($q3) use ($q) {
@@ -568,7 +570,7 @@ class PosController extends Controller
         }
 
         // Search database using token-based matching (every word in search query must match some product/variant attribute)
-        $variants = ProductVariant::with(['product.tenant', 'variantAttributes.value'])
+        $variants = ProductVariant::with(['product.tenant', 'product.category', 'variantAttributes.value'])
             ->where('is_active', 'Y')
             ->where(function ($query) use ($searchTerm) {
                 $words = array_filter(explode(' ', $searchTerm));
@@ -590,17 +592,19 @@ class PosController extends Controller
 
         $suggestions = $variants->map(function ($v) {
             return [
-                'id'          => $v->id,
-                'product_id'  => $v->product_id,
-                'sku'         => $v->sku,
-                'name'        => $v->product->nama_produk,
-                'variant'     => $v->variant_label,
-                'price'       => (float) $v->harga_jual,
-                'stok'        => (int) $v->stok_store,
-                'track_stock' => (bool) $v->track_stock,
-                'image_url'   => $v->product->image_url,
-                'tenant_id'   => $v->product->tenant_id,
-                'tenant_name' => $v->product->tenant?->nama_tenant ?? 'Umum',
+                'id'            => $v->id,
+                'product_id'    => $v->product_id,
+                'sku'           => $v->sku,
+                'name'          => $v->product->nama_produk,
+                'variant'       => $v->variant_label,
+                'price'         => (float) $v->harga_jual,
+                'stok'          => (int) $v->stok_store,
+                'track_stock'   => (bool) $v->track_stock,
+                'image_url'     => $v->product->image_url,
+                'category_id'   => $v->product->category_id,
+                'category_name' => $v->product->category?->name ?? 'Tanpa Kategori',
+                'tenant_id'     => $v->product->tenant_id,
+                'tenant_name'   => $v->product->tenant?->nama_tenant ?? 'Umum',
             ];
         });
 
@@ -611,6 +615,29 @@ class PosController extends Controller
                 'quantity' => $quantity
             ],
             'suggestions' => $suggestions
+        ]);
+    }
+
+    /**
+     * GET /api/pos/categories
+     * Returns list of active product categories for store
+     */
+    public function apiCategories(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $categories = \App\Models\ProductCategory::where('store_id', $storeId)
+            ->where('is_active', true)
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('name', 'asc')
+            ->get(['id', 'name', 'slug', 'icon', 'sort_order']);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $categories,
         ]);
     }
 

@@ -28,6 +28,9 @@
                         </div>
                     </div>
                     <div class="d-flex gap-2 mb-3">
+                        <a href="{{ route('kategori-produk.index') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-tags"></i> Kategori Produk
+                        </a>
                         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalImport">
                             <i class="bi bi-file-earmark-arrow-up"></i> Import Produk
                         </button>
@@ -49,6 +52,7 @@
                             <tr>
                                 <th>Kode</th>
                                 <th>Nama Produk</th>
+                                <th>Kategori</th>
                                 <th class="text-center" width="8%">Varian</th>
                                 <th class="text-center" width="10%">Stok Gudang</th>
                                 <th class="text-center" width="10%">Stok Toko</th>
@@ -304,6 +308,11 @@
                     {
                         data: 'nama_produk',
                         name: 'nama_produk'
+                    },
+                    {
+                        data: 'kategori',
+                        name: 'category.name',
+                        defaultContent: '-'
                     },
                     {
                         data: 'variants_count',

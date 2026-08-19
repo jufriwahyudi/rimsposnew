@@ -23,6 +23,7 @@ use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Str;
 use App\Models\Store;
 use App\Models\Tenant;
+use App\Models\ProductCategory;
 
 class ProdukController extends Controller
 {
@@ -128,11 +129,13 @@ class ProdukController extends Controller
     {
         $query = Product::query()
             ->select('products.*')
+            ->with('category')
             ->withCount('variants')
             ->withStockWarehouse()
             ->withStockStore();
 
         return DataTables::of($query)
+            ->addColumn('kategori', fn($p) => $p->category?->name ?? '-')
             ->addColumn('aksi', function ($p) {
                 $edit   = route('produk.edit', $p);
                 $detail = route('produk.show', $p);
@@ -153,12 +156,17 @@ class ProdukController extends Controller
         $store = Store::find(session('store_id'));
         $isFnB = $store && $store->business_type === 'fnb';
         $tenants = $isFnB ? Tenant::where('store_id', session('store_id'))->where('stts', 'Y')->get() : collect();
+        $categories = ProductCategory::where('store_id', session('store_id'))
+            ->where('is_active', true)
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('name', 'asc')
+            ->get();
 
         $loyaltyService = app(\App\Services\LoyaltyPointService::class);
         $pointSettings = $loyaltyService->getSettings(session('store_id'));
         $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
 
-        return view('produk.create', compact('isFnB', 'tenants', 'showRewardPoints'));
+        return view('produk.create', compact('isFnB', 'tenants', 'categories', 'showRewardPoints'));
     }
     public function store(Request $request)
     {
@@ -168,6 +176,7 @@ class ProdukController extends Controller
         $rules = [
             'kode'               => 'required|string|max:50|unique:products,kode_produk',
             'nama'               => 'required|string|max:150',
+            'category_id'        => 'nullable|exists:product_categories,id',
             'variants'           => 'nullable|array',
             'variants.*.nama'    => 'nullable|string|max:150',
             'variants.*.barcode' => 'nullable|string|max:100',
@@ -197,6 +206,7 @@ class ProdukController extends Controller
                     'kode_produk' => strtoupper($request->kode),
                     'nama_produk' => $request->nama,
                     'deskripsi'   => $request->deskripsi,
+                    'category_id' => $request->category_id,
                     'tenant_id'   => $request->tenant_id,
                     'image'       => $imagePath,
                 ]);
@@ -486,6 +496,12 @@ class ProdukController extends Controller
         // 🔹 Attribute master (tidak lagi dibutuhkan, kosongkan)
         $attributes = collect([]);
 
+        $categories = ProductCategory::where('store_id', session('store_id'))
+            ->where('is_active', true)
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('name', 'asc')
+            ->get();
+
         return view('produk.edit', compact(
             'product',
             'attributes',
@@ -494,6 +510,7 @@ class ProdukController extends Controller
             'hasDivisi',
             'isFnB',
             'tenants',
+            'categories',
             'showRewardPoints'
         ));
     }
@@ -505,7 +522,8 @@ class ProdukController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
 
         $rules = [
-            'nama' => 'required|string|max:150',
+            'nama'        => 'required|string|max:150',
+            'category_id' => 'nullable|exists:product_categories,id',
         ];
 
         if ($isFnB) {
@@ -517,7 +535,8 @@ class ProdukController extends Controller
 
         $productData = [
             'nama_produk' => $request->nama,
-            'deskripsi' => $request->deskripsi,
+            'deskripsi'   => $request->deskripsi,
+            'category_id' => $request->category_id,
         ];
 
         if ($isFnB) {
@@ -529,7 +548,7 @@ class ProdukController extends Controller
                 $productData['image'] = $request->file('image')->store('products', 'public');
             }
         }
-$product->update($productData);
+        $product->update($productData);
 
         return redirect()
             ->route('produk.edit', $product->id)

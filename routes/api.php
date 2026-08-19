@@ -29,8 +29,9 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::post('/pos/cash-register/movement',   [CashRegisterController::class, 'cashMovement']);
     Route::post('/pos/cash-register/close',      [CashRegisterController::class, 'close']);
     Route::get('/pos/expense-categories',        [PosController::class, 'apiExpenseCategories']);
+    Route::get('/pos/categories',                [PosController::class, 'apiCategories']);
 
-    Route::get('/pos/product',               [PosController::class, 'findProduct']);
+    Route::get('/pos/product',                   [PosController::class, 'findProduct']);
     Route::post('/pos/voice-search',         [PosController::class, 'apiVoiceSearch']);
     Route::post('/pos/product/register-barcode', [PosController::class, 'apiRegisterBarcode']);
     Route::get('/pos/rekening',              [PosController::class, 'apiRekening']);

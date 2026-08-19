@@ -22,6 +22,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
         $headings = [
             'Kode Produk',
             'Nama Produk',
+            'Kategori',
             'Deskripsi',
             'Nama Varian',
             'Barcode',
@@ -51,6 +52,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
             $row1 = [
                 'FB001',
                 'Kopi Susu Gula Aren',
+                'Minuman',
                 'Espresso dengan susu dan gula aren premium',
                 'Regular',
                 '',
@@ -70,6 +72,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
             $row2 = [
                 'FB001',
                 'Kopi Susu Gula Aren',
+                'Minuman',
                 'Espresso dengan susu dan gula aren premium',
                 'Large',
                 '',
@@ -89,6 +92,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
             $row3 = [
                 'FB002',
                 'Roti Bakar Cokelat',
+                'Makanan',
                 'Roti bakar manis toping cokelat melimpah',
                 '',
                 '',
@@ -112,6 +116,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
         $row1 = [
             'PRD001',
             'Kemeja Flanel',
+            'Pakaian',
             'Kemeja flanel lengan panjang bahan katun tebal',
             'S',
             '88812345',
@@ -124,6 +129,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
         $row2 = [
             'PRD001',
             'Kemeja Flanel',
+            'Pakaian',
             'Kemeja flanel lengan panjang bahan katun tebal',
             'M',
             '88812346',
@@ -136,6 +142,7 @@ class ProductTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
         $row3 = [
             'PRD002',
             'Sepatu Sneaker',
+            'Alas Kaki',
             'Sepatu kasual warna putih',
             '',
             '',

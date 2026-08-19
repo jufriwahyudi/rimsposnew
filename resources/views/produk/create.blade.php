@@ -67,8 +67,19 @@
                                     <label>Deskripsi Produk</label>
                                     <textarea name="deskripsi" class="form-control" rows="3">{{ old('deskripsi') }}</textarea>
                                 </div>
-                                @if ($isFnB)
-                                    <div class="row">
+                                <div class="row">
+                                    <div class="col-md-{{ $isFnB ? '6' : '12' }} mb-2">
+                                        <label>Kategori Produk</label>
+                                        <select name="category_id" class="form-select">
+                                            <option value="">-- Pilih Kategori (Opsional) --</option>
+                                            @foreach ($categories as $cat)
+                                                <option value="{{ $cat->id }}" {{ old('category_id') == $cat->id ? 'selected' : '' }}>
+                                                    {{ $cat->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    @if ($isFnB)
                                         <div class="col-md-6 mb-2">
                                             <label>Tenant / Stelling Provider</label>
                                             <select name="tenant_id" class="form-select">
@@ -80,11 +91,13 @@
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label>Foto Produk</label>
-                                            <input type="file" name="image" class="form-control" accept="image/*">
-                                            <small class="text-muted">Maksimal 2MB, JPG atau PNG</small>
-                                        </div>
+                                    @endif
+                                </div>
+                                @if ($isFnB)
+                                    <div class="mb-2">
+                                        <label>Foto Produk</label>
+                                        <input type="file" name="image" class="form-control" accept="image/*">
+                                        <small class="text-muted">Maksimal 2MB, JPG atau PNG</small>
                                     </div>
                                 @endif
                             </div>

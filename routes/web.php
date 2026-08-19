@@ -19,6 +19,7 @@ use App\Http\Controllers\PosController;
 use App\Http\Controllers\SettingAppController;
 use App\Http\Controllers\SSOController;
 use App\Http\Controllers\ProdukController;
+use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\StockOpnameController;
@@ -174,6 +175,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/produk/import/template-stok', [ProdukController::class, 'downloadStockTemplate'])->name('produk.import.template-stok');
     Route::post('/produk/import/proses-stok', [ProdukController::class, 'importStockProses'])->name('produk.import.proses-stok');
     Route::resource('produk', ProdukController::class);
+    Route::resource('kategori-produk', ProductCategoryController::class);
 
     // Biaya Operasional
     Route::get('/expenses/datatables', [ExpenseController::class, 'datatables'])->name('expenses.datatables');

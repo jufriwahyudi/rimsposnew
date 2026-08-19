@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantBarcode;
 use App\Models\Tenant;
@@ -35,10 +36,11 @@ class ProductImportService
         $columnMapping = [
             'kode_produk' => array_search('kode produk', $headers),
             'nama_produk' => array_search('nama produk', $headers),
-            'deskripsi' => array_search('deskripsi', $headers),
+            'kategori'    => array_search('kategori', $headers) !== false ? array_search('kategori', $headers) : array_search('kategori produk', $headers),
+            'deskripsi'   => array_search('deskripsi', $headers),
             'variant_name' => array_search('nama varian', $headers),
-            'barcode' => array_search('barcode', $headers),
-            'harga_jual' => array_search('harga jual', $headers),
+            'barcode'     => array_search('barcode', $headers),
+            'harga_jual'  => array_search('harga jual', $headers),
         ];
 
         if ($showRewardPoints) {
@@ -93,6 +95,7 @@ class ProductImportService
             $kodeProduk = isset($row[$columnMapping['kode_produk']]) ? strtoupper(trim($row[$columnMapping['kode_produk']])) : '';
             $namaProduk = isset($row[$columnMapping['nama_produk']]) ? trim($row[$columnMapping['nama_produk']]) : '';
             $deskripsi = isset($row[$columnMapping['deskripsi']]) ? trim($row[$columnMapping['deskripsi']]) : '';
+            $kategoriName = ($columnMapping['kategori'] !== false && isset($row[$columnMapping['kategori']])) ? trim($row[$columnMapping['kategori']]) : '';
             $variantName = isset($row[$columnMapping['variant_name']]) ? trim($row[$columnMapping['variant_name']]) : '';
             $barcode = isset($row[$columnMapping['barcode']]) ? strtoupper(trim($row[$columnMapping['barcode']])) : '';
             $hargaJual = isset($row[$columnMapping['harga_jual']]) ? trim($row[$columnMapping['harga_jual']]) : 0;
@@ -259,6 +262,7 @@ class ProductImportService
                 'row' => $rowNum,
                 'kode_produk' => $kodeProduk,
                 'nama_produk' => $namaProduk,
+                'kategori' => $kategoriName,
                 'deskripsi' => $deskripsi,
                 'variant_name' => $variantName,
                 'barcode' => $barcode,
@@ -303,12 +307,22 @@ class ProductImportService
                                 ->first();
 
                             if (!$product) {
+                                $categoryId = null;
+                                if (!empty($item['kategori'])) {
+                                    $cat = ProductCategory::firstOrCreate(
+                                        ['store_id' => $storeId, 'name' => $item['kategori']],
+                                        ['slug' => Str::slug($item['kategori']), 'is_active' => true]
+                                    );
+                                    $categoryId = $cat->id;
+                                }
+
                                 $product = Product::create([
-                                    'store_id' => $storeId,
-                                    'tenant_id' => $item['tenant_id'],
+                                    'store_id'    => $storeId,
+                                    'tenant_id'   => $item['tenant_id'],
+                                    'category_id' => $categoryId,
                                     'kode_produk' => $kode,
                                     'nama_produk' => $item['nama_produk'],
-                                    'deskripsi' => $item['deskripsi'],
+                                    'deskripsi'   => $item['deskripsi'],
                                 ]);
                             }
                             $createdProducts[$kode] = $product;

@@ -72,8 +72,19 @@
                                     <textarea name="deskripsi" class="form-control" rows="3">{{ old('deskripsi', $product->deskripsi) }}</textarea>
                                 </div>
 
-                                @if ($isFnB)
-                                    <div class="row">
+                                <div class="row">
+                                    <div class="col-md-{{ $isFnB ? '6' : '12' }} mb-2">
+                                        <label class="form-label fw-semibold">Kategori Produk</label>
+                                        <select name="category_id" class="form-select">
+                                            <option value="">-- Tanpa Kategori --</option>
+                                            @foreach ($categories as $cat)
+                                                <option value="{{ $cat->id }}" {{ old('category_id', $product->category_id) == $cat->id ? 'selected' : '' }}>
+                                                    {{ $cat->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    @if ($isFnB)
                                         <div class="col-md-6 mb-2">
                                             <label class="form-label fw-semibold">Tenant / Stelling Provider</label>
                                             <select name="tenant_id" class="form-select">
@@ -85,16 +96,18 @@
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-md-6 mb-2">
-                                            <label class="form-label fw-semibold">Foto Produk</label>
-                                            <input type="file" name="image" class="form-control" accept="image/*">
-                                            <small class="text-muted">Maksimal 2MB, JPG atau PNG</small>
-                                            @if ($product->image)
-                                                <div class="mt-2">
-                                                    <img src="{{ asset('storage/' . $product->image) }}" alt="Foto Produk" style="max-height: 80px; border-radius: 8px;" class="border">
-                                                </div>
-                                            @endif
-                                        </div>
+                                    @endif
+                                </div>
+                                @if ($isFnB)
+                                    <div class="mb-2">
+                                        <label class="form-label fw-semibold">Foto Produk</label>
+                                        <input type="file" name="image" class="form-control" accept="image/*">
+                                        <small class="text-muted">Maksimal 2MB, JPG atau PNG</small>
+                                        @if ($product->image)
+                                            <div class="mt-2">
+                                                <img src="{{ asset('storage/' . $product->image) }}" alt="Foto Produk" style="max-height: 80px; border-radius: 8px;" class="border">
+                                            </div>
+                                        @endif
                                     </div>
                                 @endif
                             </div>

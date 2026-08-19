@@ -17,6 +17,7 @@ class Product extends Model
     protected $fillable = [
         'store_id',
         'tenant_id',
+        'category_id',
         'kode_produk',
         'nama_produk',
         'deskripsi',
@@ -62,6 +63,11 @@ class Product extends Model
     public function tenant()
     {
         return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
     public function variants()
