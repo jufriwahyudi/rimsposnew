@@ -80,6 +80,7 @@ class CustomerController extends Controller
 
         $debts = Sale::where('customer_id', $customer->id)
             ->where('payment_status', 'hutang')
+            ->where('status', '!=', 'void')
             ->orderBy('sale_date')
             ->get();
 
@@ -243,6 +244,7 @@ class CustomerController extends Controller
             $customerId = $request->integer('customer_id');
             $debts = Sale::where('customer_id', $customerId)
                 ->where('payment_status', 'hutang')
+                ->where('status', '!=', 'void')
                 ->orderBy('sale_date')
                 ->get();
 
@@ -297,6 +299,7 @@ class CustomerController extends Controller
             $paidSales = DB::transaction(function () use ($customerId, $paymentAmount, $paymentMethod, $akunBank, $buktiBayarPath) {
                 $debts = Sale::where('customer_id', $customerId)
                     ->where('payment_status', 'hutang')
+                    ->where('status', '!=', 'void')
                     ->orderBy('sale_date', 'asc')
                     ->get();
 

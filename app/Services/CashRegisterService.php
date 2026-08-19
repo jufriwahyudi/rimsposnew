@@ -77,7 +77,7 @@ class CashRegisterService
 
         // 1. Sales linked to this register
         $sales = Sale::where('cash_register_id', $regId)
-            ->where('status', '!=', 'cancelled')
+            ->whereNotIn('status', ['cancelled', 'void'])
             ->get();
 
         $totalSalesCount = $sales->count();

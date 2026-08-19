@@ -909,7 +909,8 @@ class LaporanController extends Controller
 
         $query = Customer::query()
             ->with(['sales' => function ($q) use ($mulai, $akhir) {
-                $q->where('payment_status', 'hutang');
+                $q->where('payment_status', 'hutang')
+                    ->where('status', '!=', 'void');
                 if ($mulai && $akhir) {
                     $q->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
                 }
