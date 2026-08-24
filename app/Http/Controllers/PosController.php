@@ -579,7 +579,7 @@ class PosController extends Controller
                 'price'                   => (float) $v->harga_jual,
                 'stok'                    => $isService ? 999999 : (int) $v->stok_store,
                 'track_stock'             => $isService ? false : (bool) $v->track_stock,
-                'image_url'               => $v->product?->image_url,
+                'image_url'               => $v->image_url,
                 'category_id'             => $v->product?->category_id,
                 'category_name'           => $v->product?->category?->name ?? 'Tanpa Kategori',
                 'tenant_id'               => $v->product?->tenant_id,
@@ -707,7 +707,7 @@ class PosController extends Controller
                 'price'                   => (float) $v->harga_jual,
                 'stok'                    => $isService ? 999999 : (int) $v->stok_store,
                 'track_stock'             => $isService ? false : (bool) $v->track_stock,
-                'image_url'               => $v->product?->image_url,
+                'image_url'               => $v->image_url,
                 'category_id'             => $v->product?->category_id,
                 'category_name'           => $v->product?->category?->name ?? 'Tanpa Kategori',
                 'tenant_id'               => $v->product?->tenant_id,
@@ -1740,7 +1740,7 @@ class PosController extends Controller
                         'discount_amount' => (float)$group->sum('discount_amount'),
                         'subtotal' => (float)$group->sum('subtotal'),
                         'track_stock' => (bool)($first->variant?->track_stock ?? true),
-                        'image_url' => $first->variant?->product?->image_url,
+                        'image_url' => $first->variant?->image_url,
                     ];
                 })->values()->toArray(),
             ];
@@ -1803,7 +1803,7 @@ class PosController extends Controller
                         'discount_amount' => (float)$item->discount_amount,
                         'subtotal' => (float)$item->subtotal,
                         'track_stock' => (bool)($item->variant?->track_stock ?? true),
-                        'image_url' => $item->variant?->product?->image_url,
+                        'image_url' => $item->variant?->image_url,
                     ];
                 }),
             ];

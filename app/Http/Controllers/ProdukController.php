@@ -735,10 +735,12 @@ class ProdukController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
 
         $rules = [
-            'variant_id'   => 'required|exists:product_variants,id',
-            'variant_name' => 'required|string|max:150',
-            'harga_jual'   => 'required|numeric|min:0',
+            'variant_id'    => 'required|exists:product_variants,id',
+            'variant_name'  => 'required|string|max:150',
+            'harga_jual'    => 'required|numeric|min:0',
             'reward_points' => 'nullable|integer|min:0',
+            'image'         => 'nullable|image|max:2048',
+            'remove_image'  => 'nullable|boolean',
         ];
 
         if ($isFnB) {
@@ -751,13 +753,25 @@ class ProdukController extends Controller
         $request->validate($rules);
 
         try {
-            $variant = ProductVariant::findOrFail($request->variant_id);
+            $variant = ProductVariant::with('product')->findOrFail($request->variant_id);
             
             $variantData = [
                 'variant_name' => $request->variant_name,
                 'harga_jual'   => $request->harga_jual,
                 'reward_points' => $request->reward_points ?? 0,
             ];
+
+            if ($request->hasFile('image')) {
+                if ($variant->image) {
+                    \Storage::disk('public')->delete($variant->image);
+                }
+                $variantData['image'] = $request->file('image')->store('products/variants', 'public');
+            } elseif ($request->boolean('remove_image')) {
+                if ($variant->image) {
+                    \Storage::disk('public')->delete($variant->image);
+                }
+                $variantData['image'] = null;
+            }
 
             if ($isFnB) {
                 $variantData['track_stock'] = $request->boolean('track_stock');
@@ -767,10 +781,13 @@ class ProdukController extends Controller
             }
 
             $variant->update($variantData);
+            $variant->refresh();
 
             return response()->json([
-                'success' => true,
-                'message' => 'Varian berhasil diperbarui.'
+                'success'   => true,
+                'message'   => 'Varian berhasil diperbarui.',
+                'image_url' => $variant->image_url,
+                'has_custom_image' => $variant->has_custom_image,
             ]);
         } catch (\Exception $e) {
             return response()->json([

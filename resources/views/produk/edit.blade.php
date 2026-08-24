@@ -165,11 +165,36 @@
                                     <div class="card h-100 border-0 rounded-4 shadow-sm" style="border: 1px solid #e2e8f0 !important; background-color: #ffffff;">
                                         <!-- Card Header: Title and Status -->
                                         <div class="card-header bg-white border-bottom-0 pt-3 pb-0 d-flex justify-content-between align-items-start gap-2">
-                                            <div class="text-truncate">
-                                                <h6 class="fw-bold text-dark mb-0 text-truncate" title="{{ $variant->variant_label ?: '-' }}">
-                                                    {{ $variant->variant_label ?: 'Varian Utama' }}
-                                                </h6>
-                                                <small class="text-muted font-monospace" style="font-size: 0.75rem;">SKU: {{ $variant->sku }}</small>
+                                            <div class="d-flex align-items-center gap-2 text-truncate">
+                                                <div class="position-relative flex-shrink-0" style="width: 44px; height: 44px;">
+                                                    @if ($variant->image_url)
+                                                        <img src="{{ $variant->image_url }}" alt="Foto" style="width: 44px; height: 44px; object-fit: cover; border-radius: 10px;" class="border">
+                                                    @else
+                                                        <div class="bg-light d-flex align-items-center justify-content-center border rounded-3" style="width: 44px; height: 44px;">
+                                                            <i class="bi bi-image text-muted fs-5"></i>
+                                                        </div>
+                                                    @endif
+                                                    @if ($variant->has_custom_image)
+                                                        <span class="position-absolute bg-primary text-white d-flex align-items-center justify-content-center rounded-circle border border-2 border-white shadow-sm" 
+                                                              style="bottom: -3px; right: -3px; width: 18px; height: 18px; font-size: 0.6rem;" 
+                                                              title="Foto Khusus Varian">
+                                                            <i class="bi bi-camera-fill"></i>
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                                <div class="text-truncate">
+                                                    <h6 class="fw-bold text-dark mb-0 text-truncate" title="{{ $variant->variant_label ?: '-' }}">
+                                                        {{ $variant->variant_label ?: 'Varian Utama' }}
+                                                    </h6>
+                                                    <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+                                                        <small class="text-muted font-monospace" style="font-size: 0.75rem;">SKU: {{ $variant->sku }}</small>
+                                                        @if ($variant->has_custom_image)
+                                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1 py-0" style="font-size: 0.65rem;">Foto Varian</span>
+                                                        @elseif ($product->image)
+                                                            <span class="badge bg-light text-muted border px-1 py-0" style="font-size: 0.65rem;">Foto Produk</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
                                             </div>
                                             <span class="badge {{ $variant->is_active === 'Y' ? 'bg-success' : 'bg-secondary' }} rounded-pill" style="font-size: 0.7rem; padding: 4px 10px;">
                                                 {{ $variant->is_active === 'Y' ? 'Aktif' : 'Nonaktif' }}
@@ -246,6 +271,8 @@
                                                 data-name="{{ $variant->variant_name ?: $variant->variant_label }}"
                                                 data-harga="{{ (int)$variant->harga_jual }}"
                                                 data-reward-points="{{ (int)$variant->reward_points }}"
+                                                data-image-url="{{ $variant->image_url }}"
+                                                data-has-custom-image="{{ $variant->has_custom_image ? 1 : 0 }}"
                                                 @if ($isFnB)
                                                     data-track-stock="{{ $variant->track_stock ? 1 : 0 }}"
                                                     data-cost-price-manual="{{ (int)$variant->cost_price_manual }}"
@@ -335,6 +362,22 @@
                                  <input type="number" name="reward_points" id="edit_variant_reward_points" class="form-control" min="0" required>
                              </div>
                          @endif
+
+                         <div class="mb-3">
+                             <label class="form-label fw-semibold">Foto Varian (Opsional)</label>
+                             <input type="file" name="image" id="edit_variant_image" class="form-control" accept="image/*">
+                             <small class="text-muted d-block mt-1">Maksimal 2MB. Jika kosong, otomatis memakai foto produk.</small>
+                             <div id="edit_variant_image_preview_box" class="mt-2 d-flex align-items-center gap-2">
+                                 <img id="edit_variant_image_preview" src="" alt="Preview" style="width: 54px; height: 54px; object-fit: cover; border-radius: 8px;" class="border d-none">
+                                 <div>
+                                     <span id="edit_variant_image_badge" class="badge bg-light text-muted border mb-1 d-none"></span>
+                                     <button type="button" id="btn_remove_variant_image" class="btn btn-outline-danger btn-sm d-none" onclick="removeVariantImage()">
+                                         <i class="bi bi-trash me-1"></i> Hapus Foto Varian
+                                     </button>
+                                 </div>
+                                 <input type="hidden" name="remove_image" id="edit_variant_remove_image" value="0">
+                             </div>
+                         </div>
 
                          @if ($isFnB)
                              <hr class="my-3">
@@ -593,16 +636,57 @@
         });
     </script>
     <script>
+        function removeVariantImage() {
+            $('#edit_variant_image').val('');
+            $('#edit_variant_remove_image').val('1');
+            $('#edit_variant_image_preview').addClass('d-none').attr('src', '');
+            $('#edit_variant_image_badge').addClass('d-none').text('');
+            $('#btn_remove_variant_image').addClass('d-none');
+        }
+
+        $('#edit_variant_image').on('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                $('#edit_variant_remove_image').val('0');
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    $('#edit_variant_image_preview').removeClass('d-none').attr('src', e.target.result);
+                    $('#edit_variant_image_badge').removeClass('d-none').text('Foto Baru Dipilih');
+                    $('#btn_remove_variant_image').removeClass('d-none');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
         $(document).on('click', '.btn-edit-variant', function() {
             var id = $(this).data('id');
             var name = $(this).data('name');
             var harga = $(this).data('harga');
             var rewardPoints = $(this).data('reward-points');
+            var imageUrl = $(this).data('image-url');
+            var hasCustomImage = $(this).data('has-custom-image') == 1;
 
             $('#edit_variant_id').val(id);
             $('#edit_variant_name').val(name);
             $('#edit_variant_harga').val(harga);
+            $('#edit_variant_image').val('');
+            $('#edit_variant_remove_image').val('0');
             
+            if (imageUrl) {
+                $('#edit_variant_image_preview').removeClass('d-none').attr('src', imageUrl);
+                if (hasCustomImage) {
+                    $('#edit_variant_image_badge').removeClass('d-none').text('Foto Khusus Varian');
+                    $('#btn_remove_variant_image').removeClass('d-none');
+                } else {
+                    $('#edit_variant_image_badge').removeClass('d-none').text('Default Foto Produk');
+                    $('#btn_remove_variant_image').addClass('d-none');
+                }
+            } else {
+                $('#edit_variant_image_preview').addClass('d-none').attr('src', '');
+                $('#edit_variant_image_badge').addClass('d-none').text('');
+                $('#btn_remove_variant_image').addClass('d-none');
+            }
+
             if (showRewardPoints) {
                 $('#edit_variant_reward_points').val(rewardPoints);
             }
@@ -625,10 +709,14 @@
         $('#formEditVariant').on('submit', function(e) {
             e.preventDefault();
 
+            var formData = new FormData(this);
+
             $.ajax({
                 url: "{{ route('produk.variants.update') }}",
                 method: 'POST',
-                data: $(this).serialize(),
+                data: formData,
+                processData: false,
+                contentType: false,
                 dataType: 'json',
                 beforeSend: function() {
                     Swal.fire({

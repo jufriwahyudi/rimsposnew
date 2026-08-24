@@ -18,6 +18,7 @@ class ProductVariant extends Model
         'barcode',
         'harga_jual',
         'reward_points',
+        'image',
         'is_active',
         'track_stock',
         'cost_price_manual',
@@ -33,8 +34,38 @@ class ProductVariant extends Model
         'stok_warehouse',
         'stok_store',
         'stok_total',
-        'variant_label'
+        'variant_label',
+        'image_url',
+        'has_custom_image',
     ];
+
+    public function getImageUrlAttribute()
+    {
+        if ($this->image) {
+            if (filter_var($this->image, FILTER_VALIDATE_URL) && !str_contains($this->image, '/storage/')) {
+                return $this->image;
+            }
+
+            $path = ltrim($this->image, '/');
+            if (str_starts_with($path, 'storage/')) {
+                $path = substr($path, 8);
+            }
+
+            if (request() && request()->schemeAndHttpHost()) {
+                return request()->schemeAndHttpHost() . '/storage/' . $path;
+            }
+
+            return url('storage/' . $path);
+        }
+
+        // Fallback to parent product's image_url
+        return $this->product?->image_url;
+    }
+
+    public function getHasCustomImageAttribute()
+    {
+        return !empty($this->image);
+    }
 
     public function product()
     {
@@ -164,6 +195,25 @@ class ProductVariant extends Model
     public function movements()
     {
         return $this->hasMany(StockMovement::class, 'product_variant_id');
+    }
+
+    public function recipes()
+    {
+        return $this->hasMany(ProductRecipe::class, 'product_variant_id');
+    }
+
+    public function getHasCustomRecipeAttribute()
+    {
+        return $this->recipes()->exists();
+    }
+
+    public function getEffectiveRecipesAttribute()
+    {
+        $custom = $this->recipes()->with('ingredient.baseUnit')->get();
+        if ($custom->isNotEmpty()) {
+            return $custom;
+        }
+        return $this->product ? $this->product->recipes()->with('ingredient.baseUnit')->get() : collect();
     }
 
     /**

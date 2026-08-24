@@ -35,26 +35,22 @@ class Product extends Model
             return null;
         }
 
-        // If it's already a full URL, return it
-        if (filter_var($this->image, FILTER_VALIDATE_URL)) {
+        // If it's an external full URL
+        if (filter_var($this->image, FILTER_VALIDATE_URL) && !str_contains($this->image, '/storage/')) {
             return $this->image;
         }
 
-        $storageUrl = \Storage::url($this->image);
-
-        // If the URL is relative (starts with /), prepend the scheme and host of the current request if available
-        if (str_starts_with($storageUrl, '/')) {
-            return request() 
-                ? request()->schemeAndHttpHost() . $storageUrl 
-                : url($storageUrl);
+        $path = ltrim($this->image, '/');
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, 8);
         }
 
-        // If the URL is absolute but points to localhost, and the current request came from another host (like mobile IP)
-        if (request() && str_contains($storageUrl, 'localhost')) {
-            return str_replace('http://localhost', request()->schemeAndHttpHost(), $storageUrl);
+        // Use current incoming HTTP request host so mobile IPs / domain always match
+        if (request() && request()->schemeAndHttpHost()) {
+            return request()->schemeAndHttpHost() . '/storage/' . $path;
         }
 
-        return $storageUrl;
+        return url('storage/' . $path);
     }
 
     public function store()
@@ -114,6 +110,11 @@ class Product extends Model
     }
 
     public function recipes()
+    {
+        return $this->hasMany(ProductRecipe::class, 'product_id')->whereNull('product_variant_id');
+    }
+
+    public function allRecipes()
     {
         return $this->hasMany(ProductRecipe::class, 'product_id');
     }

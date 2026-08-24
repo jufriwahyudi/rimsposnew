@@ -52,10 +52,20 @@
                         </thead>
                         <tbody>
                             @forelse ($products as $i => $product)
+                                @php
+                                    $defaultCount = $product->recipes->count();
+                                    $variantWithCustom = $product->variants->filter(fn($v) => $v->recipes->isNotEmpty())->count();
+                                    $totalVariants = $product->variants->count();
+                                @endphp
                                 <tr>
                                     <td>{{ $i + 1 }}</td>
                                     <td><span class="badge bg-secondary">{{ $product->kode_produk }}</span></td>
-                                    <td><strong>{{ $product->nama_produk }}</strong></td>
+                                    <td>
+                                        <strong>{{ $product->nama_produk }}</strong>
+                                        @if ($totalVariants > 0)
+                                            <small class="text-muted d-block">{{ $totalVariants }} Varian</small>
+                                        @endif
+                                    </td>
                                     <td>
                                         @if ($product->product_type === 'RECIPE')
                                             <span class="badge bg-success">Resep (BOM)</span>
@@ -64,15 +74,26 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if ($product->recipes_count > 0)
-                                            <span class="badge bg-purple" style="background:#7c3aed">{{ $product->recipes_count }} Bahan Baku</span>
+                                        @if ($defaultCount > 0 || $variantWithCustom > 0)
+                                            <div class="d-flex flex-column gap-1">
+                                                @if ($defaultCount > 0)
+                                                    <div>
+                                                        <span class="badge bg-purple" style="background:#7c3aed">{{ $defaultCount }} Bahan Baku (Default)</span>
+                                                    </div>
+                                                @endif
+                                                @if ($variantWithCustom > 0)
+                                                    <div>
+                                                        <span class="badge bg-success">{{ $variantWithCustom }} Varian Beresep Khusus</span>
+                                                    </div>
+                                                @endif
+                                            </div>
                                         @else
                                             <small class="text-muted">Tidak ada resep (Dipotong dari stok produk jadi)</small>
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        <a href="{{ route('recipes.manage', $product->id) }}" class="btn btn-sm btn-primary">
-                                            <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">settings</i> Atur Resep
+                                        <a href="{{ route('recipes.manage', $product->id) }}" class="btn btn-sm btn-primary rounded-3">
+                                            <i class="bi bi-gear-fill me-1"></i> Atur Resep
                                         </a>
                                     </td>
                                 </tr>

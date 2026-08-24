@@ -220,10 +220,27 @@ class IngredientInventoryService
     /**
      * POS CHECKOUT / ORDER EXECUTION (Auto-Deduction via Recipe & Actual Cost Assignment)
      */
-    public function deductRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId, $saleItem = null): void
+    public function deductRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId, $saleItem = null, ?int $variantId = null): void
     {
-        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId, $saleItem) {
-            $recipes = ProductRecipe::where('product_id', $productId)->with('ingredient')->get();
+        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId, $saleItem, $variantId) {
+            $targetVariantId = $variantId ?: ($saleItem?->product_variant_id ?? null);
+
+            // 1. Check if variant has specific custom recipe
+            $recipes = collect();
+            if ($targetVariantId) {
+                $recipes = ProductRecipe::where('product_variant_id', $targetVariantId)->with('ingredient')->get();
+            }
+
+            // 2. Fallback to product default recipes if variant has no custom recipe
+            if ($recipes->isEmpty()) {
+                $recipes = ProductRecipe::where('product_id', $productId)->whereNull('product_variant_id')->with('ingredient')->get();
+            }
+
+            // 3. Backwards compatibility fallback if legacy records exist
+            if ($recipes->isEmpty()) {
+                $recipes = ProductRecipe::where('product_id', $productId)->with('ingredient')->get();
+            }
+
             $totalRecipeCost = 0.0;
 
             foreach ($recipes as $recipe) {
@@ -329,10 +346,23 @@ class IngredientInventoryService
     /**
      * RESTORE STOCK ON VOID
      */
-    public function restoreRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId, $saleItem = null): void
+    public function restoreRecipeStock(int $storeId, int $productId, float $salesQty, string $referenceId, $saleItem = null, ?int $variantId = null): void
     {
-        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId, $saleItem) {
-            $recipes = ProductRecipe::where('product_id', $productId)->get();
+        DB::transaction(function () use ($storeId, $productId, $salesQty, $referenceId, $saleItem, $variantId) {
+            $targetVariantId = $variantId ?: ($saleItem?->product_variant_id ?? null);
+
+            $recipes = collect();
+            if ($targetVariantId) {
+                $recipes = ProductRecipe::where('product_variant_id', $targetVariantId)->get();
+            }
+
+            if ($recipes->isEmpty()) {
+                $recipes = ProductRecipe::where('product_id', $productId)->whereNull('product_variant_id')->get();
+            }
+
+            if ($recipes->isEmpty()) {
+                $recipes = ProductRecipe::where('product_id', $productId)->get();
+            }
 
             // If saleItem has a saved cost_price, we can calculate the restoring HPP
             $costPricePerPortion = $saleItem ? (float) $saleItem->cost_price : 0.0;

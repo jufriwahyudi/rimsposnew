@@ -7,7 +7,6 @@ use App\Models\Ingredient;
 use App\Models\ProductRecipe;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class RecipeController extends Controller
 {
@@ -19,7 +18,10 @@ class RecipeController extends Controller
         }
 
         $products = Product::where('store_id', $storeId)
-            ->withCount('recipes')
+            ->with([
+                'recipes.ingredient.baseUnit',
+                'variants' => fn($q) => $q->where('is_active', 'Y')->with('recipes.ingredient.baseUnit')
+            ])
             ->get();
 
         return view('recipes.index', compact('products'));
@@ -34,13 +36,18 @@ class RecipeController extends Controller
 
         $ingredients = Ingredient::where('store_id', $storeId)
             ->with('baseUnit')
+            ->orderBy('name', 'asc')
             ->get();
 
-        $currentRecipes = ProductRecipe::where('product_id', $product->id)
-            ->with('ingredient.baseUnit')
-            ->get();
+        $product->load([
+            'recipes.ingredient.baseUnit',
+            'variants' => fn($q) => $q->where('is_active', 'Y')->with('recipes.ingredient.baseUnit')
+        ]);
 
-        return view('recipes.manage', compact('product', 'ingredients', 'currentRecipes'));
+        $defaultRecipes = $product->recipes;
+        $variants = $product->variants;
+
+        return view('recipes.manage', compact('product', 'ingredients', 'defaultRecipes', 'variants'));
     }
 
     public function save(Request $request, Product $product)
@@ -51,34 +58,61 @@ class RecipeController extends Controller
         }
 
         $request->validate([
-            'recipes'                     => 'nullable|array',
-            'recipes.*.ingredient_id'     => 'required|exists:ingredients,id',
-            'recipes.*.quantity_required' => 'required|numeric|min:0.0001',
+            'default_recipes'                     => 'nullable|array',
+            'default_recipes.*.ingredient_id'     => 'required|exists:ingredients,id',
+            'default_recipes.*.quantity_required' => 'required|numeric|min:0.0001',
+            'variants'                            => 'nullable|array',
+            'variants.*.has_custom_recipe'        => 'nullable|in:0,1',
+            'variants.*.recipes'                  => 'nullable|array',
+            'variants.*.recipes.*.ingredient_id'  => 'required|exists:ingredients,id',
+            'variants.*.recipes.*.quantity_required' => 'required|numeric|min:0.0001',
         ]);
 
         DB::transaction(function () use ($request, $product) {
-            // Delete old recipe lines
+            // Delete all old recipes for this product (both default and variant level)
             ProductRecipe::where('product_id', $product->id)->delete();
 
-            $recipesData = $request->input('recipes', []);
-
-            if (empty($recipesData)) {
-                // If no recipes, product returns to SINGLE type
-                $product->update(['product_type' => 'SINGLE']);
-            } else {
-                // Save new recipe lines
-                foreach ($recipesData as $row) {
+            // 1. Save default product-level recipe
+            $defaultRecipesData = $request->input('default_recipes', []);
+            foreach ($defaultRecipesData as $row) {
+                if (!empty($row['ingredient_id']) && !empty($row['quantity_required'])) {
                     ProductRecipe::create([
-                        'product_id'        => $product->id,
-                        'ingredient_id'     => $row['ingredient_id'],
-                        'quantity_required' => $row['quantity_required'],
+                        'product_id'         => $product->id,
+                        'product_variant_id' => null,
+                        'ingredient_id'      => $row['ingredient_id'],
+                        'quantity_required'  => $row['quantity_required'],
                     ]);
                 }
-                // Set product type to RECIPE
+            }
+
+            // 2. Save variant-level recipes (if custom is enabled)
+            $variantsData = $request->input('variants', []);
+            foreach ($variantsData as $variantId => $vData) {
+                $hasCustom = !empty($vData['has_custom_recipe']) && (string)$vData['has_custom_recipe'] === '1';
+                if ($hasCustom && !empty($vData['recipes'])) {
+                    foreach ($vData['recipes'] as $row) {
+                        if (!empty($row['ingredient_id']) && !empty($row['quantity_required'])) {
+                            ProductRecipe::create([
+                                'product_id'         => $product->id,
+                                'product_variant_id' => $variantId,
+                                'ingredient_id'      => $row['ingredient_id'],
+                                'quantity_required'  => $row['quantity_required'],
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // 3. Update product_type
+            $hasAnyRecipe = ProductRecipe::where('product_id', $product->id)->exists();
+            if ($hasAnyRecipe) {
                 $product->update(['product_type' => 'RECIPE']);
+            } else {
+                $product->update(['product_type' => 'SINGLE']);
             }
         });
 
-        return redirect()->route('recipes.index')->with('success', 'Resep menu berhasil diperbarui.');
+        return redirect()->route('recipes.index')->with('success', 'Konfigurasi resep menu berhasil diperbarui.');
     }
 }
+
