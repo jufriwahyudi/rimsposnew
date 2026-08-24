@@ -2143,8 +2143,13 @@ class PosController extends Controller
                 })->values()->toArray();
         }
 
+        $openDrawer = $request->has('open_drawer')
+            ? $request->boolean('open_drawer')
+            : (strtoupper($sale->status) !== 'HOLD');
+
         $data = [
             'is_checklist' => $isChecklist,
+            'open_drawer'  => $openDrawer,
             'store' => [
                 'name'    => $store->name ?? 'RimsPos',
                 'address' => $store->address,

@@ -67,6 +67,20 @@ class EscPosReceiptService
         return base64_encode($rawBytes);
     }
 
+    /**
+     * Hasilkan byte ESC/POS base64 khusus untuk membuka laci kasir (Cash Drawer) saja.
+     */
+    public function openDrawerBase64(): string
+    {
+        $connector = new DummyPrintConnector();
+        $profile   = CapabilityProfile::load('POS-5890');
+        $printer   = new Printer($connector, $profile);
+        $printer->pulse();
+        $rawBytes  = $connector->getData();
+        $printer->close();
+        return base64_encode($rawBytes);
+    }
+
     /* =====================================================================
      * CORE BUILDER
      * ===================================================================== */
@@ -90,11 +104,12 @@ class EscPosReceiptService
             $this->printChecklistItems($data['items'] ?? []);
             $this->printChecklistFooter();
         } else {
+            $openDrawer = $data['open_drawer'] ?? true;
             $this->printHeader($data['store']            ?? []);
             $this->printTransaction($data['transaction'] ?? []);
             $this->printItems($data['items']             ?? []);
             $this->printSummary($data['summary']         ?? []);
-            $this->printFooter();
+            $this->printFooter($openDrawer);
         }
     }
 
@@ -414,7 +429,7 @@ class EscPosReceiptService
         }
     }
 
-    protected function printFooter(): void
+    protected function printFooter(bool $openDrawer = true): void
     {
         $this->separator();
         $this->printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -422,6 +437,11 @@ class EscPosReceiptService
         $this->writeLine('Barang yg sudah dibeli');
         $this->writeLine('tidak dapat dikembalikan');
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+
+        if ($openDrawer) {
+            // Trigger sinyal pulse untuk membuka cash drawer (laci kasir) via port RJ11 printer
+            $this->printer->pulse();
+        }
 
         // Feed 3-4 baris agar seluruh teks footer keluar melewati pisau pemotong / gerigi sobek kertas
         $this->printer->feed(3);
