@@ -23,6 +23,8 @@ class Product extends Model
         'deskripsi',
         'image',
         'product_type',
+        'default_commission_type',
+        'default_commission_rate',
     ];
 
     protected $appends = ['image_url'];

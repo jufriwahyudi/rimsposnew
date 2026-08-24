@@ -61,6 +61,103 @@ class PosController extends Controller
     }
 
     /**
+     * GET /api/pos/staff?store_id=N
+     * Returns staff/technicians for a given store.
+     */
+    public function apiStaff(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->integer('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $users = \App\Models\User::whereHas('stores', function ($q) use ($storeId) {
+            $q->where('stores.id', $storeId);
+        })
+        ->orderBy('name')
+        ->get(['id', 'name', 'email']);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $users,
+        ]);
+    }
+
+    /**
+     * GET /api/pos/service-orders?store_id=N&search=query
+     * Returns ready-to-pay or in-progress service orders.
+     */
+    public function apiServiceOrders(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->integer('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $search = trim($request->input('search', ''));
+        $orders = \App\Models\ServiceOrder::with(['items', 'customer', 'assignedStaff'])
+            ->where('store_id', $storeId)
+            ->whereIn('status', ['completed', 'in_progress', 'received', 'diagnosing'])
+            ->where('payment_status', '!=', 'paid')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($q2) use ($search) {
+                    $q2->where('order_number', 'like', "%{$search}%")
+                        ->orWhere('target_name', 'like', "%{$search}%")
+                        ->orWhere('target_identifier', 'like', "%{$search}%")
+                        ->orWhere('customer_name', 'like', "%{$search}%")
+                        ->orWhere('customer_phone', 'like', "%{$search}%");
+                });
+            })
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get();
+
+        $data = $orders->map(function ($order) {
+            return [
+                'id'                     => $order->id,
+                'order_number'           => $order->order_number,
+                'customer_id'            => $order->customer_id,
+                'customer_name'          => $order->customer_name ?: ($order->customer?->name ?? 'Pelanggan'),
+                'customer_phone'         => $order->customer_phone ?: ($order->customer?->phone ?? ''),
+                'target_name'            => $order->target_name ?? '',
+                'target_identifier'      => $order->target_identifier ?? '',
+                'complaint_notes'        => $order->complaint_notes ?? '',
+                'diagnosis_notes'        => $order->diagnosis_notes ?? '',
+                'assigned_staff_id'      => $order->assigned_staff_id,
+                'assigned_staff_name'    => $order->assignedStaff?->name ?? '-',
+                'status'                 => $order->status,
+                'payment_status'         => $order->payment_status,
+                'down_payment'           => (float) $order->down_payment,
+                'total_cost'             => (float) $order->total_cost,
+                'remaining_payment'      => (float) $order->remaining_payment,
+                'items'                  => $order->items->map(function ($item) {
+                    return [
+                        'id'                 => $item->id,
+                        'item_type'          => $item->item_type,
+                        'product_id'         => $item->product_id,
+                        'product_variant_id' => $item->product_variant_id,
+                        'name'               => $item->name,
+                        'price'              => (float) $item->price,
+                        'qty'                => (int) $item->qty,
+                        'discount_amount'    => (float) $item->discount_amount,
+                        'subtotal'           => (float) $item->subtotal,
+                        'staff_user_id'      => $item->staff_user_id,
+                        'commission_type'    => $item->commission_type,
+                        'commission_rate'    => (float) $item->commission_rate,
+                        'commission_amount'  => (float) $item->commission_amount,
+                        'notes'              => $item->notes ?? '',
+                    ];
+                }),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $data,
+        ]);
+    }
+
+    /**
      * GET /api/pos/expense-categories?store_id=N
      * Returns active expense categories for a given store.
      */
@@ -468,20 +565,25 @@ class PosController extends Controller
 
         // helper biar tidak nulis berulang
         $format = function ($v) {
+            $productType = $v->product?->product_type ?? 'SINGLE';
+            $isService = $productType === 'SERVICE';
             return [
-                'id'            => $v->id,
-                'product_id'    => $v->product_id,
-                'sku'           => $v->sku,
-                'name'          => $v->product->nama_produk,
-                'variant'       => $v->variant_label,
-                'price'         => (float) $v->harga_jual,
-                'stok'          => (int) $v->stok_store,
-                'track_stock'   => (bool) $v->track_stock,
-                'image_url'     => $v->product->image_url,
-                'category_id'   => $v->product->category_id,
-                'category_name' => $v->product->category?->name ?? 'Tanpa Kategori',
-                'tenant_id'     => $v->product->tenant_id,
-                'tenant_name'   => $v->product->tenant?->nama_tenant ?? 'Umum',
+                'id'                      => $v->id,
+                'product_id'              => $v->product_id,
+                'sku'                     => $v->sku,
+                'name'                    => $v->product?->nama_produk ?? $v->variant_name,
+                'variant'                 => $v->variant_label,
+                'product_type'            => $productType,
+                'default_commission_type' => $v->product?->default_commission_type ?? 'none',
+                'default_commission_rate' => (float) ($v->product?->default_commission_rate ?? 0),
+                'price'                   => (float) $v->harga_jual,
+                'stok'                    => $isService ? 999999 : (int) $v->stok_store,
+                'track_stock'             => $isService ? false : (bool) $v->track_stock,
+                'image_url'               => $v->product?->image_url,
+                'category_id'             => $v->product?->category_id,
+                'category_name'           => $v->product?->category?->name ?? 'Tanpa Kategori',
+                'tenant_id'               => $v->product?->tenant_id,
+                'tenant_name'             => $v->product?->tenant?->nama_tenant ?? 'Umum',
             ];
         };
 
@@ -591,20 +693,25 @@ class PosController extends Controller
             ->get();
 
         $suggestions = $variants->map(function ($v) {
+            $productType = $v->product?->product_type ?? 'SINGLE';
+            $isService = $productType === 'SERVICE';
             return [
-                'id'            => $v->id,
-                'product_id'    => $v->product_id,
-                'sku'           => $v->sku,
-                'name'          => $v->product->nama_produk,
-                'variant'       => $v->variant_label,
-                'price'         => (float) $v->harga_jual,
-                'stok'          => (int) $v->stok_store,
-                'track_stock'   => (bool) $v->track_stock,
-                'image_url'     => $v->product->image_url,
-                'category_id'   => $v->product->category_id,
-                'category_name' => $v->product->category?->name ?? 'Tanpa Kategori',
-                'tenant_id'     => $v->product->tenant_id,
-                'tenant_name'   => $v->product->tenant?->nama_tenant ?? 'Umum',
+                'id'                      => $v->id,
+                'product_id'              => $v->product_id,
+                'sku'                     => $v->sku,
+                'name'                    => $v->product?->nama_produk ?? $v->variant_name,
+                'variant'                 => $v->variant_label,
+                'product_type'            => $productType,
+                'default_commission_type' => $v->product?->default_commission_type ?? 'none',
+                'default_commission_rate' => (float) ($v->product?->default_commission_rate ?? 0),
+                'price'                   => (float) $v->harga_jual,
+                'stok'                    => $isService ? 999999 : (int) $v->stok_store,
+                'track_stock'             => $isService ? false : (bool) $v->track_stock,
+                'image_url'               => $v->product?->image_url,
+                'category_id'             => $v->product?->category_id,
+                'category_name'           => $v->product?->category?->name ?? 'Tanpa Kategori',
+                'tenant_id'               => $v->product?->tenant_id,
+                'tenant_name'             => $v->product?->tenant?->nama_tenant ?? 'Umum',
             ];
         });
 
@@ -831,21 +938,83 @@ class PosController extends Controller
                 ]);
 
                 foreach ($cart['items'] as $item) {
+                    $staffUserId = !empty($item['staff_user_id']) ? $item['staff_user_id'] : null;
+                    $productId = !empty($item['product_id']) ? (int) $item['product_id'] : null;
+                    if ($productId && !\App\Models\Product::where('id', $productId)->exists()) {
+                        $productId = null;
+                    }
+                    $variantId = !empty($item['variant_id']) ? (int) $item['variant_id'] : null;
+                    if ($variantId && !\App\Models\ProductVariant::where('id', $variantId)->exists()) {
+                        $variantId = null;
+                    }
+
+                    $product = $productId ? \App\Models\Product::find($productId) : null;
+                    
+                    $commType = !empty($item['commission_type']) && $item['commission_type'] !== 'none'
+                        ? $item['commission_type']
+                        : ($product ? $product->default_commission_type : 'none');
+
+                    $commRate = isset($item['commission_rate']) && (float) $item['commission_rate'] > 0
+                        ? (float) $item['commission_rate']
+                        : ($product ? (float) $product->default_commission_rate : 0);
+
+                    $commAmount = 0;
+                    if ($staffUserId && $commType !== 'none' && $commRate > 0) {
+                        if ($commType === 'percentage') {
+                            $commAmount = round(($item['subtotal'] * ($commRate / 100)), 2);
+                        } elseif ($commType === 'fixed') {
+                            $commAmount = round($commRate * ($item['qty'] ?? 1), 2);
+                        }
+                    }
 
                     $saleItem = SaleItem::create([
-                        'sale_id'            => $sale->id,
-                        'product_id'         => $item['product_id'],
-                        'product_variant_id' => $item['variant_id'] ?? null,
-                        'sku'                => $item['sku'],
-                        'product_name'       => $item['variant'] ?? $item['name'],
-                        'price'              => $item['price'],
-                        'qty'                => $item['qty'],
-                        'discount_amount'    => $item['discount_amount'],
-                        'subtotal'           => $item['subtotal'],
+                        'sale_id'                 => $sale->id,
+                        'product_id'              => $productId,
+                        'product_variant_id'      => $variantId,
+                        'sku'                     => $item['sku'] ?? 'SRV',
+                        'product_name'            => $item['variant'] ?? ($item['name'] ?? 'Item'),
+                        'price'                   => $item['price'] ?? 0,
+                        'qty'                     => $item['qty'] ?? 1,
+                        'discount_amount'         => $item['discount_amount'] ?? 0,
+                        'subtotal'                => $item['subtotal'] ?? 0,
+                        'notes'                   => $item['notes'] ?? null,
+                        'staff_user_id'           => $staffUserId,
+                        'staff_commission_type'   => $commType,
+                        'staff_commission_rate'   => $commRate,
+                        'staff_commission_amount' => $commAmount,
                     ]);
 
-                    $product = \App\Models\Product::find($item['product_id']);
-                    if ($product && $product->product_type === 'RECIPE') {
+                    // Auto-sync Service Order if item notes contain ticket number
+                    if (!empty($item['notes']) && preg_match('/Tiket #(WO-[A-Za-z0-9\-]+)/', $item['notes'], $m)) {
+                        $orderNumber = $m[1];
+                        \App\Models\ServiceOrder::where('order_number', $orderNumber)
+                            ->where('store_id', session('store_id') ?: $sale->store_id)
+                            ->update([
+                                'payment_status' => 'paid',
+                                'status'         => 'delivered',
+                                'sale_id'        => $sale->id,
+                            ]);
+                    }
+
+                    if ($staffUserId && $commAmount > 0) {
+                        \App\Models\StaffCommission::create([
+                            'store_id'          => session('store_id') ?: $sale->store_id,
+                            'staff_user_id'     => $staffUserId,
+                            'source_type'       => 'pos_sale',
+                            'sale_id'           => $sale->id,
+                            'sale_item_id'      => $saleItem->id,
+                            'item_name'         => $saleItem->product_name,
+                            'item_price'        => $saleItem->subtotal,
+                            'commission_type'   => $commType,
+                            'commission_rate'   => $commRate,
+                            'commission_amount' => $commAmount,
+                            'status'            => 'pending',
+                        ]);
+                    }
+
+                    if (($product && $product->product_type === 'SERVICE') || (isset($item['product_type']) && $item['product_type'] === 'SERVICE')) {
+                        // Layanan / Jasa non-stok
+                    } elseif ($product && $product->product_type === 'RECIPE') {
                         app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                             session('store_id'),
                             $product->id,
@@ -853,10 +1022,10 @@ class PosController extends Controller
                             $sale->id,
                             $saleItem
                         );
-                    } else {
+                    } elseif ($variantId) {
                         $this->issueFIFOWithBatchLog(
                             $transactionDate,
-                            $item['variant_id'],
+                            $variantId,
                             'store',
                             $item['qty'],
                             $saleItem
@@ -1321,21 +1490,83 @@ class PosController extends Controller
                     // Create items for new sale
                     $items = $cart['items'] ?? [];
                     foreach ($items as $item) {
+                        $staffUserId = $item['staff_user_id'] ?? null;
+                        $productId = !empty($item['product_id']) ? (int) $item['product_id'] : null;
+                        if ($productId && !\App\Models\Product::where('id', $productId)->exists()) {
+                            $productId = null;
+                        }
+                        $variantId = !empty($item['variant_id']) ? (int) $item['variant_id'] : null;
+                        if ($variantId && !\App\Models\ProductVariant::where('id', $variantId)->exists()) {
+                            $variantId = null;
+                        }
+
+                        $product = $productId ? \App\Models\Product::find($productId) : null;
+
+                        $commType = !empty($item['commission_type']) && $item['commission_type'] !== 'none'
+                            ? $item['commission_type']
+                            : ($product ? $product->default_commission_type : 'none');
+
+                        $commRate = isset($item['commission_rate']) && (float) $item['commission_rate'] > 0
+                            ? (float) $item['commission_rate']
+                            : ($product ? (float) $product->default_commission_rate : 0);
+
+                        $commAmount = 0;
+                        if ($staffUserId && $commType !== 'none' && $commRate > 0) {
+                            if ($commType === 'percentage') {
+                                $commAmount = round((($item['subtotal'] ?? 0) * ($commRate / 100)), 2);
+                            } elseif ($commType === 'fixed') {
+                                $commAmount = round($commRate * ($item['qty'] ?? 1), 2);
+                            }
+                        }
+
                         $saleItem = SaleItem::create([
-                            'sale_id'            => $sale->id,
-                            'product_id'         => $item['product_id'] ?? null,
-                            'product_variant_id' => $item['variant_id'] ?? null,
-                            'sku'                => $item['sku'] ?? '',
-                            'product_name'       => $item['variant'] ?? ($item['name'] ?? ''),
-                            'price'              => $item['price'] ?? 0,
-                            'qty'                => $item['qty'] ?? 0,
-                            'discount_amount'    => $item['discount_amount'] ?? 0,
-                            'subtotal'           => $item['subtotal'] ?? 0,
-                            'notes'              => $item['notes'] ?? null,
+                            'sale_id'                 => $sale->id,
+                            'product_id'              => $productId,
+                            'product_variant_id'      => $variantId,
+                            'sku'                     => $item['sku'] ?? 'SRV',
+                            'product_name'            => $item['variant'] ?? ($item['name'] ?? 'Item'),
+                            'price'                   => $item['price'] ?? 0,
+                            'qty'                     => $item['qty'] ?? 0,
+                            'discount_amount'         => $item['discount_amount'] ?? 0,
+                            'subtotal'                => $item['subtotal'] ?? 0,
+                            'notes'                   => $item['notes'] ?? null,
+                            'staff_user_id'           => $staffUserId,
+                            'staff_commission_type'   => $commType,
+                            'staff_commission_rate'   => $commRate,
+                            'staff_commission_amount' => $commAmount,
                         ]);
 
-                        $product = \App\Models\Product::find($item['product_id'] ?? null);
-                        if ($product && $product->product_type === 'RECIPE') {
+                        // Auto-sync Service Order if item notes contain ticket number
+                        if (!empty($item['notes']) && preg_match('/Tiket #(WO-[A-Za-z0-9\-]+)/', $item['notes'], $m)) {
+                            $orderNumber = $m[1];
+                            \App\Models\ServiceOrder::where('order_number', $orderNumber)
+                                ->where('store_id', $storeId)
+                                ->update([
+                                    'payment_status' => 'paid',
+                                    'status'         => 'delivered',
+                                    'sale_id'        => $sale->id,
+                                ]);
+                        }
+
+                        if ($staffUserId && $commAmount > 0 && $sale->status !== 'hold') {
+                            \App\Models\StaffCommission::create([
+                                'store_id'          => $storeId,
+                                'staff_user_id'     => $staffUserId,
+                                'source_type'       => 'pos_sale',
+                                'sale_id'           => $sale->id,
+                                'sale_item_id'      => $saleItem->id,
+                                'item_name'         => $saleItem->product_name,
+                                'item_price'        => $saleItem->subtotal,
+                                'commission_type'   => $commType,
+                                'commission_rate'   => $commRate,
+                                'commission_amount' => $commAmount,
+                                'status'            => 'pending',
+                            ]);
+                        }
+
+                        if (($product && $product->product_type === 'SERVICE') || (isset($item['product_type']) && $item['product_type'] === 'SERVICE')) {
+                            // Layanan / Jasa non-stok
+                        } elseif ($product && $product->product_type === 'RECIPE') {
                             app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                                 $storeId,
                                 $product->id,
@@ -1343,10 +1574,10 @@ class PosController extends Controller
                                 $sale->id,
                                 $saleItem
                             );
-                        } else {
+                        } elseif ($variantId) {
                             $this->issueFIFOWithBatchLog(
                                 $transactionDate,
-                                $item['variant_id'] ?? null,
+                                $variantId,
                                 'store',
                                 $item['qty'] ?? 0,
                                 $saleItem
@@ -2708,8 +2939,8 @@ class PosController extends Controller
         SaleItem $saleItem,
         string $refType = 'SalePos'
     ) {
-        $variant = ProductVariant::find($variantId);
-        if ($variant && !$variant->track_stock) {
+        $variant = ProductVariant::with('product')->find($variantId);
+        if (!$variant || !$variant->track_stock || ($variant->product && $variant->product->product_type === 'SERVICE')) {
             return;
         }
 

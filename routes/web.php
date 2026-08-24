@@ -257,6 +257,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
 
     Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
     Route::get('/pos/product', [PosController::class, 'findProduct'])->name('pos.find-product');
+    Route::get('/pos/service-orders', [PosController::class, 'apiServiceOrders'])->name('pos.service-orders');
+    Route::get('/pos/staff', [PosController::class, 'apiStaff'])->name('pos.staff');
     Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
     Route::get('/sales', [PosController::class, 'sales'])->name('pos.sales');
     Route::get('/sales/datatables', [PosController::class, 'datatable'])->name('sales.datatables');
@@ -428,6 +430,28 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/frontliner/setoran/batalpengajuan', [FrontlinerDepositController::class, 'batalPengajuan'])->name('frontliner.hapus.approval');
     Route::get('/frontliner/edit/{id}', [FrontlinerDepositController::class, 'edit'])->name('frontliner.edit');
     Route::post('/frontliner/update/{id}', [FrontlinerDepositController::class, 'update'])->name('frontliner.update');
+
+    // ── Layanan Servis & Work Order ──────────────────────────────────────────
+    Route::prefix('service-orders')->name('service-orders.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ServiceOrderController::class, 'index'])->name('index');
+        Route::get('/datatables', [\App\Http\Controllers\ServiceOrderController::class, 'datatables'])->name('datatables');
+        Route::get('/create', [\App\Http\Controllers\ServiceOrderController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\ServiceOrderController::class, 'store'])->name('store');
+        Route::get('/{serviceOrder}', [\App\Http\Controllers\ServiceOrderController::class, 'show'])->name('show');
+        Route::get('/{serviceOrder}/edit', [\App\Http\Controllers\ServiceOrderController::class, 'edit'])->name('edit');
+        Route::put('/{serviceOrder}', [\App\Http\Controllers\ServiceOrderController::class, 'update'])->name('update');
+        Route::post('/{serviceOrder}/status', [\App\Http\Controllers\ServiceOrderController::class, 'updateStatus'])->name('update-status');
+        Route::post('/{serviceOrder}/items', [\App\Http\Controllers\ServiceOrderController::class, 'addItem'])->name('add-item');
+        Route::delete('/{serviceOrder}/items/{item}', [\App\Http\Controllers\ServiceOrderController::class, 'destroyItem'])->name('destroy-item');
+        Route::get('/{serviceOrder}/print-ticket', [\App\Http\Controllers\ServiceOrderController::class, 'printTicket'])->name('print-ticket');
+    });
+
+    // ── Rekap Komisi Staff & Sharing Fee ────────────────────────────────────
+    Route::prefix('staff-commissions')->name('staff-commissions.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\StaffCommissionController::class, 'index'])->name('index');
+        Route::get('/datatables', [\App\Http\Controllers\StaffCommissionController::class, 'datatables'])->name('datatables');
+        Route::post('/settle', [\App\Http\Controllers\StaffCommissionController::class, 'settle'])->name('settle');
+    });
 });
 
 // pemilihan jadwal distribusi NSE untuk orang tua/wali siswa

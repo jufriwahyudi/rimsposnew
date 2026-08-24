@@ -88,10 +88,13 @@
                     @endif
 
                     {{-- TAB POS --}}
-                    <div class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
                         <div id="posTabs" class="me-2"></div>
                         <button type="button" class="btn btn-success btn-sm" onclick="POS.newTab()">
                             + New
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm ms-auto" onclick="openServiceOrdersModal()">
+                            <i class="bi bi-tools"></i> Tarik Tiket Servis
                         </button>
                     </div>
 
@@ -254,6 +257,46 @@
         </div>
     </div>
     @endif
+
+    {{-- ======================================================== --}}
+    {{-- MODAL TARIK TIKET SERVIS / WORK ORDER                   --}}
+    {{-- ======================================================== --}}
+    <div class="modal fade" id="modalServiceOrders" tabindex="-1" aria-labelledby="modalServiceOrdersLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content rounded-4 shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold" id="modalServiceOrdersLabel">
+                        <i class="bi bi-tools me-2"></i> Tarik Tiket Servis / Work Order Selesai
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="input-group mb-3">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchServiceOrdersInput" class="form-control" placeholder="Cari No. Tiket / IMEI / Plat / Nama Pelanggan..." oninput="loadServiceOrders(this.value)">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>No. Tiket</th>
+                                    <th>Pelanggan</th>
+                                    <th>Unit Servis</th>
+                                    <th class="text-end">Total Biaya</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center" width="80">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="serviceOrdersList">
+                                {{-- Loaded via JS --}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- ======================================================== --}}
     {{-- MODAL BUKA KASIR (OPEN CASHIER)                         --}}
@@ -877,6 +920,149 @@
 
         function formatRupiah(num) {
             return new Intl.NumberFormat('id-ID').format(Math.round(num || 0));
+        }
+
+        // ── Tarik Tiket Servis ──────────────────────────────────────────────────
+        let cachedServiceOrders = [];
+
+        function openServiceOrdersModal() {
+            $('#modalServiceOrders').modal('show');
+            loadServiceOrders();
+        }
+
+        function loadServiceOrders(search = '') {
+            $('#serviceOrdersList').html('<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Memuat tiket servis...</td></tr>');
+            fetch(`/pos/service-orders?search=${encodeURIComponent(search)}`)
+                .then(r => {
+                    if (!r.ok) throw new Error('Gagal memuat data (' + r.status + ')');
+                    return r.json();
+                })
+                .then(res => {
+                    cachedServiceOrders = res.data || [];
+                    if (cachedServiceOrders.length === 0) {
+                        $('#serviceOrdersList').html('<tr><td colspan="6" class="text-center py-4 text-muted">Tidak ada tiket servis aktif yang siap ditarik.</td></tr>');
+                        return;
+                    }
+                    let html = '';
+                    cachedServiceOrders.forEach((o, index) => {
+                        const total = new Intl.NumberFormat('id-ID').format(o.total_cost || 0);
+                        const dp = new Intl.NumberFormat('id-ID').format(o.down_payment || 0);
+                        const remaining = new Intl.NumberFormat('id-ID').format(o.remaining_payment || o.total_cost || 0);
+                        html += `
+                            <tr>
+                                <td><strong class="text-primary">#${o.order_number}</strong></td>
+                                <td>
+                                    <strong>${o.customer_name}</strong>
+                                    ${o.customer_phone ? `<br><small class="text-muted"><i class="bi bi-whatsapp"></i> ${o.customer_phone}</small>` : ''}
+                                </td>
+                                <td>
+                                    <strong>${o.target_name}</strong>
+                                    ${o.target_identifier ? `<br><small class="badge bg-light text-dark border">${o.target_identifier}</small>` : ''}
+                                </td>
+                                <td class="text-end">
+                                    <strong>Rp ${total}</strong>
+                                    ${o.down_payment > 0 ? `<br><small class="text-success">DP: Rp ${dp}</small><br><small class="text-danger fw-semibold">Sisa: Rp ${remaining}</small>` : ''}
+                                </td>
+                                <td class="text-center"><span class="badge bg-success">${(o.status || '').toUpperCase()}</span></td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-primary" onclick="importServiceOrderByIndex(${index})">
+                                        <i class="bi bi-cart-plus"></i> Tarik
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    $('#serviceOrdersList').html(html);
+                })
+                .catch(err => {
+                    console.error('Error loadServiceOrders:', err);
+                    $('#serviceOrdersList').html('<tr><td colspan="6" class="text-center py-4 text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Gagal memuat tiket: ' + err.message + '</td></tr>');
+                });
+        }
+
+        function importServiceOrderByIndex(index) {
+            const order = cachedServiceOrders[index];
+            if (!order) return;
+            importServiceOrder(order);
+        }
+
+        function importServiceOrder(order) {
+            if (!window.POS || !window.POS.cart) {
+                Swal.fire('Error', 'Sistem POS belum siap. Silakan muat ulang halaman.', 'error');
+                return;
+            }
+
+            const items = order.items || [];
+            if (items.length === 0) {
+                Swal.fire('Perhatian', 'Tiket ini belum memiliki rincian item jasa atau sparepart.', 'warning');
+                return;
+            }
+
+            // Set customer name or dropdown
+            if (order.customer_id && $('#customerId').length) {
+                $('#customerId').val(order.customer_id).trigger('change.select2');
+            } else if (order.customer_name) {
+                window.POS.cart.customer_name = order.customer_name;
+            }
+
+            items.forEach(item => {
+                const price = parseFloat(item.price) || 0;
+                const qty = parseInt(item.qty) || 1;
+                window.POS.cart.items.push({
+                    key: (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : 'item-' + Date.now() + '-' + Math.random(),
+                    product_id: item.product_id || null,
+                    variant_id: item.product_variant_id || null,
+                    sku: item.sku || ('SRV-' + item.id),
+                    name: item.name,
+                    variant: item.variant ? item.variant.variant_label : '',
+                    price: price,
+                    qty: qty,
+                    stok: 999999,
+                    discount_type: null,
+                    discount_value: 0,
+                    discount_amount: 0,
+                    subtotal: price * qty,
+                    product_type: item.item_type === 'product' ? 'SINGLE' : 'SERVICE',
+                    staff_user_id: item.staff_user_id || null,
+                    commission_type: item.commission_type || null,
+                    commission_rate: item.commission_rate || 0,
+                    notes: `Tiket #${order.order_number} - ${order.target_name}`
+                });
+            });
+
+            // Recalculate subtotal
+            let subtotal = 0;
+            window.POS.cart.items.forEach(i => {
+                subtotal += (i.price * i.qty);
+            });
+            window.POS.cart.subtotal = subtotal;
+
+            const dp = parseFloat(order.down_payment) || 0;
+            if (dp > 0) {
+                window.POS.cart.transaction_discount_type = 'nominal';
+                window.POS.cart.transaction_discount_value = dp;
+                window.POS.cart.transaction_discount = dp;
+                window.POS.cart.discount_total = dp;
+            }
+
+            window.POS.cart.total = Math.max(0, subtotal - (window.POS.cart.transaction_discount || 0));
+
+            window.POS.persist();
+            window.POS.render();
+
+            const modalEl = document.getElementById('modalServiceOrders');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Tiket Berhasil Ditarik',
+                text: `Tiket #${order.order_number} (${order.target_name}) telah dimuat ke kasir POS.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
         }
     </script>
 @endpush

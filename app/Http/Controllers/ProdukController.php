@@ -174,13 +174,16 @@ class ProdukController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
 
         $rules = [
-            'kode'               => 'required|string|max:50|unique:products,kode_produk',
-            'nama'               => 'required|string|max:150',
-            'category_id'        => 'nullable|exists:product_categories,id',
-            'variants'           => 'nullable|array',
-            'variants.*.nama'    => 'nullable|string|max:150',
-            'variants.*.barcode' => 'nullable|string|max:100',
-            'variants.*.harga'   => 'nullable|numeric|min:0',
+            'kode'                    => 'required|string|max:50|unique:products,kode_produk',
+            'nama'                    => 'required|string|max:150',
+            'category_id'             => 'nullable|exists:product_categories,id',
+            'product_type'            => 'nullable|in:SINGLE,SERVICE,RECIPE',
+            'default_commission_type' => 'nullable|in:none,percentage,fixed',
+            'default_commission_rate' => 'nullable|numeric|min:0',
+            'variants'                => 'nullable|array',
+            'variants.*.nama'         => 'nullable|string|max:150',
+            'variants.*.barcode'      => 'nullable|string|max:100',
+            'variants.*.harga'        => 'nullable|numeric|min:0',
             'variants.*.reward_points' => 'nullable|integer|min:0',
         ];
 
@@ -202,13 +205,16 @@ class ProdukController extends Controller
                 }
 
                 $product = Product::create([
-                    'store_id'    => session('store_id'),
-                    'kode_produk' => strtoupper($request->kode),
-                    'nama_produk' => $request->nama,
-                    'deskripsi'   => $request->deskripsi,
-                    'category_id' => $request->category_id,
-                    'tenant_id'   => $request->tenant_id,
-                    'image'       => $imagePath,
+                    'store_id'                => session('store_id'),
+                    'kode_produk'             => strtoupper($request->kode),
+                    'nama_produk'             => $request->nama,
+                    'deskripsi'               => $request->deskripsi,
+                    'category_id'             => $request->category_id,
+                    'product_type'            => $request->product_type ?? 'SINGLE',
+                    'default_commission_type' => $request->default_commission_type ?? 'none',
+                    'default_commission_rate' => $request->default_commission_rate ?? 0,
+                    'tenant_id'               => $request->tenant_id,
+                    'image'                   => $imagePath,
                 ]);
 
                 $variants = $request->variants ?? [];
@@ -522,8 +528,11 @@ class ProdukController extends Controller
         $isFnB = $store && $store->business_type === 'fnb';
 
         $rules = [
-            'nama'        => 'required|string|max:150',
-            'category_id' => 'nullable|exists:product_categories,id',
+            'nama'                    => 'required|string|max:150',
+            'category_id'             => 'nullable|exists:product_categories,id',
+            'product_type'            => 'nullable|in:SINGLE,SERVICE,RECIPE',
+            'default_commission_type' => 'nullable|in:none,percentage,fixed',
+            'default_commission_rate' => 'nullable|numeric|min:0',
         ];
 
         if ($isFnB) {
@@ -534,9 +543,12 @@ class ProdukController extends Controller
         $request->validate($rules);
 
         $productData = [
-            'nama_produk' => $request->nama,
-            'deskripsi'   => $request->deskripsi,
-            'category_id' => $request->category_id,
+            'nama_produk'             => $request->nama,
+            'deskripsi'               => $request->deskripsi,
+            'category_id'             => $request->category_id,
+            'product_type'            => $request->product_type ?? $product->product_type,
+            'default_commission_type' => $request->default_commission_type ?? 'none',
+            'default_commission_rate' => $request->default_commission_rate ?? 0,
         ];
 
         if ($isFnB) {

@@ -68,6 +68,30 @@
                                     <textarea name="deskripsi" class="form-control" rows="3">{{ old('deskripsi') }}</textarea>
                                 </div>
                                 <div class="row">
+                                    <div class="col-md-4 mb-2">
+                                        <label class="fw-semibold">Tipe Produk / Layanan</label>
+                                        <select name="product_type" id="product_type" class="form-select" onchange="toggleCommissionFields()">
+                                            <option value="SINGLE" {{ old('product_type') == 'SINGLE' ? 'selected' : '' }}>Barang Fisik / Ritel (Lacak Stok)</option>
+                                            <option value="SERVICE" {{ old('product_type') == 'SERVICE' ? 'selected' : '' }}>Layanan / Jasa Servis (Non-Stok)</option>
+                                            @if ($isFnB)
+                                                <option value="RECIPE" {{ old('product_type') == 'RECIPE' ? 'selected' : '' }}>Menu FnB (Resep Bahan)</option>
+                                            @endif
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label class="fw-semibold">Tipe Komisi Staff</label>
+                                        <select name="default_commission_type" id="default_commission_type" class="form-select" onchange="toggleCommissionRateInput()">
+                                            <option value="none" {{ old('default_commission_type') == 'none' ? 'selected' : '' }}>Tanpa Komisi</option>
+                                            <option value="percentage" {{ old('default_commission_type') == 'percentage' ? 'selected' : '' }}>Persentase (%)</option>
+                                            <option value="fixed" {{ old('default_commission_type') == 'fixed' ? 'selected' : '' }}>Nominal Tetap (Rp)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-2" id="commission_rate_wrapper">
+                                        <label class="fw-semibold" id="commission_rate_label">Nilai Komisi</label>
+                                        <input type="number" step="any" name="default_commission_rate" id="default_commission_rate" class="form-control" value="{{ old('default_commission_rate', 0) }}" placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="row">
                                     <div class="col-md-{{ $isFnB ? '6' : '12' }} mb-2">
                                         <label>Kategori Produk</label>
                                         <select name="category_id" class="form-select">

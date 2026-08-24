@@ -19,8 +19,11 @@ class SaleItem extends Model
         'discount_amount',
         'subtotal',
         'status',
-        'ref_sale_item_id',
         'notes',
+        'staff_user_id',
+        'staff_commission_type',
+        'staff_commission_rate',
+        'staff_commission_amount',
         
         // Virtual/Delegated fields for FnB details
         'kitchen_printed_qty',
@@ -43,6 +46,11 @@ class SaleItem extends Model
     public function fnbDetail()
     {
         return $this->hasOne(SaleItemFnBDetail::class, 'sale_item_id');
+    }
+
+    public function staff()
+    {
+        return $this->belongsTo(User::class, 'staff_user_id');
     }
 
     public function getKdsStatusAttribute()
