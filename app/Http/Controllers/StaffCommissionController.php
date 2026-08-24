@@ -95,15 +95,17 @@ class StaffCommissionController extends Controller
     {
         $storeId = session('store_id');
         $request->validate([
-            'commission_ids' => 'required|array|min:1',
+            'commission_ids'   => 'required|array|min:1',
             'commission_ids.*' => 'exists:staff_commissions,id',
-            'payment_date'   => 'required|date',
-            'notes'          => 'nullable|string',
+            'payment_date'     => 'required|date',
+            'payment_method'   => 'nullable|in:cash,transfer',
+            'notes'            => 'nullable|string',
         ]);
 
         try {
             DB::transaction(function () use ($request, $storeId) {
-                $commissions = StaffCommission::where('store_id', $storeId)
+                $commissions = StaffCommission::with('staff')
+                    ->where('store_id', $storeId)
                     ->whereIn('id', $request->commission_ids)
                     ->where('status', 'pending')
                     ->get();
@@ -113,6 +115,8 @@ class StaffCommissionController extends Controller
                 }
 
                 $totalAmount = $commissions->sum('commission_amount');
+                $staffNames = $commissions->pluck('staff.name')->filter()->unique()->implode(', ');
+                $paymentMethod = $request->input('payment_method', 'cash');
 
                 // Find or create Expense Category for Commission
                 $category = ExpenseCategory::firstOrCreate(
@@ -120,14 +124,30 @@ class StaffCommissionController extends Controller
                     ['description' => 'Pengeluaran untuk pembayaran komisi / fee sharing teknisi & staff', 'is_active' => true]
                 );
 
+                $description = "Pencairan komisi " . ($staffNames ? "($staffNames) " : "") . $commissions->count() . " item layanan";
+
                 // Create Expense record
                 $expense = Expense::create([
                     'store_id'            => $storeId,
                     'expense_category_id' => $category->id,
+                    'transaction_date'    => $request->payment_date,
                     'amount'              => $totalAmount,
-                    'date'                => $request->payment_date,
-                    'notes'               => $request->notes ?: "Pembayaran komisi " . $commissions->count() . " item layanan",
-                    'payment_status'      => 'paid',
+                    'paid_amount'         => $totalAmount,
+                    'payment_status'      => 'lunas',
+                    'description'         => $description,
+                    'payment_method'      => $paymentMethod,
+                    'notes'               => $request->notes,
+                    'user_id'             => auth()->id(),
+                ]);
+
+                // Create ExpensePayment record
+                \App\Models\ExpensePayment::create([
+                    'expense_id'     => $expense->id,
+                    'payment_date'   => $request->payment_date,
+                    'amount'         => $totalAmount,
+                    'payment_method' => $paymentMethod,
+                    'notes'          => $request->notes ?: $description,
+                    'user_id'        => auth()->id(),
                 ]);
 
                 // Update commissions to paid
@@ -138,7 +158,7 @@ class StaffCommissionController extends Controller
                 ]);
             });
 
-            return redirect()->back()->with('success', 'Komisi berhasil dicairkan dan dicatat ke Pengeluaran Toko.');
+            return redirect()->route('staff-commissions.index')->with('success', 'Komisi berhasil dicairkan dan dicatat ke Pengeluaran Toko.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Gagal memproses pencairan komisi: ' . $e->getMessage());
         }

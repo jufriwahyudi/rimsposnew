@@ -125,6 +125,13 @@
                             <input type="date" name="payment_date" class="form-control" value="{{ date('Y-m-d') }}" required>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label fw-semibold">Metode Pembayaran</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="cash" selected>Kas / Tunai</option>
+                                <option value="transfer">Transfer Bank</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label fw-semibold">Catatan Pengeluaran</label>
                             <input type="text" name="notes" class="form-control" placeholder="Contoh: Pencairan komisi servis LCD">
                         </div>
