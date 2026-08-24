@@ -3,7 +3,8 @@
 namespace Tests\Unit;
 
 use Tests\TestCase;
-use App\Models\Unit;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\Ingredient;
 use App\Models\IngredientUnitConversion;
 use App\Models\InventoryStock;
@@ -13,6 +14,7 @@ use App\Models\ProductRecipe;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Store;
+use App\Models\Unit;
 use App\Services\IngredientInventoryService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 
@@ -310,5 +312,80 @@ class IngredientInventoryServiceTest extends TestCase
 
         $this->assertNotNull($movement);
         $this->assertEquals($backdate, $movement->tanggal);
+    }
+
+    /** @test */
+    public function it_can_transfer_stock_as_direct_expense()
+    {
+        // 1. Setup initial Warehouse stock: 20 Pcs at Rp 4.000 (Total Rp 80.000)
+        $this->service->purchaseStock(
+            $this->ingredient->id,
+            $this->conversion->id,
+            2.0,
+            $this->store->id,
+            'PO-EXPENSE-TEST',
+            'Beli bahan untuk di-expense',
+            null,
+            80000.0
+        );
+
+        // 2. Create an expense category
+        $category = ExpenseCategory::create([
+            'store_id'  => $this->store->id,
+            'name'      => 'Biaya Bahan Baku Dapur',
+            'is_active' => true,
+        ]);
+
+        // 3. Transfer 10 Pcs as direct expense (should cost 10 * 4000 = Rp 40.000)
+        $result = $this->service->transferStock(
+            $this->ingredient->id,
+            10.0000,
+            $this->store->id,
+            $this->store->id,
+            'TRF-EXP-123',
+            'Transfer langsung beban',
+            true, // asExpense
+            $category->id,
+            null,
+            '2026-08-24'
+        );
+
+        // Verify Warehouse stock is reduced by 10 Pcs (20 - 10 = 10 Pcs)
+        $warehouseTotal = InventoryStock::where([
+            'ingredient_id' => $this->ingredient->id,
+            'location_type' => 'WAREHOUSE',
+            'location_id'   => $this->store->id,
+        ])->sum('quantity');
+        $this->assertEquals(10.0000, $warehouseTotal);
+
+        // Verify Store stock is STILL 0 (no store inventory batch created!)
+        $storeTotal = InventoryStock::where([
+            'ingredient_id' => $this->ingredient->id,
+            'location_type' => 'STORE',
+            'location_id'   => $this->store->id,
+        ])->sum('quantity');
+        $this->assertEquals(0.0000, $storeTotal);
+
+        // Verify Expense record is created properly
+        $this->assertNotNull($result['expense']);
+        $this->assertEquals(40000.00, $result['total_cost']);
+
+        $expense = Expense::where('notes', 'like', '%TRF-EXP-123%')->first();
+        $this->assertNotNull($expense);
+        $this->assertEquals(40000.00, $expense->amount);
+        $this->assertEquals('lunas', $expense->payment_status);
+        $this->assertEquals($category->id, $expense->expense_category_id);
+        $this->assertEquals($this->store->id, $expense->store_id);
+
+        // Verify movement log in warehouse is marked with expense note
+        $movement = IngredientStockMovement::where([
+            'ingredient_id' => $this->ingredient->id,
+            'reference_id'  => 'TRF-EXP-123',
+            'location_type' => 'WAREHOUSE',
+            'type'          => 'TRANSFER_OUT',
+        ])->first();
+        $this->assertNotNull($movement);
+        $this->assertEquals(-10.0000, $movement->quantity_change);
+        $this->assertStringContainsString('Dibebankan ke Biaya Operasional Toko', $movement->notes);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Expense;
 use App\Models\Ingredient;
 use App\Models\IngredientUnitConversion;
 use App\Models\InventoryStock;
@@ -95,10 +96,14 @@ class IngredientInventoryService
         int $sourceStoreId,
         int $targetStoreId,
         string $referenceId = null,
-        string $notes = null
+        string $notes = null,
+        bool $asExpense = false,
+        ?int $expenseCategoryId = null,
+        ?int $userId = null,
+        ?string $tanggal = null
     ): array {
-        return DB::transaction(function () use ($ingredientId, $qtyToTransfer, $sourceStoreId, $targetStoreId, $referenceId, $notes) {
-            $ingredient = Ingredient::findOrFail($ingredientId);
+        return DB::transaction(function () use ($ingredientId, $qtyToTransfer, $sourceStoreId, $targetStoreId, $referenceId, $notes, $asExpense, $expenseCategoryId, $userId, $tanggal) {
+            $ingredient = Ingredient::with('baseUnit')->findOrFail($ingredientId);
 
             // 1. Get warehouse batches in FIFO order
             $batches = InventoryStock::lockForUpdate()
@@ -118,8 +123,10 @@ class IngredientInventoryService
 
             $remainingToTransfer = $qtyToTransfer;
             $storeStocksCreated = [];
+            $totalCost = 0.0;
+            $txDate = $tanggal ? \Carbon\Carbon::parse($tanggal) : now();
 
-            // 2. Deduct warehouse batches and copy to Toko (Store)
+            // 2. Deduct warehouse batches
             foreach ($batches as $batch) {
                 if ($remainingToTransfer <= 0) break;
 
@@ -127,7 +134,14 @@ class IngredientInventoryService
                 $batch->quantity -= $deduct;
                 $batch->save();
 
+                $batchCost = $deduct * (float) $batch->cost_per_unit;
+                $totalCost += $batchCost;
+
                 // Log TRANSFER_OUT for this specific warehouse batch
+                $movementNotes = $asExpense
+                    ? ($notes ? $notes . ' (Dibebankan ke Biaya Operasional Toko)' : "Transfer keluar dibebankan ke Biaya Operasional Toko")
+                    : ($notes ?? "Transfer keluar ke Toko");
+
                 IngredientStockMovement::create([
                     'ingredient_id'      => $ingredientId,
                     'location_type'      => 'WAREHOUSE',
@@ -136,42 +150,70 @@ class IngredientInventoryService
                     'quantity_change'    => -$deduct,
                     'reference_id'       => $referenceId,
                     'inventory_stock_id' => $batch->id,
-                    'notes'              => $notes ?? "Transfer keluar ke Toko",
-                    'tanggal'            => now(),
+                    'notes'              => $movementNotes,
+                    'tanggal'            => $txDate,
                 ]);
 
-                // Create a store batch with parent_id pointing to the warehouse batch
-                $storeStock = InventoryStock::create([
-                    'ingredient_id' => $ingredientId,
-                    'location_type' => 'STORE',
-                    'location_id'   => $targetStoreId,
-                    'qty_original'  => $deduct,
-                    'quantity'      => $deduct,
-                    'cost_per_unit' => $batch->cost_per_unit, // HPP follows!
-                    'tanggal'       => now(),
-                    'reference_id'  => $referenceId,
-                    'parent_id'     => $batch->id, // Linked genealogy!
-                    'notes'         => "Transfer dari Gudang batch ID: " . $batch->id,
-                ]);
+                if (!$asExpense) {
+                    // Mode A: Masuk ke persediaan Toko
+                    // Create a store batch with parent_id pointing to the warehouse batch
+                    $storeStock = InventoryStock::create([
+                        'ingredient_id' => $ingredientId,
+                        'location_type' => 'STORE',
+                        'location_id'   => $targetStoreId,
+                        'qty_original'  => $deduct,
+                        'quantity'      => $deduct,
+                        'cost_per_unit' => $batch->cost_per_unit, // HPP follows!
+                        'tanggal'       => $txDate,
+                        'reference_id'  => $referenceId,
+                        'parent_id'     => $batch->id, // Linked genealogy!
+                        'notes'         => "Transfer dari Gudang batch ID: " . $batch->id,
+                    ]);
 
-                // Log TRANSFER_IN for this specific store batch
-                IngredientStockMovement::create([
-                    'ingredient_id'      => $ingredientId,
-                    'location_type'      => 'STORE',
-                    'location_id'        => $targetStoreId,
-                    'type'               => 'TRANSFER_IN',
-                    'quantity_change'    => $deduct,
-                    'reference_id'       => $referenceId,
-                    'inventory_stock_id' => $storeStock->id,
-                    'notes'              => $notes ?? "Transfer masuk dari Gudang",
-                    'tanggal'            => now(),
-                ]);
+                    // Log TRANSFER_IN for this specific store batch
+                    IngredientStockMovement::create([
+                        'ingredient_id'      => $ingredientId,
+                        'location_type'      => 'STORE',
+                        'location_id'        => $targetStoreId,
+                        'type'               => 'TRANSFER_IN',
+                        'quantity_change'    => $deduct,
+                        'reference_id'       => $referenceId,
+                        'inventory_stock_id' => $storeStock->id,
+                        'notes'              => $notes ?? "Transfer masuk dari Gudang",
+                        'tanggal'            => $txDate,
+                    ]);
 
-                $storeStocksCreated[] = $storeStock;
+                    $storeStocksCreated[] = $storeStock;
+                }
+
                 $remainingToTransfer -= $deduct;
             }
 
-            return $storeStocksCreated;
+            // If recognized directly as expense, create an Expense entry
+            $createdExpense = null;
+            if ($asExpense) {
+                $unitSymbol = $ingredient->baseUnit->symbol ?? '';
+                $desc = "Bahan Baku: {$ingredient->name} (" . number_format($qtyToTransfer, 2, ',', '.') . " {$unitSymbol})";
+
+                $createdExpense = Expense::create([
+                    'store_id'            => $targetStoreId,
+                    'expense_category_id' => $expenseCategoryId,
+                    'transaction_date'    => $txDate->toDateString(),
+                    'amount'              => $totalCost,
+                    'paid_amount'         => $totalCost,
+                    'payment_status'      => 'lunas',
+                    'payment_method'      => 'transfer',
+                    'description'         => $desc,
+                    'notes'               => "Ref Transfer: " . ($referenceId ?? '-') . ($notes ? ". Catatan: {$notes}" : ""),
+                    'user_id'             => $userId,
+                ]);
+            }
+
+            return [
+                'store_stocks' => $storeStocksCreated,
+                'expense'      => $createdExpense,
+                'total_cost'   => $totalCost,
+            ];
         });
     }
 

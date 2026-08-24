@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ExpenseCategory;
 use App\Models\Ingredient;
 use App\Models\InventoryStock;
 use App\Models\IngredientStockMovement;
@@ -109,40 +110,71 @@ class IngredientStockController extends Controller
             ->get();
 
         $stocks = [];
+        $costs = [];
         foreach ($ingredients as $ingredient) {
             $stocks[$ingredient->id] = InventoryStock::where([
                 'ingredient_id' => $ingredient->id,
                 'location_type' => 'WAREHOUSE',
                 'location_id'   => $storeId,
             ])->sum('quantity') ?? 0.0000;
+
+            $costs[$ingredient->id] = (float) ($ingredient->cost_per_unit ?? 0);
         }
 
-        return view('ingredient_stocks.transfer', compact('ingredients', 'stocks'));
+        $expenseCategories = ExpenseCategory::where(function ($q) use ($storeId) {
+            $q->where('store_id', $storeId)->orWhereNull('store_id');
+        })->where('is_active', true)->orderBy('name')->get();
+
+        if ($expenseCategories->isEmpty()) {
+            $defaultCat = ExpenseCategory::firstOrCreate([
+                'store_id' => $storeId,
+                'name'     => 'Biaya Bahan Baku',
+            ], [
+                'description' => 'Biaya operasional bahan baku & dapur',
+                'is_active'   => true,
+            ]);
+            $expenseCategories = collect([$defaultCat]);
+        }
+
+        return view('ingredient_stocks.transfer', compact('ingredients', 'stocks', 'costs', 'expenseCategories'));
     }
 
     public function transfer(Request $request)
     {
         $storeId = session('store_id');
         $request->validate([
-            'ingredient_id'   => 'required|exists:ingredients,id',
-            'qty_to_transfer' => 'required|numeric|min:0.0001',
-            'reference_id'    => 'nullable|string|max:100',
-            'notes'           => 'nullable|string|max:255',
+            'ingredient_id'       => 'required|exists:ingredients,id',
+            'qty_to_transfer'     => 'required|numeric|min:0.0001',
+            'treatment_type'      => 'required|in:store_stock,direct_expense',
+            'expense_category_id' => 'required_if:treatment_type,direct_expense|nullable|exists:expense_categories,id',
+            'tanggal'             => 'nullable|date',
+            'reference_id'        => 'nullable|string|max:100',
+            'notes'               => 'nullable|string|max:255',
         ]);
 
         try {
             $referenceId = $request->reference_id ?: 'TRF-' . now()->format('Ymd') . '-' . rand(1000, 9999);
+            $asExpense = $request->treatment_type === 'direct_expense';
+            $tanggal = $request->tanggal ? $request->tanggal . ' ' . now()->format('H:i:s') : null;
 
-            $this->stockService->transferStock(
+            $result = $this->stockService->transferStock(
                 $request->ingredient_id,
                 (float) $request->qty_to_transfer,
                 $storeId,
                 $storeId,
                 $referenceId,
-                $request->notes
+                $request->notes,
+                $asExpense,
+                $asExpense ? (int) $request->expense_category_id : null,
+                auth()->id(),
+                $tanggal
             );
 
-            return redirect()->route('ingredient-stocks.index')->with('success', 'Transfer stok ke Toko berhasil diproses.');
+            $msg = $asExpense
+                ? 'Transfer stok berhasil dicatat dan langsung diakui sebagai Biaya Operasional Toko (Rp ' . number_format($result['total_cost'] ?? 0, 0, ',', '.') . ').'
+                : 'Transfer stok ke Toko berhasil diproses.';
+
+            return redirect()->route('ingredient-stocks.index')->with('success', $msg);
         } catch (\Exception $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
