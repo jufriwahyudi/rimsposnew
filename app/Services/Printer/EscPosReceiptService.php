@@ -81,6 +81,23 @@ class EscPosReceiptService
         return base64_encode($rawBytes);
     }
 
+    /**
+     * Hasilkan byte ESC/POS base64 untuk 1 lembar panjang bersambung Laporan Tutup Kasir
+     * (Mencakup Transaksi Penjualan dan Rincian Penjualan Menu).
+     */
+    public function fullShiftReportBase64(array $data): string
+    {
+        $connector = new DummyPrintConnector();
+        $profile   = CapabilityProfile::load('POS-5890');
+        $this->printer = new Printer($connector, $profile);
+
+        $this->printFullShiftReport($data);
+
+        $rawBytes = $connector->getData();
+        $this->printer->close();
+        return base64_encode($rawBytes);
+    }
+
     /* =====================================================================
      * CORE BUILDER
      * ===================================================================== */
@@ -514,5 +531,123 @@ class EscPosReceiptService
         }
 
         return $lines ?: [''];
+    }
+
+    protected function printFullShiftReport(array $data): void
+    {
+        $store = $data['store'] ?? [];
+        $shift = $data['shift'] ?? [];
+        $fin   = $data['financial'] ?? [];
+        $menu  = $data['menu_sales'] ?? [];
+
+        $this->printer->initialize();
+        $this->printer->setFont(Printer::FONT_A);
+
+        // 1. Store Header
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->printer->setEmphasis(true);
+        $this->writeLine($store['name'] ?? 'RIMS POS');
+        $this->printer->setEmphasis(false);
+
+        if (!empty($store['address'])) {
+            foreach ($this->wrapText($store['address'], $this->width) as $line) {
+                $this->writeLine($line);
+            }
+        }
+        if (!empty($store['phone'])) {
+            $this->writeLine('Telp: ' . $store['phone']);
+        }
+        $this->separator();
+
+        // 2. Section 1 Title: Laporan Tutup Kasir - Transaksi Penjualan
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->printer->setEmphasis(true);
+        $this->writeLine('LAPORAN TUTUP KASIR');
+        $this->writeLine('TRANSAKSI PENJUALAN');
+        $this->printer->setEmphasis(false);
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->separator();
+
+        // Shift Meta Info
+        $this->writeLine('Kasir       : ' . ($shift['cashier_name'] ?? '-'));
+        $this->writeLine('Waktu Buka  : ' . ($shift['opened_at'] ?? '-'));
+        $this->writeLine('Waktu Tutup : ' . ($shift['closed_at'] ?? '-'));
+        $this->separator();
+
+        // Financial Breakdown
+        $this->writeLine($this->cols('Modal Awal', number_format($fin['opening_cash'] ?? 0, 0, ',', '.')));
+        $this->writeLine($this->cols('Tunai', number_format($fin['cash_sales'] ?? 0, 0, ',', '.')));
+
+        $nonCashTotal = (float) ($fin['non_cash_sales'] ?? 0);
+        $this->writeLine($this->cols('Transfer', number_format($nonCashTotal, 0, ',', '.')));
+
+        if (!empty($fin['cash_in']) && $fin['cash_in'] > 0) {
+            $this->writeLine($this->cols('Kas Masuk (Petty)', number_format($fin['cash_in'], 0, ',', '.')));
+        }
+        if (!empty($fin['cash_out']) && $fin['cash_out'] > 0) {
+            $this->writeLine($this->cols('Kas Keluar (Petty)', number_format($fin['cash_out'], 0, ',', '.')));
+        }
+        if (!empty($fin['refund_cash']) && $fin['refund_cash'] > 0) {
+            $this->writeLine($this->cols('Refund Tunai', number_format($fin['refund_cash'], 0, ',', '.')));
+        }
+
+        $this->writeLine($this->cols('Total Penerimaan', number_format($fin['total_received'] ?? 0, 0, ',', '.')));
+        $this->separator();
+
+        $this->writeLine($this->cols('Total Penerimaan', number_format($fin['total_received'] ?? 0, 0, ',', '.')));
+        $this->printer->setEmphasis(true);
+        $this->writeLine($this->cols('Saldo Akhir', number_format($fin['final_cash_balance'] ?? 0, 0, ',', '.')));
+        $this->printer->setEmphasis(false);
+        $this->separator();
+
+        // Transaction Counts
+        $this->writeLine($this->cols('Transaksi Selesai', (string) ($fin['completed_sales'] ?? 0)));
+        $this->writeLine($this->cols('Trx Belum Terbayar', (string) ($fin['unpaid_sales'] ?? 0)));
+        $this->separator('=');
+
+        // 3. Section 2 Title: Laporan Tutup Kasir - Penjualan Menu (Continuously in the same paper strip)
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->printer->setEmphasis(true);
+        $this->writeLine('LAPORAN TUTUP KASIR');
+        $this->writeLine('PENJUALAN MENU');
+        $this->printer->setEmphasis(false);
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->separator();
+
+        $this->writeLine('Kasir       : ' . ($shift['cashier_name'] ?? '-'));
+        $this->writeLine('Waktu Buka  : ' . ($shift['opened_at'] ?? '-'));
+        $this->writeLine('Waktu Tutup : ' . ($shift['closed_at'] ?? '-'));
+        $this->separator();
+
+        $this->printer->setEmphasis(true);
+        $this->writeLine('Produk Terjual');
+        $this->printer->setEmphasis(false);
+        $this->separator();
+
+        $items = $menu['items'] ?? [];
+        if (empty($items)) {
+            $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+            $this->writeLine('(Tidak ada penjualan produk)');
+            $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        } else {
+            foreach ($items as $item) {
+                $pName = (string) ($item['name'] ?? '-');
+                $pQty  = (string) ($item['qty'] ?? 0);
+                $this->writeLine($this->cols($pName, $pQty));
+            }
+        }
+
+        $this->separator();
+        $this->printer->setEmphasis(true);
+        $this->writeLine($this->cols('Total', (string) ($menu['total_qty'] ?? 0)));
+        $this->printer->setEmphasis(false);
+        $this->separator('=');
+
+        // Optional footer notes
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->writeLine('Dicetak: ' . date('d/m/Y H:i'));
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->printer->feed(3);
+        $this->printer->cut();
     }
 }

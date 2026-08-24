@@ -23,13 +23,14 @@ Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
 // ── POS (protected + subscription check) ─────────────────────────────────────
 Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     // ── Cash Register / Shift Kasir ──────────────────────────────────────────
-    Route::get('/pos/cash-register/status',      [CashRegisterController::class, 'status']);
-    Route::post('/pos/cash-register/open',       [CashRegisterController::class, 'open']);
-    Route::get('/pos/cash-register/summary',     [CashRegisterController::class, 'summary']);
-    Route::post('/pos/cash-register/movement',   [CashRegisterController::class, 'cashMovement']);
-    Route::post('/pos/cash-register/close',      [CashRegisterController::class, 'close']);
-    Route::get('/pos/expense-categories',        [PosController::class, 'apiExpenseCategories']);
-    Route::get('/pos/categories',                [PosController::class, 'apiCategories']);
+    Route::get('/pos/cash-register/status',         [CashRegisterController::class, 'status']);
+    Route::post('/pos/cash-register/open',          [CashRegisterController::class, 'open']);
+    Route::get('/pos/cash-register/summary',        [CashRegisterController::class, 'summary']);
+    Route::get('/pos/cash-register/receipt-report', [CashRegisterController::class, 'printReport']);
+    Route::post('/pos/cash-register/movement',      [CashRegisterController::class, 'cashMovement']);
+    Route::post('/pos/cash-register/close',         [CashRegisterController::class, 'close']);
+    Route::get('/pos/expense-categories',           [PosController::class, 'apiExpenseCategories']);
+    Route::get('/pos/categories',                   [PosController::class, 'apiCategories']);
 
     Route::get('/pos/product',                   [PosController::class, 'findProduct']);
     Route::post('/pos/voice-search',         [PosController::class, 'apiVoiceSearch']);

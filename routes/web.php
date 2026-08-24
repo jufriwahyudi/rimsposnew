@@ -285,6 +285,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::get('/status', [CashRegisterController::class, 'status'])->name('status');
         Route::post('/open', [CashRegisterController::class, 'open'])->name('open');
         Route::get('/summary', [CashRegisterController::class, 'summary'])->name('summary');
+        Route::get('/receipt-report', [CashRegisterController::class, 'printReport'])->name('receipt-report');
         Route::post('/movement', [CashRegisterController::class, 'cashMovement'])->name('movement');
         Route::post('/close', [CashRegisterController::class, 'close'])->name('close');
         Route::get('/print/{id}', [CashRegisterController::class, 'printSummary'])->name('print');

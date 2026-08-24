@@ -128,6 +128,41 @@ class CashRegisterController extends Controller
     }
 
     /**
+     * Get raw Base64 ESC/POS print payload for 1 continuous long shift report receipt.
+     */
+    public function printReport(Request $request)
+    {
+        $storeId    = session('store_id') ?: $request->integer('store_id');
+        $userId     = auth()->id();
+        $registerId = $request->integer('register_id');
+        $paperSize  = $request->query('paper_size', '58mm');
+
+        if ($registerId) {
+            $register = CashRegister::with(['cashier', 'store'])->find($registerId);
+        } else {
+            $register = $this->cashRegisterService->getActiveRegister($storeId, $userId);
+        }
+
+        if (!$register) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi kasir tidak ditemukan atau belum dibuka.',
+            ], 404);
+        }
+
+        $reportData = $this->cashRegisterService->getShiftReportData($register);
+
+        $escposService = new \App\Services\Printer\EscPosReceiptService($paperSize);
+        $base64 = $escposService->fullShiftReportBase64($reportData);
+
+        return response()->json([
+            'success'     => true,
+            'report_data' => $reportData,
+            'base64'      => $base64,
+        ]);
+    }
+
+    /**
      * Record Petty Cash In / Out during active shift.
      */
     public function cashMovement(Request $request)

@@ -6,7 +6,9 @@ use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\Expense;
 use App\Models\ExpensePayment;
+use App\Models\Rekening;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Store;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -269,6 +271,101 @@ class CashRegisterService
             'opened_at'           => $openedAt->toISOString(),
             'opened_at_formatted' => $formattedOpenedAt,
             'message'             => $message,
+        ];
+    }
+
+    /**
+     * Get complete shift report data for printing (financial summary + sold menu items).
+     */
+    public function getShiftReportData(CashRegister $cashRegister): array
+    {
+        $summary = $this->calculateSummary($cashRegister);
+        $regId = $cashRegister->id;
+
+        // Non-cash payment method breakdown (e.g. QRIS DKRIUK, BCA, dll)
+        $nonCashBreakdown = CashTransaction::with('rekening')
+            ->where('cash_register_id', $regId)
+            ->where('transaction_type', 'sale')
+            ->where('payment_method', '!=', 'cash')
+            ->where('direction', 'in')
+            ->select('account_code', 'payment_method', DB::raw('SUM(amount) as total_amount'))
+            ->groupBy('account_code', 'payment_method')
+            ->get()
+            ->map(function ($row) {
+                $bankName = $row->rekening?->bank_rek ?? $row->rekening?->bank_name ?? '';
+                $accName  = $row->rekening?->nama_rek ?? $row->rekening?->account_name ?? '';
+                $name     = trim($bankName . ' ' . $accName);
+                if (empty($name)) {
+                    $name = strtoupper($row->payment_method);
+                }
+                return [
+                    'name'   => $name,
+                    'amount' => (float) $row->total_amount,
+                ];
+            })
+            ->toArray();
+
+        // Transaction counts
+        $completedSalesCount = Sale::where('cash_register_id', $regId)
+            ->whereIn('status', ['completed', 'paid'])
+            ->count();
+
+        $unpaidSalesCount = Sale::where('cash_register_id', $regId)
+            ->whereIn('status', ['hold', 'pending', 'unpaid'])
+            ->count();
+
+        // Menu sales list (items sold in this shift)
+        $saleIds = Sale::where('cash_register_id', $regId)
+            ->whereNotIn('status', ['cancelled', 'void'])
+            ->pluck('id');
+
+        $menuSales = SaleItem::whereIn('sale_id', $saleIds)
+            ->select('product_name', DB::raw('SUM(qty) as total_qty'))
+            ->groupBy('product_name')
+            ->orderByDesc('total_qty')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->product_name,
+                    'qty'  => (float) $item->total_qty,
+                ];
+            })
+            ->toArray();
+
+        $totalMenuQty = array_sum(array_column($menuSales, 'qty'));
+
+        $store = $cashRegister->store;
+
+        return [
+            'store' => [
+                'name'    => $store?->name ?? 'Toko',
+                'address' => $store?->address ?? '',
+                'phone'   => $store?->phone ?? '',
+            ],
+            'shift' => [
+                'id'           => $cashRegister->id,
+                'cashier_name' => $cashRegister->cashier?->name ?? 'Kasir',
+                'opened_at'    => $cashRegister->opened_at ? Carbon::parse($cashRegister->opened_at)->translatedFormat('d M Y, H:i') : '-',
+                'closed_at'    => $cashRegister->closed_at ? Carbon::parse($cashRegister->closed_at)->translatedFormat('d M Y, H:i') : Carbon::now()->translatedFormat('d M Y, H:i'),
+                'is_closed'    => $cashRegister->status === 'closed',
+            ],
+            'financial' => [
+                'opening_cash'        => (float) $cashRegister->opening_cash,
+                'cash_sales'          => (float) $summary['cash_sales'],
+                'non_cash_sales'      => (float) $summary['non_cash_sales'],
+                'non_cash_breakdown'  => $nonCashBreakdown,
+                'cash_in'             => (float) $summary['cash_in'],
+                'cash_out'            => (float) $summary['cash_out'],
+                'refund_cash'         => (float) $summary['refund_cash'],
+                'total_received'      => (float) ($summary['cash_sales'] + $summary['non_cash_sales']),
+                'final_cash_balance'  => (float) $summary['expected_cash'],
+                'completed_sales'     => $completedSalesCount,
+                'unpaid_sales'        => $unpaidSalesCount,
+            ],
+            'menu_sales' => [
+                'items'     => $menuSales,
+                'total_qty' => $totalMenuQty,
+            ],
         ];
     }
 }
