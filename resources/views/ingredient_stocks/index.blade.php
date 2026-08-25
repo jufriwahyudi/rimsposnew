@@ -17,7 +17,7 @@
 
 @section('content')
     <div class="row mb-3">
-        <div class="col-12 d-flex justify-content-end gap-2">
+        <div class="col-12 d-flex justify-content-end gap-2 flex-wrap mb-2">
             <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalStockIn">
                 <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add_shopping_cart</i> Stock In (Pembelian)
             </button>
@@ -57,50 +57,52 @@
         </div>
     @endif
 
-    <div class="row">
+    <div class="row g-3">
         {{-- Stocks Table --}}
         <div class="col-12 col-lg-8">
             <div class="card rounded-4 p-2">
-                <div class="card-header d-flex align-items-start mb-3">
-                    <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo" style="width:35px;height:35px;" class="me-2 mt-1">
+                <div class="card-header d-flex align-items-center mb-3">
+                    <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo" style="width:35px;height:35px;" class="me-2">
                     <div>
                         <h5 class="fw-bold mb-0" style="color:#7c3aed">Monitoring Saldo Stok Bahan Baku</h5>
                         <small class="text-muted">Kuantitas stok bahan mentah per lokasi (disimpan dalam Satuan Dasar)</small>
                     </div>
                 </div>
-                <div class="card-body">
-                    <table class="table table-bordered table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="40">#</th>
-                                <th>SKU</th>
-                                <th>Nama Bahan Baku</th>
-                                <th>Satuan Dasar</th>
-                                <th class="text-end">Stok Gudang</th>
-                                <th class="text-end">Stok Toko</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($ingredients as $i => $item)
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle w-100 mb-0">
+                            <thead class="table-light">
                                 <tr>
-                                    <td>{{ $i + 1 }}</td>
-                                    <td><span class="badge bg-secondary">{{ $item->sku }}</span></td>
-                                    <td><strong>{{ $item->name }}</strong></td>
-                                    <td><span class="badge bg-info text-dark">{{ $item->baseUnit?->symbol }}</span></td>
-                                    <td class="text-end text-primary fw-bold" style="font-size:15px">
-                                        {{ number_format($stocks[$item->id]['warehouse'], 2, ',', '.') }}
-                                    </td>
-                                    <td class="text-end text-success fw-bold" style="font-size:15px">
-                                        {{ number_format($stocks[$item->id]['store'], 2, ',', '.') }}
-                                    </td>
+                                    <th width="40" class="text-center text-nowrap">#</th>
+                                    <th class="text-nowrap" style="min-width: 100px;">SKU</th>
+                                    <th class="text-nowrap" style="min-width: 160px;">Nama Bahan Baku</th>
+                                    <th class="text-center text-nowrap" style="min-width: 110px;">Satuan Dasar</th>
+                                    <th class="text-end text-nowrap" style="min-width: 120px;">Stok Gudang</th>
+                                    <th class="text-end text-nowrap" style="min-width: 120px;">Stok Toko</th>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted">Belum ada data stok bahan baku.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @forelse ($ingredients as $i => $item)
+                                    <tr>
+                                        <td class="text-center fw-bold">{{ $i + 1 }}</td>
+                                        <td class="text-nowrap"><span class="badge bg-secondary">{{ $item->sku }}</span></td>
+                                        <td class="fw-bold text-dark">{{ $item->name }}</td>
+                                        <td class="text-center"><span class="badge bg-info text-dark">{{ $item->baseUnit?->symbol }}</span></td>
+                                        <td class="text-end text-primary fw-bold text-nowrap" style="font-size:15px">
+                                            {{ number_format($stocks[$item->id]['warehouse'], 2, ',', '.') }}
+                                        </td>
+                                        <td class="text-end text-success fw-bold text-nowrap" style="font-size:15px">
+                                            {{ number_format($stocks[$item->id]['store'], 2, ',', '.') }}
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">Belum ada data stok bahan baku.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

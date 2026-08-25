@@ -139,8 +139,10 @@ class ProdukController extends Controller
             ->addColumn('aksi', function ($p) {
                 $edit   = route('produk.edit', $p);
                 $detail = route('produk.show', $p);
-                return '<a href="' . $edit . '" class="btn btn-sm btn-warning me-1">Edit</a>'
-                    . '<a href="' . $detail . '" class="btn btn-sm btn-info">Detail</a>';
+                return '<div class="d-inline-flex justify-content-center gap-1 text-nowrap">'
+                    . '<a href="' . $edit . '" class="btn btn-sm btn-warning"><i class="bi bi-pencil-square"></i> Edit</a>'
+                    . '<a href="' . $detail . '" class="btn btn-sm btn-info text-white"><i class="bi bi-eye"></i> Detail</a>'
+                    . '</div>';
             })
             ->filterColumn('nama_produk', function ($q, $keyword) {
                 $q->where(function ($q) use ($keyword) {

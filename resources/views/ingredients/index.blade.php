@@ -43,9 +43,9 @@
             @endif
 
             <div class="card rounded-4 p-2">
-                <div class="card-header d-flex justify-content-between align-items-center mb-3">
-                    <div class="d-flex align-items-start">
-                        <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo" style="width:35px;height:35px;" class="me-2 mt-1">
+                <div class="card-header d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex align-items-center">
+                        <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo" style="width:35px;height:35px;" class="me-2">
                         <div>
                             <h5 class="fw-bold mb-0" style="color:#7c3aed">Bahan Baku (Raw Material)</h5>
                             <small class="text-muted">Master data bahan mentah untuk resep produk</small>
@@ -55,74 +55,80 @@
                         <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah Bahan
                     </button>
                 </div>
-                <div class="card-body">
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="40">#</th>
-                                <th>SKU</th>
-                                <th>Nama Bahan Baku</th>
-                                <th>Satuan Dasar</th>
-                                <th>Estimasi HPP / Satuan</th>
-                                <th>Konversi Satuan Pembelian</th>
-                                <th class="text-center" width="180">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($ingredients as $i => $item)
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle w-100 mb-0">
+                            <thead class="table-light">
                                 <tr>
-                                    <td>{{ $i + 1 }}</td>
-                                    <td><span class="badge bg-secondary">{{ $item->sku }}</span></td>
-                                    <td><strong>{{ $item->name }}</strong></td>
-                                    <td><span class="badge bg-info text-dark">{{ $item->baseUnit?->symbol }}</span></td>
-                                    <td>Rp {{ number_format($item->cost_per_unit, 2, ',', '.') }}</td>
-                                    <td>
-                                        @forelse($item->conversions as $conv)
-                                            <div class="d-flex justify-content-between align-items-center mb-1 bg-light p-1 rounded">
-                                                <small>1 {{ $conv->purchaseUnit?->symbol }} ({{ $conv->code }}) = {{ number_format($conv->conversion_factor, 0) }} {{ $item->baseUnit?->symbol }}</small>
-                                                <form action="{{ route('ingredients.conversions.destroy', $conv->id) }}" method="POST" onsubmit="return confirm('Hapus konversi ini?')">
+                                    <th width="40" class="text-center text-nowrap">#</th>
+                                    <th class="text-nowrap" style="min-width: 100px;">SKU</th>
+                                    <th class="text-nowrap" style="min-width: 160px;">Nama Bahan Baku</th>
+                                    <th class="text-center text-nowrap" style="min-width: 110px;">Satuan Dasar</th>
+                                    <th class="text-end text-nowrap" style="min-width: 140px;">Estimasi HPP / Satuan</th>
+                                    <th class="text-nowrap" style="min-width: 220px;">Konversi Satuan Pembelian</th>
+                                    <th class="text-center text-nowrap" style="min-width: 170px;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse ($ingredients as $i => $item)
+                                    <tr>
+                                        <td class="text-center fw-bold">{{ $i + 1 }}</td>
+                                        <td class="text-nowrap"><span class="badge bg-secondary">{{ $item->sku }}</span></td>
+                                        <td class="fw-bold">{{ $item->name }}</td>
+                                        <td class="text-center"><span class="badge bg-info text-dark">{{ $item->baseUnit?->symbol }}</span></td>
+                                        <td class="text-end text-nowrap fw-semibold">Rp {{ number_format($item->cost_per_unit, 2, ',', '.') }}</td>
+                                        <td>
+                                            @forelse($item->conversions as $conv)
+                                                <div class="d-flex justify-content-between align-items-center mb-1 bg-light p-1 rounded border">
+                                                    <small class="fw-medium">1 {{ $conv->purchaseUnit?->symbol }} ({{ $conv->code }}) = {{ number_format($conv->conversion_factor, 0) }} {{ $item->baseUnit?->symbol }}</small>
+                                                    <form action="{{ route('ingredients.conversions.destroy', $conv->id) }}" method="POST" class="ms-2" onsubmit="return confirm('Hapus konversi ini?')">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="btn btn-link text-danger p-0 m-0" style="line-height:0" title="Hapus Konversi">
+                                                            <i class="material-icons-outlined" style="font-size:14px">close</i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            @empty
+                                                <small class="text-muted fst-italic">Belum ada konversi pembelian</small>
+                                            @endforelse
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <div class="d-inline-flex justify-content-center gap-1">
+                                                <button class="btn btn-sm btn-info text-white btn-conv-modal" 
+                                                    data-id="{{ $item->id }}" 
+                                                    data-name="{{ $item->name }}" 
+                                                    data-base="{{ $item->baseUnit?->symbol }}"
+                                                    data-bs-toggle="modal" data-bs-target="#modalConversion"
+                                                    title="Atur Konversi">
+                                                    <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">sync</i> Konversi
+                                                </button>
+                                                <button class="btn btn-sm btn-warning" 
+                                                    data-id="{{ $item->id }}"
+                                                    data-sku="{{ $item->sku }}"
+                                                    data-name="{{ $item->name }}"
+                                                    data-base_unit_id="{{ $item->base_unit_id }}"
+                                                    data-cost_per_unit="{{ $item->cost_per_unit }}"
+                                                    onclick="editIngredient(this)"
+                                                    title="Edit Bahan">
+                                                    <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">edit</i>
+                                                </button>
+                                                <form action="{{ route('ingredients.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus bahan baku ini?')">
                                                     @csrf @method('DELETE')
-                                                    <button type="submit" class="btn btn-link text-danger p-0 m-0" style="line-height:0">
-                                                        <i class="material-icons-outlined" style="font-size:14px">close</i>
+                                                    <button type="submit" class="btn btn-sm btn-danger" title="Hapus Bahan">
+                                                        <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">delete</i>
                                                     </button>
                                                 </form>
                                             </div>
-                                        @empty
-                                            <small class="text-muted">Belum ada konversi pembelian</small>
-                                        @endforelse
-                                    </td>
-                                    <td class="text-center">
-                                        <button class="btn btn-sm btn-info text-white btn-conv-modal" 
-                                            data-id="{{ $item->id }}" 
-                                            data-name="{{ $item->name }}" 
-                                            data-base="{{ $item->baseUnit?->symbol }}"
-                                            data-bs-toggle="modal" data-bs-target="#modalConversion">
-                                            <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">sync</i> Konversi
-                                        </button>
-                                        <button class="btn btn-sm btn-warning" 
-                                            data-id="{{ $item->id }}"
-                                            data-sku="{{ $item->sku }}"
-                                            data-name="{{ $item->name }}"
-                                            data-base_unit_id="{{ $item->base_unit_id }}"
-                                            data-cost_per_unit="{{ $item->cost_per_unit }}"
-                                            onclick="editIngredient(this)">
-                                            <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">edit</i>
-                                        </button>
-                                        <form action="{{ route('ingredients.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Hapus bahan baku ini?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-danger">
-                                                <i class="material-icons-outlined" style="font-size:15px;vertical-align:middle">delete</i>
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted">Belum ada data bahan baku.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">Belum ada data bahan baku.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

@@ -31,79 +31,81 @@
             @endif
 
             <div class="card rounded-4 p-2">
-                <div class="card-header d-flex align-items-start mb-3">
-                    <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo" style="width:35px;height:35px;" class="me-2 mt-1">
+                <div class="card-header d-flex align-items-center mb-3">
+                    <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo" style="width:35px;height:35px;" class="me-2">
                     <div>
                         <h5 class="fw-bold mb-0" style="color:#7c3aed">Manajemen Resep Menu</h5>
                         <small class="text-muted">Hubungkan produk menu jual dengan bahan baku pendukung</small>
                     </div>
                 </div>
-                <div class="card-body">
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="40">#</th>
-                                <th>Kode Produk</th>
-                                <th>Nama Menu Jual</th>
-                                <th>Tipe Produk</th>
-                                <th>Jumlah Bahan Baku</th>
-                                <th class="text-center" width="150">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse ($products as $i => $product)
-                                @php
-                                    $defaultCount = $product->recipes->count();
-                                    $variantWithCustom = $product->variants->filter(fn($v) => $v->recipes->isNotEmpty())->count();
-                                    $totalVariants = $product->variants->count();
-                                @endphp
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle w-100 mb-0">
+                            <thead class="table-light">
                                 <tr>
-                                    <td>{{ $i + 1 }}</td>
-                                    <td><span class="badge bg-secondary">{{ $product->kode_produk }}</span></td>
-                                    <td>
-                                        <strong>{{ $product->nama_produk }}</strong>
-                                        @if ($totalVariants > 0)
-                                            <small class="text-muted d-block">{{ $totalVariants }} Varian</small>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if ($product->product_type === 'RECIPE')
-                                            <span class="badge bg-success">Resep (BOM)</span>
-                                        @else
-                                            <span class="badge bg-light text-dark border">Produk Tunggal</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if ($defaultCount > 0 || $variantWithCustom > 0)
-                                            <div class="d-flex flex-column gap-1">
-                                                @if ($defaultCount > 0)
-                                                    <div>
-                                                        <span class="badge bg-purple" style="background:#7c3aed">{{ $defaultCount }} Bahan Baku (Default)</span>
-                                                    </div>
-                                                @endif
-                                                @if ($variantWithCustom > 0)
-                                                    <div>
-                                                        <span class="badge bg-success">{{ $variantWithCustom }} Varian Beresep Khusus</span>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        @else
-                                            <small class="text-muted">Tidak ada resep (Dipotong dari stok produk jadi)</small>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">
-                                        <a href="{{ route('recipes.manage', $product->id) }}" class="btn btn-sm btn-primary rounded-3">
-                                            <i class="bi bi-gear-fill me-1"></i> Atur Resep
-                                        </a>
-                                    </td>
+                                    <th width="40" class="text-center text-nowrap">#</th>
+                                    <th class="text-nowrap" style="min-width: 100px;">Kode Produk</th>
+                                    <th class="text-nowrap" style="min-width: 180px;">Nama Menu Jual</th>
+                                    <th class="text-center text-nowrap" style="min-width: 120px;">Tipe Produk</th>
+                                    <th class="text-nowrap" style="min-width: 220px;">Jumlah Bahan Baku</th>
+                                    <th class="text-center text-nowrap" style="min-width: 130px;">Aksi</th>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted">Belum ada produk jualan terdaftar.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @forelse ($products as $i => $product)
+                                    @php
+                                        $defaultCount = $product->recipes->count();
+                                        $variantWithCustom = $product->variants->filter(fn($v) => $v->recipes->isNotEmpty())->count();
+                                        $totalVariants = $product->variants->count();
+                                    @endphp
+                                    <tr>
+                                        <td class="text-center fw-bold">{{ $i + 1 }}</td>
+                                        <td class="text-nowrap"><span class="badge bg-secondary">{{ $product->kode_produk }}</span></td>
+                                        <td>
+                                            <strong class="text-dark">{{ $product->nama_produk }}</strong>
+                                            @if ($totalVariants > 0)
+                                                <small class="text-muted d-block">{{ $totalVariants }} Varian</small>
+                                            @endif
+                                        </td>
+                                        <td class="text-center">
+                                            @if ($product->product_type === 'RECIPE')
+                                                <span class="badge bg-success">Resep (BOM)</span>
+                                            @else
+                                                <span class="badge bg-light text-dark border">Produk Tunggal</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if ($defaultCount > 0 || $variantWithCustom > 0)
+                                                <div class="d-flex flex-column gap-1">
+                                                    @if ($defaultCount > 0)
+                                                        <div>
+                                                            <span class="badge" style="background:#7c3aed">{{ $defaultCount }} Bahan Baku (Default)</span>
+                                                        </div>
+                                                    @endif
+                                                    @if ($variantWithCustom > 0)
+                                                        <div>
+                                                            <span class="badge bg-success">{{ $variantWithCustom }} Varian Beresep Khusus</span>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <small class="text-muted">Tidak ada resep (Dipotong dari stok produk jadi)</small>
+                                            @endif
+                                        </td>
+                                        <td class="text-center text-nowrap">
+                                            <a href="{{ route('recipes.manage', $product->id) }}" class="btn btn-sm btn-primary rounded-3 text-nowrap">
+                                                <i class="bi bi-gear-fill me-1"></i> Atur Resep
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">Belum ada produk jualan terdaftar.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

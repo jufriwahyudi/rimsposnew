@@ -18,16 +18,16 @@
     <div class="row">
         <div class="col-sm-12">
             <div class="card rounded-4 p-2">
-                <div class="card-header d-flex justify-content-between align-items-center mb-3 flex-wrap">
-                    <div class="d-flex align-items-start">
-                        <img src={{ asset('assets/images/alazca_logo.png') }} alt="Logo"
-                            style="width: 35px; height: 35px;" class="me-2 mt-1">
+                <div class="card-header d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex align-items-center">
+                        <img src="{{ asset('assets/images/alazca_logo.png') }}" alt="Logo"
+                            style="width: 35px; height: 35px;" class="me-2">
                         <div>
                             <h5 class="fw-bold mb-0" style="color: #7c3aed">Pengaturan Produk</h5>
                             <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
-                    <div class="d-flex gap-2 mb-3">
+                    <div class="d-flex flex-wrap gap-2">
                         <a href="{{ route('kategori-produk.index') }}" class="btn btn-outline-primary btn-sm">
                             <i class="bi bi-tags"></i> Kategori Produk
                         </a>
@@ -42,24 +42,26 @@
                         </a>
                     </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-2 p-md-3">
                     @if (session('success'))
                         <div class="alert alert-success">{{ session('success') }}</div>
                     @endif
 
-                    <table id="tbl-produk" class="table table-bordered w-100">
-                        <thead>
-                            <tr>
-                                <th>Kode</th>
-                                <th>Nama Produk</th>
-                                <th>Kategori</th>
-                                <th class="text-center" width="8%">Varian</th>
-                                <th class="text-center" width="10%">Stok Gudang</th>
-                                <th class="text-center" width="10%">Stok Toko</th>
-                                <th class="text-center" width="12%">Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
+                    <div class="table-responsive">
+                        <table id="tbl-produk" class="table table-bordered table-hover align-middle w-100 mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-nowrap" style="min-width: 90px;">Kode</th>
+                                    <th class="text-nowrap" style="min-width: 180px;">Nama Produk</th>
+                                    <th class="text-nowrap" style="min-width: 120px;">Kategori</th>
+                                    <th class="text-center text-nowrap" style="min-width: 70px;">Varian</th>
+                                    <th class="text-center text-nowrap" style="min-width: 95px;">Stok Gudang</th>
+                                    <th class="text-center text-nowrap" style="min-width: 95px;">Stok Toko</th>
+                                    <th class="text-center text-nowrap" style="min-width: 130px;">Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -300,38 +302,42 @@
             $('#tbl-produk').DataTable({
                 serverSide: true,
                 processing: true,
+                autoWidth: false,
                 ajax: '{{ route('produk.datatables') }}',
-                columns: [{
+                columns: [
+                    {
                         data: 'kode_produk',
-                        name: 'kode_produk'
+                        name: 'kode_produk',
+                        className: 'text-nowrap fw-semibold'
                     },
                     {
                         data: 'nama_produk',
-                        name: 'nama_produk'
+                        name: 'nama_produk',
                     },
                     {
                         data: 'kategori',
                         name: 'category.name',
-                        defaultContent: '-'
+                        defaultContent: '-',
+                        className: 'text-nowrap'
                     },
                     {
                         data: 'variants_count',
                         name: 'variants_count',
                         searchable: false,
-                        className: 'text-end'
+                        className: 'text-center text-nowrap'
                     },
                     {
                         data: 'stock_warehouse',
                         name: 'stock_warehouse',
                         searchable: false,
-                        className: 'text-end',
+                        className: 'text-end text-nowrap',
                         render: d => d ?? 0
                     },
                     {
                         data: 'stock_store',
                         name: 'stock_store',
                         searchable: false,
-                        className: 'text-end',
+                        className: 'text-end text-nowrap',
                         render: d => d ?? 0
                     },
                     {
@@ -339,7 +345,7 @@
                         name: 'aksi',
                         orderable: false,
                         searchable: false,
-                        className: 'text-center'
+                        className: 'text-center text-nowrap'
                     },
                 ],
                 order: [
