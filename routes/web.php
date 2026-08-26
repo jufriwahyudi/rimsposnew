@@ -289,6 +289,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::post('/movement', [CashRegisterController::class, 'cashMovement'])->name('movement');
         Route::post('/close', [CashRegisterController::class, 'close'])->name('close');
         Route::get('/print/{id}', [CashRegisterController::class, 'printSummary'])->name('print');
+        Route::get('/preview/{id}', [CashRegisterController::class, 'preview'])->name('preview');
         Route::get('/', [CashRegisterController::class, 'index'])->name('index');
         Route::get('/datatables', [CashRegisterController::class, 'datatables'])->name('datatables');
         Route::get('/{id}', [CashRegisterController::class, 'show'])->name('show');

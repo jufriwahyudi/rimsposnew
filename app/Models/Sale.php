@@ -116,6 +116,11 @@ class Sale extends Model
     {
         return $this->hasMany(CashTransaction::class, 'ref_id')->where('transaction_type', 'sale')->where('direction', 'in');
     }
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
     public function biodata()
     {
         return $this->belongsTo(NseCalonSiswa::class, 'customer_id', 'id_biodatadiri');

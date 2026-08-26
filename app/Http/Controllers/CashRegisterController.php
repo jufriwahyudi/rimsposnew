@@ -270,16 +270,31 @@ class CashRegisterController extends Controller
     }
 
     /**
+     * Preview HTML modal / partial for cashier shift closing receipt.
+     */
+    public function preview(int $id)
+    {
+        $register = CashRegister::with(['store', 'cashier', 'closedBy', 'sales.items', 'cashTransactions.rekening'])->findOrFail($id);
+
+        $storeId = session('store_id') ?: $register->store_id;
+        $store   = Store::find($storeId) ?? $register->store;
+        $reportData = $this->cashRegisterService->getShiftReportData($register);
+
+        return view('cash_registers.partials.receipt_preview', compact('register', 'store', 'reportData'));
+    }
+
+    /**
      * Print thermal receipt for closed cashier register.
      */
     public function printSummary(int $id)
     {
-        $register = CashRegister::with(['store', 'cashier', 'closedBy'])->findOrFail($id);
+        $register = CashRegister::with(['store', 'cashier', 'closedBy', 'sales.items', 'cashTransactions.rekening'])->findOrFail($id);
 
         $storeId = session('store_id') ?: $register->store_id;
         $store   = Store::find($storeId) ?? $register->store;
+        $reportData = $this->cashRegisterService->getShiftReportData($register);
 
-        return view('cash_registers.receipt', compact('register', 'store'));
+        return view('cash_registers.receipt', compact('register', 'store', 'reportData'));
     }
 
     /**
@@ -314,30 +329,44 @@ class CashRegisterController extends Controller
             ->addIndexColumn()
             ->editColumn('opened_at', fn($r) => $r->opened_at ? $r->opened_at->format('d/m/Y H:i') : '-')
             ->editColumn('closed_at', fn($r) => $r->closed_at ? $r->closed_at->format('d/m/Y H:i') : '<span class="badge bg-success">Masih Buka</span>')
+            ->addColumn('store_name', fn($r) => $r->store?->name ?? '-')
             ->addColumn('cashier_name', fn($r) => $r->cashier?->name ?? '-')
             ->editColumn('opening_cash', fn($r) => 'Rp ' . number_format($r->opening_cash, 0, ',', '.'))
             ->editColumn('total_cash_sales', fn($r) => 'Rp ' . number_format($r->total_cash_sales, 0, ',', '.'))
+            ->editColumn('total_sales', fn($r) => 'Rp ' . number_format($r->total_cash_sales + $r->total_non_cash_sales, 0, ',', '.'))
             ->editColumn('expected_cash', fn($r) => $r->expected_cash !== null ? 'Rp ' . number_format($r->expected_cash, 0, ',', '.') : '-')
             ->editColumn('actual_cash', fn($r) => $r->actual_cash !== null ? 'Rp ' . number_format($r->actual_cash, 0, ',', '.') : '-')
             ->editColumn('cash_difference', function ($r) {
-                if ($r->cash_difference === null) return '-';
+                if ($r->cash_difference === null) return '<span class="badge bg-light text-secondary border">-</span>';
                 if ($r->cash_difference == 0) {
-                    return '<span class="badge bg-success">Pas (Rp 0)</span>';
+                    return '<span class="badge bg-success-subtle text-success border border-success">Pas (Rp 0)</span>';
                 } elseif ($r->cash_difference > 0) {
-                    return '<span class="badge bg-info text-dark">+Rp ' . number_format($r->cash_difference, 0, ',', '.') . '</span>';
+                    return '<span class="badge bg-info-subtle text-info border border-info">+Rp ' . number_format($r->cash_difference, 0, ',', '.') . ' (Lebih)</span>';
                 } else {
-                    return '<span class="badge bg-danger">Rp ' . number_format($r->cash_difference, 0, ',', '.') . '</span>';
+                    return '<span class="badge bg-danger-subtle text-danger border border-danger">Rp ' . number_format($r->cash_difference, 0, ',', '.') . ' (Kurang)</span>';
                 }
             })
             ->editColumn('status', function ($r) {
                 return $r->status === 'open'
-                    ? '<span class="badge bg-warning text-dark">Buka</span>'
-                    : '<span class="badge bg-secondary">Tutup</span>';
+                    ? '<span class="badge bg-warning text-dark"><i class="bi bi-door-open me-1"></i>Buka</span>'
+                    : '<span class="badge bg-secondary"><i class="bi bi-door-closed me-1"></i>Tutup</span>';
             })
             ->addColumn('action', function ($r) {
-                $detailBtn = '<a href="' . route('cash-registers.show', $r->id) . '" class="btn btn-sm btn-outline-primary" title="Detail"><i class="bi bi-eye"></i></a>';
-                $printBtn  = '<a href="' . route('cash-registers.print', $r->id) . '" target="_blank" class="btn btn-sm btn-outline-secondary ms-1" title="Cetak Struk"><i class="bi bi-printer"></i></a>';
-                return $detailBtn . $printBtn;
+                $detailUrl = route('cash-registers.show', $r->id);
+                $printUrl  = route('cash-registers.print', $r->id);
+
+                return '
+                <div class="d-flex align-items-center justify-content-center gap-1">
+                    <a href="' . $detailUrl . '" class="btn btn-sm btn-primary d-inline-flex align-items-center" title="Lihat Detail Transaksi">
+                        <i class="bi bi-receipt me-1"></i> Detail
+                    </a>
+                    <button type="button" class="btn btn-sm btn-dark d-inline-flex align-items-center" onclick="previewShiftReceipt(' . $r->id . ')" title="Preview Cetakan Tutup Kasir">
+                        <i class="bi bi-eye me-1"></i> Preview
+                    </button>
+                    <a href="' . $printUrl . '" target="_blank" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center" title="Cetak Struk">
+                        <i class="bi bi-printer"></i>
+                    </a>
+                </div>';
             })
             ->rawColumns(['closed_at', 'cash_difference', 'status', 'action'])
             ->make(true);
@@ -348,8 +377,15 @@ class CashRegisterController extends Controller
      */
     public function show(int $id)
     {
-        $register = CashRegister::with(['store', 'cashier', 'closedBy', 'sales.items', 'cashTransactions.user'])
-            ->findOrFail($id);
+        $register = CashRegister::with([
+            'store',
+            'cashier',
+            'closedBy',
+            'sales.items',
+            'sales.customer',
+            'cashTransactions.user',
+            'cashTransactions.rekening'
+        ])->findOrFail($id);
 
         $summary = $register->status === 'closed'
             ? [
@@ -366,6 +402,8 @@ class CashRegisterController extends Controller
             ]
             : $this->cashRegisterService->calculateSummary($register);
 
-        return view('cash_registers.show', compact('register', 'summary'));
+        $reportData = $this->cashRegisterService->getShiftReportData($register);
+
+        return view('cash_registers.show', compact('register', 'summary', 'reportData'));
     }
 }
