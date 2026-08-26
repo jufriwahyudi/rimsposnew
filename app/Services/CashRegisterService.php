@@ -320,19 +320,27 @@ class CashRegisterService
             ->pluck('id');
 
         $menuSales = SaleItem::whereIn('sale_id', $saleIds)
-            ->select('product_name', DB::raw('SUM(qty) as total_qty'))
+            ->select(
+                'product_name',
+                DB::raw('MAX(price) as unit_price'),
+                DB::raw('SUM(qty) as total_qty'),
+                DB::raw('SUM(subtotal) as total_subtotal')
+            )
             ->groupBy('product_name')
             ->orderByDesc('total_qty')
             ->get()
             ->map(function ($item) {
                 return [
-                    'name' => $item->product_name,
-                    'qty'  => (float) $item->total_qty,
+                    'name'     => $item->product_name,
+                    'price'    => (float) $item->unit_price,
+                    'qty'      => (float) $item->total_qty,
+                    'subtotal' => (float) $item->total_subtotal,
                 ];
             })
             ->toArray();
 
-        $totalMenuQty = array_sum(array_column($menuSales, 'qty'));
+        $totalMenuQty    = array_sum(array_column($menuSales, 'qty'));
+        $totalMenuAmount = array_sum(array_column($menuSales, 'subtotal'));
 
         $store = $cashRegister->store;
 
@@ -363,8 +371,9 @@ class CashRegisterService
                 'unpaid_sales'        => $unpaidSalesCount,
             ],
             'menu_sales' => [
-                'items'     => $menuSales,
-                'total_qty' => $totalMenuQty,
+                'items'        => $menuSales,
+                'total_qty'    => $totalMenuQty,
+                'total_amount' => $totalMenuAmount,
             ],
         ];
     }

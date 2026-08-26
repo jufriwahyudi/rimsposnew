@@ -175,9 +175,18 @@
                 <div class="text-center py-2 text-muted" style="font-size: 11px;">(Tidak ada penjualan produk)</div>
             @else
                 @foreach($items as $item)
-                    <div class="receipt-row">
-                        <span class="lbl text-truncate" style="max-width: 70%;">{{ $item['name'] }}</span>
-                        <span class="val fw-bold">{{ number_format($item['qty'], 0) }}</span>
+                    @php
+                        $qty = (float) ($item['qty'] ?? 0);
+                        $price = (float) ($item['price'] ?? 0);
+                        $subtotal = isset($item['subtotal']) && $item['subtotal'] > 0 ? (float) $item['subtotal'] : ($qty * $price);
+                    @endphp
+                    <div class="receipt-row" style="margin-bottom: 4px;">
+                        <span class="lbl text-truncate" style="max-width: 55%;">{{ $item['name'] }}</span>
+                        <span class="val text-end">
+                            <span class="fw-bold">{{ number_format($qty, 0) }}x</span>
+                            <span style="font-size: 10px; color: #475569;">{{ number_format($price, 0, ',', '.') }}</span>
+                            <span class="fw-bold d-block" style="font-size: 11px;">Rp {{ number_format($subtotal, 0, ',', '.') }}</span>
+                        </span>
                     </div>
                 @endforeach
             @endif
@@ -187,6 +196,12 @@
                 <span class="lbl">TOTAL ITEM TERJUAL</span>
                 <span class="val">{{ number_format($menuData['total_qty'] ?? 0, 0) }}</span>
             </div>
+            @if(!empty($menuData['total_amount']))
+                <div class="receipt-row bold">
+                    <span class="lbl">TOTAL HARGA PRODUK</span>
+                    <span class="val">Rp {{ number_format($menuData['total_amount'], 0, ',', '.') }}</span>
+                </div>
+            @endif
         </div>
 
         @if(!empty($register->notes))

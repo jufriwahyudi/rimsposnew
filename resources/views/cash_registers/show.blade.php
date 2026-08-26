@@ -446,22 +446,37 @@
                                 <table class="table table-hover table-striped mb-0 align-middle small">
                                     <thead class="table-light">
                                         <tr>
-                                            <th>No</th>
+                                            <th width="5%">No</th>
                                             <th>Nama Produk / Menu</th>
-                                            <th class="text-end">Jumlah Terjual (Qty)</th>
+                                            <th class="text-end">Harga Satuan</th>
+                                            <th class="text-center">Jumlah Terjual (Qty)</th>
+                                            <th class="text-end">Total Harga</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @php $items = $reportData['menu_sales']['items'] ?? []; @endphp
+                                        @php
+                                            $items = $reportData['menu_sales']['items'] ?? [];
+                                            $totalQty = 0;
+                                            $totalAmount = 0;
+                                        @endphp
                                         @forelse($items as $idx => $item)
+                                            @php
+                                                $qty = (float) ($item['qty'] ?? 0);
+                                                $price = (float) ($item['price'] ?? 0);
+                                                $subtotal = isset($item['subtotal']) && $item['subtotal'] > 0 ? (float) $item['subtotal'] : ($qty * $price);
+                                                $totalQty += $qty;
+                                                $totalAmount += $subtotal;
+                                            @endphp
                                             <tr>
-                                                <td width="5%">{{ $idx + 1 }}</td>
+                                                <td>{{ $idx + 1 }}</td>
                                                 <td class="fw-semibold text-dark">{{ $item['name'] }}</td>
-                                                <td class="text-end fw-bold">{{ number_format($item['qty'], 0) }}</td>
+                                                <td class="text-end text-muted">Rp {{ number_format($price, 0, ',', '.') }}</td>
+                                                <td class="text-center fw-bold text-dark">{{ number_format($qty, 0) }}</td>
+                                                <td class="text-end fw-bold text-primary">Rp {{ number_format($subtotal, 0, ',', '.') }}</td>
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="3" class="text-center py-5 text-muted">
+                                                <td colspan="5" class="text-center py-5 text-muted">
                                                     <i class="bi bi-box fs-2 d-block mb-1"></i>
                                                     Belum ada data penjualan produk.
                                                 </td>
@@ -471,8 +486,9 @@
                                     @if(!empty($items))
                                         <tfoot class="table-secondary fw-bold fs-6">
                                             <tr>
-                                                <td colspan="2">TOTAL KESELURUHAN ITEM TERJUAL:</td>
-                                                <td class="text-end">{{ number_format($reportData['menu_sales']['total_qty'] ?? 0, 0) }}</td>
+                                                <td colspan="3" class="text-end text-dark">TOTAL KESELURUHAN ITEM TERJUAL:</td>
+                                                <td class="text-center text-dark">{{ number_format($totalQty, 0) }}</td>
+                                                <td class="text-end text-primary">Rp {{ number_format($totalAmount, 0, ',', '.') }}</td>
                                             </tr>
                                         </tfoot>
                                     @endif
