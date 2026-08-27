@@ -211,15 +211,12 @@ class EscPosReceiptService
 
             if ($this->width >= 48) {
                 // 80mm
-                $qtyCol = $this->mbPad($strQty, 8);
-                $nameCol = mb_substr($name, 0, 40);
-                $this->writeLine($qtyCol . $nameCol);
+                $chunks = $this->wrapText($name, 40);
+                $firstChunk = array_shift($chunks);
+                $this->writeLine($this->mbPad($strQty, 8) . $firstChunk);
 
-                if (mb_strlen($name) > 40) {
-                    $rest = mb_substr($name, 40);
-                    foreach ($this->wrapText($rest, 40) as $chunk) {
-                        $this->writeLine(str_repeat(' ', 8) . $chunk);
-                    }
+                foreach ($chunks as $chunk) {
+                    $this->writeLine(str_repeat(' ', 8) . $chunk);
                 }
 
                 if ($notes !== '') {
@@ -363,39 +360,18 @@ class EscPosReceiptService
             $strDetail   = $qty . ' x ' . $this->rupiah($price);
             $strSubtotal = $this->rupiah($subtotal);
 
-            if ($this->width >= 48) {
-                // ── 80mm: satu baris per item ──────────────────────────────
-                // | Nama produk (25)   | qty x harga (14) | subtotal (9) |
-                $nameCol   = $this->mbPad(mb_substr($name, 0, 25), 25);
-                $detailCol = str_pad($strDetail,   14, ' ', STR_PAD_LEFT);
-                $totalCol  = str_pad($strSubtotal,  9, ' ', STR_PAD_LEFT);
-                $this->writeLine($nameCol . $detailCol . $totalCol);
+            // Baris 1: nama produk (wrap sesuai lebar kertas: 32 char utk 58mm, 48 char utk 80mm)
+            foreach ($this->wrapText($name, $this->width) as $chunk) {
+                $this->writeLine($chunk);
+            }
 
-                // Jika nama > 25 karakter, cetak sisa di baris berikutnya (indent)
-                if (mb_strlen($name) > 25) {
-                    $rest = mb_substr($name, 25);
-                    foreach ($this->wrapText($rest, 25) as $chunk) {
-                        $this->writeLine('  ' . $chunk);
-                    }
-                }
+            // Baris 2: "  qty x harga            subtotal" (rata kanan)
+            $lineDetail = '  ' . $strDetail;
+            $spaces     = $this->width - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
+            $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
 
-                if ($notes !== '') {
-                    $this->writeLine('  * Catatan: ' . $notes);
-                }
-            } else {
-                // ── 58mm: dua baris per item ───────────────────────────────
-                // Baris 1: nama (wrap)
-                foreach ($this->wrapText($name, $this->width) as $chunk) {
-                    $this->writeLine($chunk);
-                }
-                // Baris 2: "  detail          subtotal" (right-aligned)
-                $lineDetail = '  ' . $strDetail;
-                $spaces     = $this->width - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
-                $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
-
-                if ($notes !== '') {
-                    $this->writeLine('    * Catatan: ' . $notes);
-                }
+            if ($notes !== '') {
+                $this->writeLine('    * Catatan: ' . $notes);
             }
         }
     }
