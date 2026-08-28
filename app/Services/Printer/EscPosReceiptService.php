@@ -406,9 +406,7 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
-        $this->printer->setEmphasis(true);
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total)));
-        $this->printer->setEmphasis(false);
 
         $this->separator();
         $this->writeLine($this->cols('Bayar',   $this->rupiah($paid)));
@@ -418,9 +416,7 @@ class EscPosReceiptService
         $this->writeLine($this->cols('Kembali', $this->rupiah($change)));
 
         if ($payStatus === 'hutang' || $remDebt > 0) {
-            $this->printer->setEmphasis(true);
             $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt)));
-            $this->printer->setEmphasis(false);
         }
     }
 
@@ -450,15 +446,22 @@ class EscPosReceiptService
         $this->printer->text($text . "\n");
     }
 
-    protected function writeCentered(string $text): void
+    protected function writeCentered(string $text, ?int $wrapWidth = null): void
     {
-        $len = mb_strlen($text);
-        if ($len >= $this->width) {
-            $this->writeLine($text);
-            return;
+        $maxW = $wrapWidth ?? $this->width;
+        foreach ($this->wrapText($text, $maxW) as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            $len = mb_strlen($line);
+            if ($len >= $this->width) {
+                $this->writeLine($line);
+                continue;
+            }
+            $spaces = (int) floor(($this->width - $len) / 2);
+            $this->writeLine(str_repeat(' ', max(0, $spaces)) . $line);
         }
-        $spaces = (int) floor(($this->width - $len) / 2);
-        $this->writeLine(str_repeat(' ', max(0, $spaces)) . $text);
     }
 
     protected function separator(string $char = '-'): void
@@ -538,12 +541,13 @@ class EscPosReceiptService
         $this->printer->setEmphasis(false);
 
         if (!empty($store['address'])) {
-            foreach ($this->wrapText($store['address'], $this->width) as $line) {
-                $this->writeLine($line);
-            }
+            $this->writeCentered($store['address']);
+        }
+        if (!empty($store['city'])) {
+            $this->writeCentered($store['city']);
         }
         if (!empty($store['phone'])) {
-            $this->writeLine('Telp: ' . $store['phone']);
+            $this->writeCentered('Telp: ' . $store['phone']);
         }
         $this->separator();
 
