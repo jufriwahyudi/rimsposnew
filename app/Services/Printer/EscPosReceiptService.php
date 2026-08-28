@@ -28,7 +28,7 @@ class EscPosReceiptService
 
     public function __construct(string $paperSize = '80mm')
     {
-        $this->width = ($paperSize === '58mm') ? 32 : 48;
+        $this->width = ($paperSize === '58mm') ? 32 : 42;
     }
 
     /* =====================================================================
@@ -209,9 +209,9 @@ class EscPosReceiptService
 
             $strQty = '[ ] ' . $qty . ' x ';
 
-            if ($this->width >= 48) {
+            if ($this->width >= 40) {
                 // 80mm
-                $chunks = $this->wrapText($name, 40);
+                $chunks = $this->wrapText($name, $this->width - 8);
                 $firstChunk = array_shift($chunks);
                 $this->writeLine($this->mbPad($strQty, 8) . $firstChunk);
 
@@ -566,9 +566,6 @@ class EscPosReceiptService
         if (!empty($fin['refund_cash']) && $fin['refund_cash'] > 0) {
             $this->writeLine($this->cols('Refund Tunai', number_format($fin['refund_cash'], 0, ',', '.')));
         }
-
-        $this->writeLine($this->cols('Total Penerimaan', number_format($fin['total_received'] ?? 0, 0, ',', '.')));
-        $this->separator();
 
         $this->writeLine($this->cols('Total Penerimaan', number_format($fin['total_received'] ?? 0, 0, ',', '.')));
         $this->printer->setEmphasis(true);
