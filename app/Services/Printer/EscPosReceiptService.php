@@ -24,11 +24,13 @@ use Mike42\Escpos\CapabilityProfile;
 class EscPosReceiptService
 {
     protected int $width;
+    protected int $colsWidth;
     protected Printer $printer;
 
     public function __construct(string $paperSize = '80mm')
     {
-        $this->width = ($paperSize === '58mm') ? 32 : 48;
+        $this->width     = ($paperSize === '58mm') ? 32 : 48;
+        $this->colsWidth = ($paperSize === '58mm') ? 32 : 44;
     }
 
     /* =====================================================================
@@ -342,7 +344,7 @@ class EscPosReceiptService
             $this->printer->setEmphasis(false);
             $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         } else {
-            $this->writeLine('PaySt: ' . (strtoupper($trx['payment_status'] ?? 'LUNAS')));
+            $this->writeLine('PaySt: ' . trim(strtoupper($trx['payment_status'] ?? 'LUNAS')));
         }
 
         $this->separator();
@@ -367,7 +369,7 @@ class EscPosReceiptService
 
             // Baris 2: "  qty x harga            subtotal" (rata kanan)
             $lineDetail = '  ' . $strDetail;
-            $spaces     = $this->width - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
+            $spaces     = $this->colsWidth - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
             $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
 
             if ($notes !== '') {
@@ -404,7 +406,7 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
-        $boldWidth = ($this->width >= 48) ? 44 : ($this->width - 2);
+        $boldWidth = ($this->colsWidth >= 44) ? ($this->colsWidth - 2) : ($this->colsWidth - 2);
 
         $this->printer->setEmphasis(true);
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total), $boldWidth));
@@ -472,11 +474,13 @@ class EscPosReceiptService
     }
 
     /**
-     * Dua kolom: kiri rata kiri, kanan rata kanan, total = $this->width (atau kustom $width).
+     * Dua kolom: kiri rata kiri, kanan rata kanan.
+     * Default menggunakan $this->colsWidth (44 untuk 80mm).
+     * Untuk baris bold, berikan $width yang lebih kecil.
      */
     protected function cols(string $left, string $right, ?int $width = null): string
     {
-        $w      = $width ?? $this->width;
+        $w      = $width ?? $this->colsWidth;
         $rLen   = mb_strlen($right);
         $lMax   = $w - $rLen - 1;
         $left   = mb_substr($left, 0, $lMax);
