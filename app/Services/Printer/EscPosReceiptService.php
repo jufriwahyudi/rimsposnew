@@ -24,13 +24,11 @@ use Mike42\Escpos\CapabilityProfile;
 class EscPosReceiptService
 {
     protected int $width;
-    protected int $colsWidth;
     protected Printer $printer;
 
     public function __construct(string $paperSize = '80mm')
     {
-        $this->width     = ($paperSize === '58mm') ? 32 : 48;
-        $this->colsWidth = ($paperSize === '58mm') ? 32 : 44;
+        $this->width = ($paperSize === '58mm') ? 32 : 42;
     }
 
     /* =====================================================================
@@ -147,7 +145,7 @@ class EscPosReceiptService
         }
         $this->printer->setEmphasis(false);
         $this->writeLine($store['name'] ?? 'RIMS POS');
-        
+
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         $this->separator();
     }
@@ -180,7 +178,7 @@ class EscPosReceiptService
         $this->printer->setEmphasis(false);
         $this->printer->setTextSize(1, 1);
         $this->writeLine($store['name'] ?? 'RIMS POS');
-        
+
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         $this->separator();
     }
@@ -371,7 +369,7 @@ class EscPosReceiptService
 
             // Baris 2: "  qty x harga            subtotal" (rata kanan)
             $lineDetail = '  ' . $strDetail;
-            $spaces     = $this->colsWidth - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
+            $spaces     = $this->width - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
             $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
 
             if ($notes !== '') {
@@ -408,10 +406,8 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
-        $boldWidth = $this->colsWidth - 4; // bold chars wider → fewer per line (42 worked, 44 didn't)
-
         $this->printer->setEmphasis(true);
-        $this->writeLine($this->cols('TOTAL', $this->rupiah($total), $boldWidth));
+        $this->writeLine($this->cols('TOTAL', $this->rupiah($total)));
         $this->printer->setEmphasis(false);
 
         $this->separator();
@@ -423,7 +419,7 @@ class EscPosReceiptService
 
         if ($payStatus === 'hutang' || $remDebt > 0) {
             $this->printer->setEmphasis(true);
-            $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt), $boldWidth));
+            $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt)));
             $this->printer->setEmphasis(false);
         }
     }
@@ -431,17 +427,9 @@ class EscPosReceiptService
     protected function printFooter(bool $openDrawer = true): void
     {
         $this->separator();
-
-        // Reset state sebelum footer untuk menghindari state leakage
-        $this->printer->setEmphasis(false);
-        $this->printer->setTextSize(1, 1);
-
-        // Gunakan hardware centering dari printer (lebih reliable daripada software padding)
-        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-        $this->writeLine('Terima Kasih!');
-        $this->writeLine('Barang yg sudah dibeli');
-        $this->writeLine('tidak dapat dikembalikan');
-        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->writeCentered('Terima Kasih!');
+        $this->writeCentered('Barang yg sudah dibeli');
+        $this->writeCentered('tidak dapat dikembalikan');
 
         if ($openDrawer) {
             // Trigger sinyal pulse untuk membuka cash drawer (laci kasir) via port RJ11 printer
@@ -464,19 +452,18 @@ class EscPosReceiptService
 
     protected function writeCentered(string $text): void
     {
-        $w   = $this->colsWidth; // gunakan colsWidth agar tidak overflow
         $len = mb_strlen($text);
-        if ($len >= $w) {
+        if ($len >= $this->width) {
             $this->writeLine($text);
             return;
         }
-        $spaces = (int) floor(($w - $len) / 2);
+        $spaces = (int) floor(($this->width - $len) / 2);
         $this->writeLine(str_repeat(' ', max(0, $spaces)) . $text);
     }
 
     protected function separator(string $char = '-'): void
     {
-        $this->writeLine(str_repeat($char, $this->colsWidth));
+        $this->writeLine(str_repeat($char, $this->width));
     }
 
     protected function rupiah(int $value): string
@@ -485,13 +472,11 @@ class EscPosReceiptService
     }
 
     /**
-     * Dua kolom: kiri rata kiri, kanan rata kanan.
-     * Default menggunakan $this->colsWidth (44 untuk 80mm).
-     * Untuk baris bold, berikan $width yang lebih kecil.
+     * Dua kolom: kiri rata kiri, kanan rata kanan, total = $this->width.
      */
     protected function cols(string $left, string $right, ?int $width = null): string
     {
-        $w      = $width ?? $this->colsWidth;
+        $w      = $width ?? $this->width;
         $rLen   = mb_strlen($right);
         $lMax   = $w - $rLen - 1;
         $left   = mb_substr($left, 0, $lMax);
@@ -595,10 +580,8 @@ class EscPosReceiptService
         }
 
         $this->writeLine($this->cols('Total Penerimaan', number_format($fin['total_received'] ?? 0, 0, ',', '.')));
-
-        $boldWidth = $this->colsWidth - 4;
         $this->printer->setEmphasis(true);
-        $this->writeLine($this->cols('Saldo Akhir', number_format($fin['final_cash_balance'] ?? 0, 0, ',', '.'), $boldWidth));
+        $this->writeLine($this->cols('Saldo Akhir', number_format($fin['final_cash_balance'] ?? 0, 0, ',', '.')));
         $this->printer->setEmphasis(false);
         $this->separator();
 
