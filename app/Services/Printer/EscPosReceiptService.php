@@ -344,7 +344,9 @@ class EscPosReceiptService
             $this->printer->setEmphasis(false);
             $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         } else {
-            $this->writeLine('PaySt: ' . trim(strtoupper($trx['payment_status'] ?? 'LUNAS')));
+            $payLabel = strtoupper($trx['payment_status'] ?? 'LUNAS');
+            $payLabel = preg_replace('/[\x00-\x1F\x7F]+/', '', $payLabel); // strip control chars (\r, \n, etc.)
+            $this->writeLine('PaySt: ' . trim($payLabel));
         }
 
         $this->separator();
@@ -406,7 +408,7 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
-        $boldWidth = ($this->colsWidth >= 44) ? ($this->colsWidth - 2) : ($this->colsWidth - 2);
+        $boldWidth = $this->colsWidth;
 
         $this->printer->setEmphasis(true);
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total), $boldWidth));
@@ -454,12 +456,13 @@ class EscPosReceiptService
 
     protected function writeCentered(string $text): void
     {
+        $w   = $this->colsWidth; // gunakan colsWidth agar tidak overflow
         $len = mb_strlen($text);
-        if ($len >= $this->width) {
+        if ($len >= $w) {
             $this->writeLine($text);
             return;
         }
-        $spaces = (int) floor(($this->width - $len) / 2);
+        $spaces = (int) floor(($w - $len) / 2);
         $this->writeLine(str_repeat(' ', max(0, $spaces)) . $text);
     }
 
