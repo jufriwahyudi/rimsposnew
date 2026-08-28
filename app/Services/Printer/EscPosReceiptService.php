@@ -28,7 +28,7 @@ class EscPosReceiptService
 
     public function __construct(string $paperSize = '80mm')
     {
-        $this->width = ($paperSize === '58mm') ? 32 : 42;
+        $this->width = ($paperSize === '58mm') ? 32 : 48;
     }
 
     /* =====================================================================
@@ -273,18 +273,18 @@ class EscPosReceiptService
         $this->printer->setTextSize(2, 1);
         $this->writeLine($store['name'] ?? 'RIMS POS');
         $this->printer->setTextSize(1, 1);
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
 
         if (!empty($store['address'])) {
-            $this->writeLine($store['address']);
+            $this->writeCentered($store['address']);
         }
         if (!empty($store['city'])) {
-            $this->writeLine($store['city']);
+            $this->writeCentered($store['city']);
         }
         if (!empty($store['phone'])) {
-            $this->writeLine('Telp: ' . $store['phone']);
+            $this->writeCentered('Telp: ' . $store['phone']);
         }
 
-        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
         $this->separator();
     }
 
@@ -404,8 +404,10 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
+        $boldWidth = ($this->width >= 48) ? 44 : ($this->width - 2);
+
         $this->printer->setEmphasis(true);
-        $this->writeLine($this->cols('TOTAL', $this->rupiah($total)));
+        $this->writeLine($this->cols('TOTAL', $this->rupiah($total), $boldWidth));
         $this->printer->setEmphasis(false);
 
         $this->separator();
@@ -417,7 +419,7 @@ class EscPosReceiptService
 
         if ($payStatus === 'hutang' || $remDebt > 0) {
             $this->printer->setEmphasis(true);
-            $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt)));
+            $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt), $boldWidth));
             $this->printer->setEmphasis(false);
         }
     }
@@ -425,11 +427,9 @@ class EscPosReceiptService
     protected function printFooter(bool $openDrawer = true): void
     {
         $this->separator();
-        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-        $this->writeLine('Terima Kasih!');
-        $this->writeLine('Barang yg sudah dibeli');
-        $this->writeLine('tidak dapat dikembalikan');
-        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        $this->writeCentered('Terima Kasih!');
+        $this->writeCentered('Barang yg sudah dibeli');
+        $this->writeCentered('tidak dapat dikembalikan');
 
         if ($openDrawer) {
             // Trigger sinyal pulse untuk membuka cash drawer (laci kasir) via port RJ11 printer
@@ -450,6 +450,17 @@ class EscPosReceiptService
         $this->printer->text($text . "\n");
     }
 
+    protected function writeCentered(string $text): void
+    {
+        $len = mb_strlen($text);
+        if ($len >= $this->width) {
+            $this->writeLine($text);
+            return;
+        }
+        $spaces = (int) floor(($this->width - $len) / 2);
+        $this->writeLine(str_repeat(' ', max(0, $spaces)) . $text);
+    }
+
     protected function separator(): void
     {
         $this->writeLine(str_repeat('-', $this->width));
@@ -461,14 +472,15 @@ class EscPosReceiptService
     }
 
     /**
-     * Dua kolom: kiri rata kiri, kanan rata kanan, total = $this->width.
+     * Dua kolom: kiri rata kiri, kanan rata kanan, total = $this->width (atau kustom $width).
      */
-    protected function cols(string $left, string $right): string
+    protected function cols(string $left, string $right, ?int $width = null): string
     {
+        $w      = $width ?? $this->width;
         $rLen   = mb_strlen($right);
-        $lMax   = $this->width - $rLen - 1;
+        $lMax   = $w - $rLen - 1;
         $left   = mb_substr($left, 0, $lMax);
-        $spaces = $this->width - mb_strlen($left) - $rLen;
+        $spaces = $w - mb_strlen($left) - $rLen;
         return $left . str_repeat(' ', max(1, $spaces)) . $right;
     }
 
