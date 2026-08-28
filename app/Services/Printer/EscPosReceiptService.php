@@ -408,7 +408,7 @@ class EscPosReceiptService
             $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
-        $boldWidth = $this->colsWidth;
+        $boldWidth = $this->colsWidth - 4; // bold chars wider → fewer per line (42 worked, 44 didn't)
 
         $this->printer->setEmphasis(true);
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total), $boldWidth));
@@ -431,9 +431,17 @@ class EscPosReceiptService
     protected function printFooter(bool $openDrawer = true): void
     {
         $this->separator();
-        $this->writeCentered('Terima Kasih!');
-        $this->writeCentered('Barang yg sudah dibeli');
-        $this->writeCentered('tidak dapat dikembalikan');
+
+        // Reset state sebelum footer untuk menghindari state leakage
+        $this->printer->setEmphasis(false);
+        $this->printer->setTextSize(1, 1);
+
+        // Gunakan hardware centering dari printer (lebih reliable daripada software padding)
+        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+        $this->writeLine('Terima Kasih!');
+        $this->writeLine('Barang yg sudah dibeli');
+        $this->writeLine('tidak dapat dikembalikan');
+        $this->printer->setJustification(Printer::JUSTIFY_LEFT);
 
         if ($openDrawer) {
             // Trigger sinyal pulse untuk membuka cash drawer (laci kasir) via port RJ11 printer
@@ -466,9 +474,9 @@ class EscPosReceiptService
         $this->writeLine(str_repeat(' ', max(0, $spaces)) . $text);
     }
 
-    protected function separator(): void
+    protected function separator(string $char = '-'): void
     {
-        $this->writeLine(str_repeat('-', $this->width));
+        $this->writeLine(str_repeat($char, $this->colsWidth));
     }
 
     protected function rupiah(int $value): string
@@ -587,8 +595,10 @@ class EscPosReceiptService
         }
 
         $this->writeLine($this->cols('Total Penerimaan', number_format($fin['total_received'] ?? 0, 0, ',', '.')));
+
+        $boldWidth = $this->colsWidth - 4;
         $this->printer->setEmphasis(true);
-        $this->writeLine($this->cols('Saldo Akhir', number_format($fin['final_cash_balance'] ?? 0, 0, ',', '.')));
+        $this->writeLine($this->cols('Saldo Akhir', number_format($fin['final_cash_balance'] ?? 0, 0, ',', '.'), $boldWidth));
         $this->printer->setEmphasis(false);
         $this->separator();
 
