@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Tutorial: Stok Masuk & Transfer Stok - RIMS POS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a0ca3;
+            --accent: #4cc9f0;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border: #334155;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(67, 97, 238, 0.2);
+            color: var(--accent);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid rgba(76, 201, 240, 0.3);
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        p.subtitle {
+            color: var(--text-sub);
+            font-size: 14px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1080px;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .video-box {
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .screen-viewport {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .screen-viewport img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .voice-bubble {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .voice-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+            color: #fff;
+        }
+
+        .voice-text {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .controls-bar {
+            background: var(--card-bg);
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: #334155;
+            border-radius: 999px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 999px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .btn-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .left-btns {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ctrl-btn {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255,255,255,0.18);
+            border-color: var(--accent);
+        }
+
+        .ctrl-btn.primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .ctrl-btn.primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .time-display {
+            font-size: 13px;
+            color: var(--text-sub);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Sidebar Playlist */
+        .sidebar {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 560px;
+            overflow-y: auto;
+        }
+
+        .sidebar-title {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #fff;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .step-item {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .step-item:hover {
+            background: rgba(67, 97, 238, 0.15);
+            border-color: rgba(67, 97, 238, 0.4);
+        }
+
+        .step-item.active {
+            background: rgba(67, 97, 238, 0.25);
+            border-color: var(--accent);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .step-item.active .step-header {
+            color: var(--accent);
+        }
+
+        .step-desc {
+            font-size: 12px;
+            color: var(--text-sub);
+            line-height: 1.4;
+        }
+
+        .file-info-card {
+            margin-top: 24px;
+            width: 100%;
+            max-width: 1080px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .file-path {
+            font-family: monospace;
+            background: #0f172a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--accent);
+            border: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="badge-pill">
+            <i class="bi bi-play-circle-fill"></i> Video Tutorial Interaktif
+        </div>
+        <h1>Stok Masuk (Stock In) & Transfer Stok</h1>
+        <p class="subtitle">Panduan langkah-demi-langkah penggunaan fitur stok bahan baku RIMS POS Production</p>
+    </div>
+
+    <div class="container">
+        <!-- Main Video Screen -->
+        <div class="video-box">
+            <div class="screen-viewport">
+                <img id="playerScreen" src="public/tutorial_assets/click_feedback_1788087234621.png" alt="Tutorial Screen">
+                <div class="voice-bubble">
+                    <div class="voice-icon"><i class="bi bi-megaphone-fill"></i></div>
+                    <div class="voice-text" id="captionText">Memulai panduan fitur Stok Masuk dan Transfer Stok...</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls-bar">
+                <div class="progress-container" id="progressBar" onclick="seekVideo(event)">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="btn-group">
+                    <div class="left-btns">
+                        <button class="ctrl-btn primary" id="playBtn" onclick="togglePlay()">
+                            <i class="bi bi-play-fill" id="playIcon"></i> <span id="playLabel">Play</span>
+                        </button>
+                        <button class="ctrl-btn" onclick="prevStep()">
+                            <i class="bi bi-skip-backward-fill"></i> Prev
+                        </button>
+                        <button class="ctrl-btn" onclick="nextStep()">
+                            Next <i class="bi bi-skip-forward-fill"></i>
+                        </button>
+                        <button class="ctrl-btn" id="voiceToggle" onclick="toggleVoice()">
+                            <i class="bi bi-volume-up-fill" id="voiceIcon"></i> Suara AI: ON
+                        </button>
+                    </div>
+                    <div class="time-display" id="timeDisplay">00:00 / 00:52</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Playlist / Steps Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-title">
+                <span>Daftar Langkah Tutorial</span>
+                <small style="color: var(--accent);">8 Langkah</small>
+            </div>
+            <div id="stepList"></div>
+        </div>
+    </div>
+
+    <!-- Direct File Info -->
+    <div class="file-info-card">
+        <div>
+            <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px;">📂 Lokasi File Animasi Layar (WebP):</div>
+            <div class="file-path">d:\laravel\rimspos\tutorial_stok_bahan_baku.webp</div>
+        </div>
+        <a href="tutorial_stok_bahan_baku.webp" download class="ctrl-btn primary" style="text-decoration: none;">
+            <i class="bi bi-download"></i> Unduh File WebP
+        </a>
+    </div>
+
+    <script>
+        const steps = [
+            {
+                id: 1,
+                time: "00:00 - 00:06",
+                title: "1. Buka Menu Stok Bahan Baku",
+                desc: "Akses menu Stok Bahan Baku untuk memantau saldo stok per gudang dan toko.",
+                img: "public/tutorial_assets/click_feedback_1788087234621.png",
+                voice: "Buka menu Stok Bahan Baku untuk melihat daftar persediaan bahan di gudang dan toko."
+            },
+            {
+                id: 2,
+                time: "00:06 - 00:13",
+                title: "2. Klik Tombol Stock In",
+                desc: "Klik tombol hijau '+ Stock In (Pembelian)' untuk input pembelian baru.",
+                img: "public/tutorial_assets/click_feedback_1788087247539.png",
+                voice: "Klik tombol hijau Stock In Pembelian untuk mencatat barang atau bahan yang baru dibeli."
+            },
+            {
+                id: 3,
+                time: "00:13 - 00:20",
+                title: "3. Pilih Bahan & Input Jumlah",
+                desc: "Pilih item bahan baku, masukkan jumlah pembelian (10 Pcs) dan total biaya (Rp 50.000).",
+                img: "public/tutorial_assets/click_feedback_1788087274386.png",
+                voice: "Pilih bahan baku yang masuk, tentukan jumlah pembelian dan total biaya yang dikeluarkan."
+            },
+            {
+                id: 4,
+                time: "00:20 - 00:27",
+                title: "4. Simpan Stok Masuk",
+                desc: "Klik Simpan Stok Masuk. Kuantiti stok di Gudang otomatis bertambah secara real-time.",
+                img: "public/tutorial_assets/click_feedback_1788087327392.png",
+                voice: "Klik Simpan. Stok gudang akan otomatis bertambah secara langsung dan tercatat di sistem."
+            },
+            {
+                id: 5,
+                time: "00:27 - 00:33",
+                title: "5. Buka Menu Transfer Stok",
+                desc: "Klik tombol 'Transfer Stok' untuk mengirim bahan dari gudang ke toko.",
+                img: "public/tutorial_assets/click_feedback_1788087354523.png",
+                voice: "Sekarang kita lakukan mutasi. Klik tombol Transfer Stok untuk mengirim bahan baku ke toko."
+            },
+            {
+                id: 6,
+                time: "00:33 - 00:40",
+                title: "6. Pilih Gudang Asal & Toko Tujuan",
+                desc: "Tentukan lokasi asal (Gudang Pusat) dan outlet penerima (Toko Operasional).",
+                img: "public/tutorial_assets/click_feedback_1788087389809.png",
+                voice: "Pilih gudang asal pengiriman dan toko tujuan penerima bahan baku."
+            },
+            {
+                id: 7,
+                time: "00:40 - 00:46",
+                title: "7. Input Kuantiti & Catatan",
+                desc: "Pilih bahan baku, masukkan jumlah kirim (5 Pcs), serta catatan pengiriman.",
+                img: "public/tutorial_assets/click_feedback_1788087427496.png",
+                voice: "Tentukan bahan baku yang ingin dikirim, isi jumlah mutasi, dan tambahkan catatan jika perlu."
+            },
+            {
+                id: 8,
+                time: "00:46 - 00:52",
+                title: "8. Proses Transfer Selesai",
+                desc: "Klik Proses Transfer Stok. Stok toko bertambah, gudang terpotong, riwayat mutasi tercatat!",
+                img: "public/tutorial_assets/click_feedback_1788087452685.png",
+                voice: "Klik Proses Transfer Stok. Selesai! Stok toko bertambah dan seluruh riwayat mutasi tercatat rapi."
+            }
+        ];
+
+        let currentIndex = 0;
+        let isPlaying = false;
+        let playInterval = null;
+        let voiceEnabled = true;
+
+        function renderSteps() {
+            const list = document.getElementById('stepList');
+            list.innerHTML = '';
+            steps.forEach((step, idx) => {
+                const item = document.createElement('div');
+                item.className = `step-item ${idx === currentIndex ? 'active' : ''}`;
+                item.onclick = () => goToStep(idx);
+                item.innerHTML = `
+                    <div class="step-header">
+                        <span>${step.title}</span>
+                        <small style="color:var(--text-sub);">${step.time.split(' - ')[0]}</small>
+                    </div>
+                    <div class="step-desc">${step.desc}</div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function speak(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'id-ID';
+            utterance.rate = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function updateUI() {
+            const step = steps[currentIndex];
+            document.getElementById('playerScreen').src = step.img;
+            document.getElementById('captionText').innerText = step.voice;
+            document.getElementById('progressFill').style.width = `${((currentIndex + 1) / steps.length) * 100}%`;
+            document.getElementById('timeDisplay').innerText = `${step.time.split(' - ')[0]} / 00:52`;
+            renderSteps();
+            speak(step.voice);
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('playIcon').className = isPlaying ? 'bi bi-pause-fill' : 'bi bi-play-fill';
+            document.getElementById('playLabel').innerText = isPlaying ? 'Pause' : 'Play';
+
+            if (isPlaying) {
+                playInterval = setInterval(() => {
+                    if (currentIndex < steps.length - 1) {
+                        currentIndex++;
+                        updateUI();
+                    } else {
+                        togglePlay();
+                        currentIndex = 0;
+                    }
+                }, 6500);
+            } else {
+                clearInterval(playInterval);
+            }
+        }
+
+        function nextStep() {
+            if (currentIndex < steps.length - 1) {
+                currentIndex++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateUI();
+            }
+        }
+
+        function goToStep(idx) {
+            currentIndex = idx;
+            updateUI();
+        }
+
+        function seekVideo(e) {
+            const rect = document.getElementById('progressBar').getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            currentIndex = Math.min(Math.floor(pos * steps.length), steps.length - 1);
+            updateUI();
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            const btn = document.getElementById('voiceToggle');
+            const icon = document.getElementById('voiceIcon');
+            if (voiceEnabled) {
+                btn.innerHTML = `<i class="bi bi-volume-up-fill" id="voiceIcon"></i> Suara AI: ON`;
+                speak(steps[currentIndex].voice);
+            } else {
+                btn.innerHTML = `<i class="bi bi-volume-mute-fill" id="voiceIcon"></i> Suara AI: OFF`;
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        // Initialize
+        updateUI();
+    </script>
+</body>
+</html>

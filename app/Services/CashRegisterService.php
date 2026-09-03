@@ -320,6 +320,10 @@ class CashRegisterService
             ->pluck('id');
 
         $menuSales = SaleItem::whereIn('sale_id', $saleIds)
+            ->where(function ($query) {
+                $query->whereNotIn('status', ['voided', 'refunded', 'exchanged_out'])
+                      ->orWhereNull('status');
+            })
             ->select(
                 'product_name',
                 DB::raw('MAX(price) as unit_price'),
