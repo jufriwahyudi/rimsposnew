@@ -48,10 +48,11 @@
                             <tr>
                                 <th width="50" class="text-center">#</th>
                                 <th>Nama Kategori</th>
-                                <th width="120" class="text-center">Urutan</th>
-                                <th width="150" class="text-center">Jumlah Produk</th>
-                                <th width="120" class="text-center">Status</th>
-                                <th class="text-center" width="130">Aksi</th>
+                                <th width="200">Target Printer Produksi</th>
+                                <th width="100" class="text-center">Urutan</th>
+                                <th width="120" class="text-center">Jumlah Produk</th>
+                                <th width="100" class="text-center">Status</th>
+                                <th class="text-center" width="120">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -59,16 +60,29 @@
                                 <tr>
                                     <td class="text-center">{{ $i + 1 }}</td>
                                     <td>
-                                        <span class="fw-semibold text-dark">{{ $cat->name }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-light text-dark border">{{ $cat->sort_order }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-info-subtle text-info border px-2 py-1">
-                                            {{ $cat->products_count }} Produk
-                                        </span>
-                                    </td>
+                                         <span class="fw-semibold text-dark">{{ $cat->name }}</span>
+                                     </td>
+                                     <td>
+                                         @if($cat->printer)
+                                             <span class="badge bg-primary-subtle text-primary border px-2 py-1">
+                                                 <i class="material-icons-outlined" style="font-size:13px;vertical-align:middle">print</i> {{ $cat->printer->name }}
+                                             </span>
+                                         @elseif($cat->station)
+                                             <span class="badge bg-secondary-subtle text-secondary border px-2 py-1">
+                                                 {{ ucfirst($cat->station) }}
+                                             </span>
+                                         @else
+                                             <span class="text-muted small">-- Tidak dicetak --</span>
+                                         @endif
+                                     </td>
+                                     <td class="text-center">
+                                         <span class="badge bg-light text-dark border">{{ $cat->sort_order }}</span>
+                                     </td>
+                                     <td class="text-center">
+                                         <span class="badge bg-info-subtle text-info border px-2 py-1">
+                                             {{ $cat->products_count }} Produk
+                                         </span>
+                                     </td>
                                     <td class="text-center">
                                         @if ($cat->is_active)
                                             <span class="badge bg-success">Aktif</span>
@@ -80,6 +94,7 @@
                                         <button class="btn btn-sm btn-warning btn-edit-kat" 
                                             data-id="{{ $cat->id }}"
                                             data-name="{{ $cat->name }}" 
+                                            data-printer-id="{{ $cat->printer_id ?? '' }}"
                                             data-sort="{{ $cat->sort_order }}"
                                             data-active="{{ $cat->is_active ? '1' : '0' }}">
                                             <i class="material-icons-outlined" style="font-size:15px">edit</i>
@@ -121,6 +136,16 @@
                                 placeholder="contoh: Makanan Utama, Minuman, Snack, Paket Hemat" required>
                         </div>
                         <div class="mb-3">
+                            <label class="form-label">Target Printer Produksi</label>
+                            <select class="form-select" id="kat_printer_id">
+                                <option value="">-- Tidak Dicetak ke Produksi --</option>
+                                @foreach($printers as $p)
+                                    <option value="{{ $p->id }}">{{ $p->name }} ({{ strtoupper($p->connection_type) }})</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">Item pada kategori ini akan dicetak ke printer stasiun yang dipilih.</small>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Urutan Tampilan</label>
                             <input type="number" class="form-control" id="kat_sort" value="0" min="0" placeholder="0">
                             <small class="text-muted">Angka lebih kecil akan ditampilkan lebih dulu di POS.</small>
@@ -152,6 +177,7 @@
             document.getElementById('modalKategoriTitle').textContent = 'Tambah Kategori Produk';
             document.getElementById('kat_id').value = '';
             document.getElementById('kat_name').value = '';
+            document.getElementById('kat_printer_id').value = '';
             document.getElementById('kat_sort').value = '0';
             document.getElementById('wrap_is_active').classList.add('d-none');
         });
@@ -162,6 +188,7 @@
                 document.getElementById('modalKategoriTitle').textContent = 'Edit Kategori Produk';
                 document.getElementById('kat_id').value = this.dataset.id;
                 document.getElementById('kat_name').value = this.dataset.name;
+                document.getElementById('kat_printer_id').value = this.dataset.printerId || '';
                 document.getElementById('kat_sort').value = this.dataset.sort || '0';
                 document.getElementById('kat_is_active').checked = this.dataset.active === '1';
                 document.getElementById('wrap_is_active').classList.remove('d-none');
@@ -187,6 +214,7 @@
                     },
                     body: JSON.stringify({
                         name: document.getElementById('kat_name').value,
+                        printer_id: document.getElementById('kat_printer_id').value || null,
                         sort_order: document.getElementById('kat_sort').value,
                         is_active: document.getElementById('kat_is_active').checked ? 1 : 0,
                     }),

@@ -23,6 +23,7 @@ class Store extends Model
         'business_type',
         'addon_self_service',
         'addon_kds',
+        'addon_multi_printer',
         'enable_cash_register',
     ];
 
@@ -30,6 +31,7 @@ class Store extends Model
         'is_active' => 'boolean',
         'addon_self_service' => 'boolean',
         'addon_kds' => 'boolean',
+        'addon_multi_printer' => 'boolean',
         'enable_cash_register' => 'boolean',
     ];
 
@@ -83,5 +85,10 @@ class Store extends Model
     public function tenants()
     {
         return $this->hasMany(Tenant::class);
+    }
+
+    public function printers()
+    {
+        return $this->hasMany(StorePrinter::class);
     }
 }

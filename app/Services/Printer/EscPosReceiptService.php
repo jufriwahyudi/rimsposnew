@@ -109,6 +109,8 @@ class EscPosReceiptService
 
         $isChecklist = $data['is_checklist'] ?? false;
         $isTenantSlip = $data['is_tenant_slip'] ?? false;
+        $checklistTitle = $data['checklist_title'] ?? 'ORDER KITCHEN / KDS';
+        $triggerBuzzer = $data['trigger_buzzer'] ?? false;
 
         if ($isTenantSlip) {
             $this->printTenantSlipHeader($data['store'] ?? [], $data['tenant'] ?? []);
@@ -116,10 +118,10 @@ class EscPosReceiptService
             $this->printChecklistItems($data['items'] ?? []);
             $this->printTenantSlipFooter($data['summary'] ?? []);
         } elseif ($isChecklist) {
-            $this->printChecklistHeader($data['store'] ?? []);
+            $this->printChecklistHeader($data['store'] ?? [], $checklistTitle);
             $this->printChecklistTransaction($data['transaction'] ?? []);
             $this->printChecklistItems($data['items'] ?? []);
-            $this->printChecklistFooter();
+            $this->printChecklistFooter($triggerBuzzer);
         } else {
             $openDrawer = $data['open_drawer'] ?? true;
             $this->printHeader($data['store']            ?? []);
@@ -166,7 +168,7 @@ class EscPosReceiptService
         $this->printer->cut();
     }
 
-    protected function printChecklistHeader(array $store): void
+    protected function printChecklistHeader(array $store, string $title = 'ORDER KITCHEN / KDS'): void
     {
         $this->printer->initialize();
         $this->printer->setFont(Printer::FONT_A);
@@ -174,7 +176,7 @@ class EscPosReceiptService
         $this->printer->setJustification(Printer::JUSTIFY_CENTER);
         $this->printer->setTextSize(2, 1);
         $this->printer->setEmphasis(true);
-        $this->writeLine('ORDER KITCHEN / KDS');
+        $this->writeLine($title);
         $this->printer->setEmphasis(false);
         $this->printer->setTextSize(1, 1);
         $this->writeLine($store['name'] ?? 'RIMS POS');
@@ -238,11 +240,15 @@ class EscPosReceiptService
         }
     }
 
-    protected function printChecklistFooter(): void
+    protected function printChecklistFooter(bool $buzzer = false): void
     {
         $this->separator();
         $this->printer->feed(3);
         $this->printer->cut();
+        if ($buzzer) {
+            // ESC B n t (0x1B, 0x42, count, time) -> 3 beeps
+            $this->printer->getPrintConnector()->write("\x1b\x42\x03\x02");
+        }
     }
 
     /* =====================================================================

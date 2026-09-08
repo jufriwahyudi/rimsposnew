@@ -49,6 +49,7 @@ class StoreController extends Controller
             'bussiness_type'       => 'required|in:retail,fnb',
             'addon_self_service'   => 'nullable|boolean',
             'addon_kds'            => 'nullable|boolean',
+            'addon_multi_printer'  => 'nullable|boolean',
             'enable_cash_register' => 'nullable|boolean',
 
             // Onboarding options
@@ -105,6 +106,7 @@ class StoreController extends Controller
                 'business_type'        => $request->bussiness_type,
                 'addon_self_service'   => $request->boolean('addon_self_service', false),
                 'addon_kds'            => $request->boolean('addon_kds', false),
+                'addon_multi_printer'  => $request->boolean('addon_multi_printer', false),
                 'enable_cash_register' => $request->boolean('enable_cash_register', false),
             ]);
 
@@ -222,6 +224,7 @@ class StoreController extends Controller
             'bussiness_type'       => 'required|in:retail,fnb',
             'addon_self_service'   => 'nullable|boolean',
             'addon_kds'            => 'nullable|boolean',
+            'addon_multi_printer'  => 'nullable|boolean',
             'enable_cash_register' => 'nullable|boolean',
         ];
 
@@ -254,6 +257,7 @@ class StoreController extends Controller
             'business_type'        => $request->bussiness_type,
             'addon_self_service'   => $request->boolean('addon_self_service', false),
             'addon_kds'            => $request->boolean('addon_kds', false),
+            'addon_multi_printer'  => $request->boolean('addon_multi_printer', false),
             'enable_cash_register' => $request->boolean('enable_cash_register', false),
         ];
 

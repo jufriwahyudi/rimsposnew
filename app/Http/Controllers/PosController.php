@@ -2090,29 +2090,44 @@ class PosController extends Controller
             return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
-        $sale = Sale::with(['items.fnbDetail', 'cashier'])
+        $sale = Sale::with(['items.product.category.printer', 'items.fnbDetail', 'cashier'])
             ->where('store_id', $storeId)
             ->findOrFail($id);
 
         $store = Store::findOrFail($storeId);
-        $paper = $store->printer_type ?? '80mm';
+        $paper = $request->input('paper') ?: ($store->printer_type ?? '80mm');
 
         if (!in_array($paper, ['58mm', '80mm'])) {
             $paper = '80mm';
         }
 
+        $station = $request->input('station'); // 'kitchen', 'bar', 'tenant_sate', etc.
+
         if ($isChecklist) {
-            $items = $sale->items
+            $filteredItems = $sale->items
                 ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
-                ->map(function ($item) {
+                ->filter(function ($item) use ($station) {
+                    if (!$station || $station === 'all') {
+                        return true;
+                    }
+                    $cat = $item->product?->category;
+                    $itemStation = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
+                    return strtolower($itemStation) === strtolower($station);
+                });
+
+            $isReprint = $request->boolean('reprint');
+
+            $items = $filteredItems
+                ->map(function ($item) use ($isReprint) {
                     $unprinted = $item->qty - $item->kitchen_printed_qty;
-                    if ($unprinted <= 0) {
+                    if ($unprinted <= 0 && !$isReprint) {
                         return null;
                     }
+                    $printQty = ($unprinted > 0) ? $unprinted : $item->qty;
                     return [
                         'name'  => $item->product_name,
                         'sku'   => $item->sku,
-                        'qty'   => $unprinted,
+                        'qty'   => $printQty,
                         'price' => round($item->price),
                         'notes' => $item->notes,
                     ];
@@ -2122,8 +2137,23 @@ class PosController extends Controller
                 ->toArray();
 
             if (empty($items)) {
-                return response()->json(['message' => 'Semua item sudah dicetak ke dapur'], 400);
+                return response()->json(['message' => 'Semua item untuk stasiun ini sudah dicetak'], 400);
             }
+
+            // Tentukan Judul Tiket Berdasarkan Stasiun
+            if ($station === 'bar') {
+                $checklistTitle = 'ORDER BAR / MINUMAN';
+            } elseif ($station === 'kitchen') {
+                $checklistTitle = 'ORDER DAPUR / MAKANAN';
+            } elseif ($station) {
+                $checklistTitle = 'ORDER: ' . strtoupper(str_replace('_', ' ', $station));
+            } else {
+                $checklistTitle = 'ORDER KITCHEN / KDS';
+            }
+
+            $triggerBuzzer = $station
+                ? (in_array(strtolower($station), ['kitchen', 'dapur']) || str_contains(strtolower($station), 'sate') || str_contains(strtolower($station), 'tenant'))
+                : true;
         } else {
             $items = $sale->items
                 ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
@@ -2141,6 +2171,9 @@ class PosController extends Controller
                         'notes' => $notes !== '' ? $notes : null,
                     ];
                 })->values()->toArray();
+
+            $checklistTitle = 'ORDER KITCHEN / KDS';
+            $triggerBuzzer  = false;
         }
 
         $openDrawer = $request->has('open_drawer')
@@ -2148,8 +2181,10 @@ class PosController extends Controller
             : (strtoupper($sale->status) !== 'HOLD');
 
         $data = [
-            'is_checklist' => $isChecklist,
-            'open_drawer'  => $openDrawer,
+            'is_checklist'    => $isChecklist,
+            'checklist_title' => $checklistTitle,
+            'trigger_buzzer'  => $triggerBuzzer,
+            'open_drawer'     => $openDrawer,
             'store' => [
                 'name'    => $store->name ?? 'RimsPos',
                 'address' => $store->address,
@@ -2195,9 +2230,73 @@ class PosController extends Controller
     /**
      * POST /api/pos/sales/{id}/mark-kitchen-printed
      *
-     * Mark all unprinted kitchen items as printed.
+     * Tandai item dapur/stasiun tertentu telah dicetak.
      */
     public function apiMarkKitchenPrinted(Request $request, int $id)
+    {
+        $storeId = $request->integer('store_id');
+        $station = $request->input('station'); // e.g. 'kitchen', 'bar', 'tenant_sate'
+
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $sale = Sale::with(['items.product.category.printer', 'items.fnbDetail'])->where('store_id', $storeId)->findOrFail($id);
+
+        DB::transaction(function () use ($sale, $station) {
+            foreach ($sale->items as $item) {
+                if (!$station || $station === 'all') {
+                    if ($item->kitchen_printed_qty < $item->qty) {
+                        $item->update(['kitchen_printed_qty' => $item->qty]);
+                    }
+                } else {
+                    $cat = $item->product?->category;
+                    $itemStation = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
+                    if (strtolower($itemStation) === strtolower($station)) {
+                        if ($item->kitchen_printed_qty < $item->qty) {
+                            $item->update(['kitchen_printed_qty' => $item->qty]);
+                        }
+                    }
+                }
+            }
+
+            // Update timestamp stasiun
+            $now = now();
+            if ($station === 'kitchen' || !$station || $station === 'all') {
+                $sale->kitchen_printed_at = $now;
+            }
+            if ($station === 'bar' || !$station || $station === 'all') {
+                $sale->bar_printed_at = $now;
+            }
+
+            $log = $sale->printed_stations_log ?? [];
+            $targetStation = $station ?: 'all';
+            $log[$targetStation] = $now->toDateTimeString();
+            $sale->printed_stations_log = $log;
+            $sale->save();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status cetak stasiun berhasil diperbarui'
+        ]);
+    }
+
+    /**
+     * GET /api/pos/print-monitor/today?store_id=N
+     *
+     * Mengambil daftar transaksi hari ini untuk layar monitor cetakan (Print Monitor).
+     */
+    public function apiTodayPrintMonitor(Request $request)
     {
         $storeId = $request->integer('store_id');
 
@@ -2214,20 +2313,85 @@ class PosController extends Controller
             return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
-        $sale = Sale::with('items.fnbDetail')->where('store_id', $storeId)->findOrFail($id);
+        $today = now()->toDateString();
 
-        DB::transaction(function () use ($sale) {
+        $sales = Sale::with(['items.product.category.printer', 'cashier'])
+            ->where('store_id', $storeId)
+            ->whereDate('sale_date', $today)
+            ->whereNotIn('status', ['voided', 'cancelled'])
+            ->orderBy('id', 'desc')
+            ->limit(100)
+            ->get();
+
+        $data = $sales->map(function ($sale) {
+            $stationsMap = [];
+
             foreach ($sale->items as $item) {
-                if ($item->kitchen_printed_qty < $item->qty) {
-                    $item->update([
-                        'kitchen_printed_qty' => $item->qty
-                    ]);
+                if (in_array($item->status, ['voided', 'exchanged_out'])) {
+                    continue;
+                }
+
+                $cat = $item->product?->category;
+                $stationCode = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
+                $stationName = $cat?->printer?->name ?: (ucfirst(str_replace('_', ' ', $stationCode)));
+
+                if (!isset($stationsMap[$stationCode])) {
+                    $stationsMap[$stationCode] = [
+                        'code'        => $stationCode,
+                        'name'        => $stationName,
+                        'total_qty'   => 0,
+                        'items'       => [],
+                        'printed_at'  => null,
+                        'is_printed'  => false,
+                    ];
+                }
+
+                $stationsMap[$stationCode]['total_qty'] += $item->qty;
+                $stationsMap[$stationCode]['items'][] = $item->qty . 'x ' . $item->product_name . ($item->notes ? ' (' . $item->notes . ')' : '');
+            }
+
+            // Evaluasi status cetak masing-masing stasiun
+            $log = $sale->printed_stations_log ?? [];
+            $hasUnprintedStation = false;
+
+            foreach ($stationsMap as $code => &$st) {
+                $printedTime = $log[$code] ?? null;
+                if (!$printedTime) {
+                    if ($code === 'kitchen' && $sale->kitchen_printed_at) {
+                        $printedTime = $sale->kitchen_printed_at->toDateTimeString();
+                    } elseif ($code === 'bar' && $sale->bar_printed_at) {
+                        $printedTime = $sale->bar_printed_at->toDateTimeString();
+                    } elseif (isset($log['all'])) {
+                        $printedTime = $log['all'];
+                    }
+                }
+
+                $st['printed_at'] = $printedTime;
+                $st['is_printed'] = !empty($printedTime);
+
+                if (!$st['is_printed']) {
+                    $hasUnprintedStation = true;
                 }
             }
+            unset($st);
+
+            return [
+                'id'                     => $sale->id,
+                'invoice'                => $sale->invoice_number,
+                'table_number'           => $sale->table_number ?: 'Tanpa Meja',
+                'customer_name'          => $sale->customer_name ?: 'Umum',
+                'cashier_name'           => $sale->cashier?->name ?: 'Kasir',
+                'sale_time'              => $sale->sale_date->format('H:i'),
+                'grand_total'            => round($sale->grand_total),
+                'status'                 => strtoupper($sale->status),
+                'has_unprinted_stations' => $hasUnprintedStation,
+                'stations'               => array_values($stationsMap),
+            ];
         });
 
         return response()->json([
-            'message' => 'Status cetak checklist berhasil diperbarui'
+            'success' => true,
+            'data'    => $data,
         ]);
     }
 

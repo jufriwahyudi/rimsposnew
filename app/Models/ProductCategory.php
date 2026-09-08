@@ -17,17 +17,25 @@ class ProductCategory extends Model
         'name',
         'slug',
         'icon',
+        'printer_id',
+        'station',
         'sort_order',
         'is_active',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'printer_id' => 'integer',
+        'is_active'  => 'boolean',
         'sort_order' => 'integer',
     ];
 
     public function products()
     {
         return $this->hasMany(Product::class, 'category_id');
+    }
+
+    public function printer()
+    {
+        return $this->belongsTo(StorePrinter::class, 'printer_id');
     }
 }

@@ -91,11 +91,12 @@ class AuthController extends Controller
             }
 
             return [
-                'id'                => $store->id,
-                'name'              => $store->name,
-                'printer_type'      => $store->printer_type,
-                'business_type'     => $store->business_type,
-                'subscription_info' => $subscriptionInfo,
+                'id'                  => $store->id,
+                'name'                => $store->name,
+                'printer_type'        => $store->printer_type,
+                'business_type'       => $store->business_type,
+                'addon_multi_printer' => (bool)$store->addon_multi_printer,
+                'subscription_info'   => $subscriptionInfo,
             ];
         })->values();
 
@@ -235,11 +236,12 @@ class AuthController extends Controller
             }
 
             return [
-                'id'                => $store->id,
-                'name'              => $store->name,
-                'printer_type'      => $store->printer_type,
-                'business_type'     => $store->business_type,
-                'subscription_info' => $subscriptionInfo,
+                'id'                  => $store->id,
+                'name'                => $store->name,
+                'printer_type'        => $store->printer_type,
+                'business_type'       => $store->business_type,
+                'addon_multi_printer' => (bool)$store->addon_multi_printer,
+                'subscription_info'   => $subscriptionInfo,
             ];
         })->values();
 

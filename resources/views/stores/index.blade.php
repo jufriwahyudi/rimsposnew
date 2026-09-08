@@ -174,6 +174,9 @@
                                                             <span class="badge bg-{{ $store->addon_kds ? 'success' : 'secondary' }}" style="font-size: 9px;">
                                                                 KDS: {{ $store->addon_kds ? 'Aktif' : 'Non-aktif' }}
                                                             </span>
+                                                            <span class="badge bg-{{ $store->addon_multi_printer ? 'success' : 'secondary' }}" style="font-size: 9px;">
+                                                                Multi-Printer: {{ $store->addon_multi_printer ? 'Aktif' : 'Non-aktif' }}
+                                                            </span>
                                                         @endif
                                                     </div>
                                                 </td>
@@ -324,18 +327,25 @@
                             <div class="col-md-12" id="addonFields" style="display: none;">
                                 <label class="form-label fw-semibold text-primary">Fitur Add-on (Khusus F&B)</label>
                                 <div class="row g-2 p-2 border rounded-3 bg-light">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="addon_self_service">
                                             <label class="form-check-label fw-bold" for="addon_self_service">Customer Self-Service</label>
                                             <div class="text-muted small" style="font-size: 11px;">Pemesanan QR Meja mandiri pelanggan</div>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="addon_kds">
                                             <label class="form-check-label fw-bold" for="addon_kds">Kitchen Display System (KDS)</label>
                                             <div class="text-muted small" style="font-size: 11px;">Monitor antrean pesanan di dapur koki</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_multi_printer">
+                                            <label class="form-check-label fw-bold" for="addon_multi_printer">Multi-Printer (Dapur/Bar)</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Pemisahan cetak pesanan multi-stasiun</div>
                                         </div>
                                     </div>
                                 </div>
@@ -930,6 +940,7 @@
             document.getElementById('bussiness_type').value = 'retail';
             document.getElementById('addon_self_service').checked = false;
             document.getElementById('addon_kds').checked = false;
+            document.getElementById('addon_multi_printer').checked = false;
             document.getElementById('addonFields').style.display = 'none';
 
             // Onboarding defaults
@@ -967,6 +978,7 @@
                     document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
                     document.getElementById('addon_self_service').checked = data.addon_self_service == 1;
                     document.getElementById('addon_kds').checked = data.addon_kds == 1;
+                    document.getElementById('addon_multi_printer').checked = data.addon_multi_printer == 1;
                     document.getElementById('addonFields').style.display = data.business_type === 'fnb' ? 'block' : 'none';
                     
                     // Hide onboarding when editing
@@ -1009,6 +1021,7 @@
                 bussiness_type:       document.getElementById('bussiness_type').value,
                 addon_self_service:   document.getElementById('addon_self_service').checked ? 1 : 0,
                 addon_kds:             document.getElementById('addon_kds').checked ? 1 : 0,
+                addon_multi_printer:  document.getElementById('addon_multi_printer').checked ? 1 : 0,
                 _token:               '{{ csrf_token() }}',
             };
 
@@ -1096,6 +1109,7 @@
             if (!isFnB) {
                 document.getElementById('addon_self_service').checked = false;
                 document.getElementById('addon_kds').checked = false;
+                document.getElementById('addon_multi_printer').checked = false;
             }
         });
 

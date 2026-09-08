@@ -49,10 +49,17 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::get('/pos/sales/{id}',            [PosController::class, 'apiSaleDetail']);
     Route::get('/pos/sales/{id}/receipt',    [PosController::class, 'apiReceipt']);
     Route::post('/pos/sales/{id}/mark-kitchen-printed', [PosController::class, 'apiMarkKitchenPrinted']);
+    Route::get('/pos/print-monitor/today',   [PosController::class, 'apiTodayPrintMonitor']);
     Route::post('/pos/sales/{id}/void',      [PosController::class, 'apiVoid']);
     Route::post('/pos/sales/{id}/refund',    [PosController::class, 'apiRefund']);
     Route::post('/pos/sales/{id}/pay',       [PosController::class, 'apiPayDebt']);
     Route::post('/pos/sales/{id}/exchange',  [PosController::class, 'apiExchange']);
+
+    // ── Store Printer Stations ────────────────────────────────────────────────
+    Route::get('/pos/printers',              [\App\Http\Controllers\Api\StorePrinterController::class, 'index']);
+    Route::post('/pos/printers',             [\App\Http\Controllers\Api\StorePrinterController::class, 'store']);
+    Route::put('/pos/printers/{id}',         [\App\Http\Controllers\Api\StorePrinterController::class, 'update']);
+    Route::delete('/pos/printers/{id}',      [\App\Http\Controllers\Api\StorePrinterController::class, 'destroy']);
 
     // ── Reward Redemptions ──────────────────────────────────────────────────
     Route::get('/pos/reward-items',              [RewardRedemptionController::class, 'apiRewardItems']);

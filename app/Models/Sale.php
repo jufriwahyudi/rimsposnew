@@ -42,10 +42,16 @@ class Sale extends Model
         'has_exchange',
         'voucher_code',
         'voucher_discount_amount',
+        'kitchen_printed_at',
+        'bar_printed_at',
+        'printed_stations_log',
     ];
 
     protected $casts = [
-        'sale_date' => 'datetime',
+        'sale_date'            => 'datetime',
+        'kitchen_printed_at'   => 'datetime',
+        'bar_printed_at'       => 'datetime',
+        'printed_stations_log' => 'array',
     ];
 
     public function member()
