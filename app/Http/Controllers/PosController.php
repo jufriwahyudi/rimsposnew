@@ -2090,7 +2090,12 @@ class PosController extends Controller
             return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
-        $sale = Sale::with(['items.product.category.printer', 'items.fnbDetail', 'cashier'])
+        $sale = Sale::with([
+            'items.product.category.printer',
+            'items.variant.product.category.printer',
+            'items.fnbDetail',
+            'cashier',
+        ])
             ->where('store_id', $storeId)
             ->findOrFail($id);
 
@@ -2110,7 +2115,7 @@ class PosController extends Controller
                     if (!$station || $station === 'all') {
                         return true;
                     }
-                    $cat = $item->product?->category;
+                    $cat = $item->product?->category ?: $item->variant?->product?->category;
                     $itemStation = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
                     return strtolower($itemStation) === strtolower($station);
                 });
@@ -2250,7 +2255,11 @@ class PosController extends Controller
             return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
-        $sale = Sale::with(['items.product.category.printer', 'items.fnbDetail'])->where('store_id', $storeId)->findOrFail($id);
+        $sale = Sale::with([
+            'items.product.category.printer',
+            'items.variant.product.category.printer',
+            'items.fnbDetail',
+        ])->where('store_id', $storeId)->findOrFail($id);
 
         DB::transaction(function () use ($sale, $station) {
             foreach ($sale->items as $item) {
@@ -2259,7 +2268,7 @@ class PosController extends Controller
                         $item->update(['kitchen_printed_qty' => $item->qty]);
                     }
                 } else {
-                    $cat = $item->product?->category;
+                    $cat = $item->product?->category ?: $item->variant?->product?->category;
                     $itemStation = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
                     if (strtolower($itemStation) === strtolower($station)) {
                         if ($item->kitchen_printed_qty < $item->qty) {
@@ -2315,7 +2324,11 @@ class PosController extends Controller
 
         $today = now()->toDateString();
 
-        $sales = Sale::with(['items.product.category.printer', 'cashier'])
+        $sales = Sale::with([
+            'items.product.category.printer',
+            'items.variant.product.category.printer',
+            'cashier',
+        ])
             ->where('store_id', $storeId)
             ->whereDate('sale_date', $today)
             ->whereNotIn('status', ['voided', 'cancelled'])
@@ -2331,7 +2344,7 @@ class PosController extends Controller
                     continue;
                 }
 
-                $cat = $item->product?->category;
+                $cat = $item->product?->category ?: $item->variant?->product?->category;
                 $stationCode = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
                 $stationName = $cat?->printer?->name ?: (ucfirst(str_replace('_', ' ', $stationCode)));
 
