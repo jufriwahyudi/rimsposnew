@@ -94,7 +94,7 @@
                                         <button class="btn btn-sm btn-warning btn-edit-kat" 
                                             data-id="{{ $cat->id }}"
                                             data-name="{{ $cat->name }}" 
-                                            data-printer-id="{{ $cat->printer_id ?? '' }}"
+                                            data-printer-id="{{ $cat->printer_id ?? ($printers->firstWhere('code', $cat->station)?->id ?? '') }}"
                                             data-sort="{{ $cat->sort_order }}"
                                             data-active="{{ $cat->is_active ? '1' : '0' }}">
                                             <i class="material-icons-outlined" style="font-size:15px">edit</i>
@@ -108,7 +108,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">Belum ada kategori produk. Klik <strong>Tambah Kategori</strong> untuk membuat kategori baru.</td>
+                                    <td colspan="7" class="text-center text-muted py-4">Belum ada kategori produk. Klik <strong>Tambah Kategori</strong> untuk membuat kategori baru.</td>
                                 </tr>
                             @endforelse
                         </tbody>

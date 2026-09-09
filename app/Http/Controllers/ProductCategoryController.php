@@ -54,13 +54,16 @@ class ProductCategoryController extends Controller
         ]);
     }
 
-    public function edit(ProductCategory $productCategory)
+    public function edit($id)
     {
+        $productCategory = ProductCategory::findOrFail($id);
         return response()->json($productCategory);
     }
 
-    public function update(Request $request, ProductCategory $productCategory)
+    public function update(Request $request, $id)
     {
+        $productCategory = ProductCategory::findOrFail($id);
+
         $request->validate([
             'name'       => 'required|string|max:100',
             'printer_id' => 'nullable|integer|exists:store_printers,id',
@@ -84,12 +87,14 @@ class ProductCategoryController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Kategori produk berhasil diperbarui.',
-            'data'    => $productCategory,
+            'data'    => $productCategory->load('printer'),
         ]);
     }
 
-    public function destroy(ProductCategory $productCategory)
+    public function destroy($id)
     {
+        $productCategory = ProductCategory::findOrFail($id);
+
         if ($productCategory->products()->exists()) {
             return response()->json([
                 'success' => false,
