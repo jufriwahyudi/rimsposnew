@@ -157,6 +157,8 @@ class StockTransferService
                         'product_variant_id' => $item->product_variant_id,
                         'stock_transfer_id'  => $transfer->id,
                         'posisi'             => $transfer->to_position,
+                        'batch_number'       => $fifo['batch_number'] ?? null,
+                        'expired_date'       => $fifo['expired_date'] ?? null,
                         'tanggal_masuk'      => now()->toDateString(),
                         'qty_awal'           => $fifo['qty'],
                         'qty_sisa'           => $fifo['qty'],

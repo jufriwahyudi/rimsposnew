@@ -59,9 +59,16 @@
                                     <input name="kode" class="form-control" value="{{ old('kode') }}" required
                                         placeholder="Contoh: PRD-001">
                                 </div>
-                                <div class="mb-2">
-                                    <label>Nama Produk</label>
-                                    <input name="nama" class="form-control" value="{{ old('nama') }}" required>
+                                <div class="row">
+                                    <div class="col-md-8 mb-2">
+                                        <label>Nama Produk</label>
+                                        <input name="nama" class="form-control" value="{{ old('nama') }}" required placeholder="Contoh: Kaos Polos / Paracetamol">
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label>Satuan Dasar / Terkecil</label>
+                                        <input name="base_unit" class="form-control" value="{{ old('base_unit', 'Pcs') }}" required placeholder="Pcs, Botol, Tablet, dll">
+                                        <small class="text-muted">Satuan fisik dasar penyimpanan stok</small>
+                                    </div>
                                 </div>
                                 <div class="mb-2">
                                     <label>Deskripsi Produk</label>
@@ -221,6 +228,72 @@
                             </div>
                         </div>
 
+                        {{-- Satuan Kemasan Bertingkat (Multi-Satuan) --}}
+                        @if ($hasMultiUnit)
+                            <div class="card mb-3 border-0 rounded-4 shadow-sm" style="border: 1px solid #e2e8f0 !important;">
+                                <div class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div>
+                                        <h6 class="fw-bold mb-0" style="color: #7c3aed;">
+                                            <i class="bi bi-boxes me-1"></i> Satuan Kemasan Bertingkat (Multi-Satuan)
+                                        </h6>
+                                        <small class="text-muted">Contoh: Lusin (12 Pcs), Dus (24 Pcs), Strip (10 Tablet), Box (100 Tablet)</small>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addUnitRow()">
+                                        <i class="bi bi-plus-circle me-1"></i> Tambah Satuan Kemasan
+                                    </button>
+                                </div>
+                                <div class="card-body pt-0 pb-3">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-hover align-middle mb-0" id="tableProductUnits">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th style="width: 25%;">Nama Satuan / Kemasan</th>
+                                                    <th style="width: 20%;">Isi (Pengali Satuan Dasar)</th>
+                                                    <th style="width: 25%;">Harga Jual Satuan Ini (Rp)</th>
+                                                    <th style="width: 25%;">Barcode Kemasan (Opsional)</th>
+                                                    <th style="width: 5%; text-align: center;">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="unitContainer">
+                                                @if (old('units'))
+                                                    @foreach (old('units') as $uIdx => $u)
+                                                        <tr class="unit-row">
+                                                            <td>
+                                                                <input name="units[{{ $uIdx }}][name]" class="form-control form-control-sm" value="{{ $u['name'] ?? '' }}" placeholder="Misal: Lusin, Box, Strip" required>
+                                                            </td>
+                                                            <td>
+                                                                <div class="input-group input-group-sm">
+                                                                    <input type="number" name="units[{{ $uIdx }}][multiplier]" class="form-control" value="{{ $u['multiplier'] ?? '' }}" min="2" placeholder="12" required>
+                                                                    <span class="input-group-text base-unit-label">{{ old('base_unit', 'Pcs') }}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <div class="input-group input-group-sm">
+                                                                    <span class="input-group-text">Rp</span>
+                                                                    <input type="number" name="units[{{ $uIdx }}][price]" class="form-control" value="{{ $u['price'] ?? '' }}" min="0" placeholder="0" required>
+                                                                </div>
+                                                            </td>
+                                                            <td>
+                                                                <input name="units[{{ $uIdx }}][barcode]" class="form-control form-control-sm barcode-input" value="{{ $u['barcode'] ?? '' }}" placeholder="Barcode kemasan">
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeUnitRow(this)" title="Hapus Satuan">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                @endif
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <small class="text-muted mt-2 d-block">
+                                        <i class="bi bi-info-circle me-1"></i> Saat kasir menjual satuan ini di POS, stok fisik dasar otomatis terpotong sebesar <code>Qty x Pengali</code>.
+                                    </small>
+                                </div>
+                            </div>
+                        @endif
+
                         <a href="{{ route('produk.index') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Kembali
                         </a>
@@ -350,6 +423,53 @@
             if (event.key === 'Enter' && event.target.classList.contains('barcode-input')) {
                 event.preventDefault();
             }
+        });
+
+        // Dynamic Multi-Satuan Rows
+        let unitIndex = {{ old('units') ? count(old('units')) : 0 }};
+        function addUnitRow() {
+            const container = document.getElementById('unitContainer');
+            if (!container) return;
+            const baseUnit = document.querySelector('input[name="base_unit"]')?.value || 'Pcs';
+            const rowHtml = `
+                <tr class="unit-row">
+                    <td>
+                        <input name="units[${unitIndex}][name]" class="form-control form-control-sm" placeholder="Misal: Lusin, Box, Dus, Strip" required>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="units[${unitIndex}][multiplier]" class="form-control" min="2" placeholder="12" required>
+                            <span class="input-group-text base-unit-label">${baseUnit}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">Rp</span>
+                            <input type="number" name="units[${unitIndex}][price]" class="form-control" min="0" placeholder="0" required>
+                        </div>
+                    </td>
+                    <td>
+                        <input name="units[${unitIndex}][barcode]" class="form-control form-control-sm barcode-input" placeholder="Barcode kemasan">
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeUnitRow(this)" title="Hapus Satuan">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            container.insertAdjacentHTML('beforeend', rowHtml);
+            unitIndex++;
+        }
+
+        function removeUnitRow(btn) {
+            btn.closest('tr').remove();
+        }
+
+        // Update label satuan dasar pada tabel satuan kemasan saat base_unit diubah
+        document.querySelector('input[name="base_unit"]')?.addEventListener('input', function() {
+            const val = this.value || 'Pcs';
+            document.querySelectorAll('.base-unit-label').forEach(el => el.textContent = val);
         });
     </script>
 @endpush

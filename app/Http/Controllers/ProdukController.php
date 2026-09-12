@@ -167,8 +167,9 @@ class ProdukController extends Controller
         $loyaltyService = app(\App\Services\LoyaltyPointService::class);
         $pointSettings = $loyaltyService->getSettings(session('store_id'));
         $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
+        $hasMultiUnit = $store && (bool) $store->addon_multi_unit;
 
-        return view('produk.create', compact('isFnB', 'tenants', 'categories', 'showRewardPoints'));
+        return view('produk.create', compact('isFnB', 'tenants', 'categories', 'showRewardPoints', 'hasMultiUnit'));
     }
     public function store(Request $request)
     {
@@ -178,6 +179,7 @@ class ProdukController extends Controller
         $rules = [
             'kode'                    => 'required|string|max:50|unique:products,kode_produk',
             'nama'                    => 'required|string|max:150',
+            'base_unit'               => 'nullable|string|max:30',
             'category_id'             => 'nullable|exists:product_categories,id',
             'product_type'            => 'nullable|in:SINGLE,SERVICE,RECIPE',
             'default_commission_type' => 'nullable|in:none,percentage,fixed',
@@ -187,6 +189,11 @@ class ProdukController extends Controller
             'variants.*.barcode'      => 'nullable|string|max:100',
             'variants.*.harga'        => 'nullable|numeric|min:0',
             'variants.*.reward_points' => 'nullable|integer|min:0',
+            'units'                   => 'nullable|array',
+            'units.*.name'            => 'nullable|string|max:50',
+            'units.*.multiplier'      => 'nullable|integer|min:2',
+            'units.*.price'           => 'nullable|numeric|min:0',
+            'units.*.barcode'         => 'nullable|string|max:100',
         ];
 
         if ($isFnB) {
@@ -210,6 +217,7 @@ class ProdukController extends Controller
                     'store_id'                => session('store_id'),
                     'kode_produk'             => strtoupper($request->kode),
                     'nama_produk'             => $request->nama,
+                    'base_unit'               => $request->base_unit ?: 'Pcs',
                     'deskripsi'               => $request->deskripsi,
                     'category_id'             => $request->category_id,
                     'product_type'            => $request->product_type ?? 'SINGLE',
@@ -262,6 +270,22 @@ class ProdukController extends Controller
                         'is_active' => 'Y',
                     ]);
                 }
+
+                // Simpan Satuan Kemasan Bertingkat (Multi-Satuan)
+                if ($request->has('units') && is_array($request->units)) {
+                    foreach ($request->units as $u) {
+                        if (!empty($u['name']) && !empty($u['multiplier']) && isset($u['price'])) {
+                            $product->units()->create([
+                                'name'                => trim($u['name']),
+                                'multiplier'          => (int) $u['multiplier'],
+                                'price'               => (float) $u['price'],
+                                'barcode'             => !empty($u['barcode']) ? strtoupper(trim($u['barcode'])) : null,
+                                'is_default_purchase' => !empty($u['is_default_purchase']),
+                                'is_active'           => true,
+                            ]);
+                        }
+                    }
+                }
             });
 
             return redirect()
@@ -278,8 +302,19 @@ class ProdukController extends Controller
     public function show($id)
     {
         $product = Product::with([
+            'units',
             'variants' => function ($q) {
-                $q->with('variantAttributes.attribute', 'variantAttributes.value', 'barcodeActive')
+                $q->with([
+                    'variantAttributes.attribute', 
+                    'variantAttributes.value', 
+                    'barcodeActive',
+                    'batches' => function ($b) {
+                        $b->where('qty_sisa', '>', 0)
+                            ->orderByRaw('CASE WHEN expired_date IS NOT NULL THEN 0 ELSE 1 END')
+                            ->orderBy('expired_date', 'asc')
+                            ->orderBy('tanggal_masuk', 'asc');
+                    }
+                ])
                     ->where('is_active', 'Y');
             }
         ])
@@ -314,14 +349,22 @@ class ProdukController extends Controller
             ]);
         }
         // dd(json_encode($product, JSON_PRETTY_PRINT));
-        $store = Store::find(session('store_id'));
+        $store = Store::find(session('store_id') ?: $product->store_id);
         $isFnB = $store && $store->business_type === 'fnb';
+        $hasMultiUnit = (bool) ($store && $store->addon_multi_unit);
+        $hasFEFO = (bool) ($store && ($store->addon_fefo || $store->business_type === 'pharmacy'));
+
+        $activeBatches = $product->variants->flatMap(function ($v) {
+            return $v->batches;
+        })->sortBy(function ($b) {
+            return $b->expired_date ? $b->expired_date->timestamp : 9999999999;
+        })->values();
 
         $loyaltyService = app(\App\Services\LoyaltyPointService::class);
         $pointSettings = $loyaltyService->getSettings(session('store_id'));
         $showRewardPoints = $pointSettings && $pointSettings->is_active && in_array($pointSettings->earning_method, ['product', 'hybrid']);
 
-        return view('produk.show', compact('product', 'variantsByGroup', 'hasDivisi', 'isFnB', 'showRewardPoints'));
+        return view('produk.show', compact('product', 'variantsByGroup', 'hasDivisi', 'isFnB', 'showRewardPoints', 'hasMultiUnit', 'hasFEFO', 'activeBatches'));
     }
     public function showVariantDetail(Product $product, ProductVariant $variant)
     {
@@ -510,6 +553,9 @@ class ProdukController extends Controller
             ->orderBy('name', 'asc')
             ->get();
 
+        $product->load('units');
+        $hasMultiUnit = $store && (bool) $store->addon_multi_unit;
+
         return view('produk.edit', compact(
             'product',
             'attributes',
@@ -519,7 +565,8 @@ class ProdukController extends Controller
             'isFnB',
             'tenants',
             'categories',
-            'showRewardPoints'
+            'showRewardPoints',
+            'hasMultiUnit'
         ));
     }
 
@@ -531,10 +578,17 @@ class ProdukController extends Controller
 
         $rules = [
             'nama'                    => 'required|string|max:150',
+            'base_unit'               => 'nullable|string|max:30',
             'category_id'             => 'nullable|exists:product_categories,id',
             'product_type'            => 'nullable|in:SINGLE,SERVICE,RECIPE',
             'default_commission_type' => 'nullable|in:none,percentage,fixed',
             'default_commission_rate' => 'nullable|numeric|min:0',
+            'units'                   => 'nullable|array',
+            'units.*.id'              => 'nullable|integer',
+            'units.*.name'            => 'nullable|string|max:50',
+            'units.*.multiplier'      => 'nullable|integer|min:2',
+            'units.*.price'           => 'nullable|numeric|min:0',
+            'units.*.barcode'         => 'nullable|string|max:100',
         ];
 
         if ($isFnB) {
@@ -546,6 +600,7 @@ class ProdukController extends Controller
 
         $productData = [
             'nama_produk'             => $request->nama,
+            'base_unit'               => $request->base_unit ?: ($product->base_unit ?: 'Pcs'),
             'deskripsi'               => $request->deskripsi,
             'category_id'             => $request->category_id,
             'product_type'            => $request->product_type ?? $product->product_type,
@@ -563,6 +618,34 @@ class ProdukController extends Controller
             }
         }
         $product->update($productData);
+
+        // Sync Satuan Kemasan Bertingkat (Multi-Satuan)
+        if ($request->has('units') && is_array($request->units)) {
+            $keptUnitIds = [];
+            foreach ($request->units as $u) {
+                if (!empty($u['name']) && !empty($u['multiplier']) && isset($u['price'])) {
+                    $unitId = $u['id'] ?? null;
+                    $unitData = [
+                        'name'                => trim($u['name']),
+                        'multiplier'          => (int) $u['multiplier'],
+                        'price'               => (float) $u['price'],
+                        'barcode'             => !empty($u['barcode']) ? strtoupper(trim($u['barcode'])) : null,
+                        'is_default_purchase' => !empty($u['is_default_purchase']),
+                        'is_active'           => true,
+                    ];
+                    if ($unitId && $existing = $product->units()->find($unitId)) {
+                        $existing->update($unitData);
+                        $keptUnitIds[] = $existing->id;
+                    } else {
+                        $newUnit = $product->units()->create($unitData);
+                        $keptUnitIds[] = $newUnit->id;
+                    }
+                }
+            }
+            $product->units()->whereNotIn('id', $keptUnitIds)->delete();
+        } elseif ($request->has('units_submitted')) {
+            $product->units()->delete();
+        }
 
         return redirect()
             ->route('produk.edit', $product->id)

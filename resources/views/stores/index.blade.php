@@ -158,27 +158,44 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <span class="badge bg-{{ $store->business_type === 'fnb' ? 'warning text-dark' : 'info' }} d-block mb-1">
-                                                        {{ $store->business_type === 'fnb' ? 'F&B' : 'Retail' }}
-                                                    </span>
-                                                    <div style="font-size: 10px;" class="mt-1 d-flex flex-column gap-1">
-                                                        @if($store->enable_cash_register)
-                                                            <span class="badge bg-purple text-white" style="background-color: #7c3aed; font-size: 9px;">
-                                                                <i class="bi bi-clock-history"></i> Buka/Tutup Kasir: Wajib
-                                                            </span>
-                                                        @endif
-                                                        @if($store->business_type === 'fnb')
-                                                            <span class="badge bg-{{ $store->addon_self_service ? 'success' : 'secondary' }}" style="font-size: 9px;">
-                                                                Self-Service: {{ $store->addon_self_service ? 'Aktif' : 'Non-aktif' }}
-                                                            </span>
-                                                            <span class="badge bg-{{ $store->addon_kds ? 'success' : 'secondary' }}" style="font-size: 9px;">
-                                                                KDS: {{ $store->addon_kds ? 'Aktif' : 'Non-aktif' }}
-                                                            </span>
-                                                            <span class="badge bg-{{ $store->addon_multi_printer ? 'success' : 'secondary' }}" style="font-size: 9px;">
-                                                                Multi-Printer: {{ $store->addon_multi_printer ? 'Aktif' : 'Non-aktif' }}
-                                                            </span>
-                                                        @endif
-                                                    </div>
+                                                     @if($store->business_type === 'fnb')
+                                                         <span class="badge bg-warning text-dark d-block mb-1">F&B</span>
+                                                     @elseif($store->business_type === 'pharmacy')
+                                                         <span class="badge text-white d-block mb-1" style="background-color: #0d9488;">Pharmacy</span>
+                                                     @else
+                                                         <span class="badge bg-info d-block mb-1">Retail</span>
+                                                     @endif
+                                                     <div style="font-size: 10px;" class="mt-1 d-flex flex-column gap-1">
+                                                         @if($store->enable_cash_register)
+                                                             <span class="badge bg-purple text-white" style="background-color: #7c3aed; font-size: 9px;">
+                                                                 <i class="bi bi-clock-history"></i> Buka/Tutup Kasir: Wajib
+                                                             </span>
+                                                         @endif
+                                                         @if($store->business_type === 'fnb')
+                                                             <span class="badge bg-{{ $store->addon_self_service ? 'success' : 'secondary' }}" style="font-size: 9px;">
+                                                                 Self-Service: {{ $store->addon_self_service ? 'Aktif' : 'Non-aktif' }}
+                                                             </span>
+                                                             <span class="badge bg-{{ $store->addon_kds ? 'success' : 'secondary' }}" style="font-size: 9px;">
+                                                                 KDS: {{ $store->addon_kds ? 'Aktif' : 'Non-aktif' }}
+                                                             </span>
+                                                             <span class="badge bg-{{ $store->addon_multi_printer ? 'success' : 'secondary' }}" style="font-size: 9px;">
+                                                                 Multi-Printer: {{ $store->addon_multi_printer ? 'Aktif' : 'Non-aktif' }}
+                                                             </span>
+                                                         @else
+                                                             @if($store->addon_sales_person)
+                                                                 <span class="badge bg-primary" style="font-size: 9px;">Pramuniaga/SPG</span>
+                                                             @endif
+                                                             @if($store->addon_multi_unit)
+                                                                 <span class="badge text-white" style="background-color: #4f46e5; font-size: 9px;">Multi-Satuan</span>
+                                                             @endif
+                                                             @if($store->addon_fefo)
+                                                                 <span class="badge bg-danger" style="font-size: 9px;">FEFO/Expired</span>
+                                                             @endif
+                                                             @if($store->addon_concoction)
+                                                                 <span class="badge bg-dark" style="font-size: 9px;">Obat Racikan</span>
+                                                             @endif
+                                                         @endif
+                                                     </div>
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-{{ $store->printer_type === '58mm' ? 'info' : ($store->printer_type === 'pdf' ? 'warning text-dark' : 'primary') }}">
@@ -319,11 +336,13 @@
                             <div class="col-md-12">
                                 <label class="form-label fw-semibold">Tipe Bisnis <span class="text-danger">*</span></label>
                                 <select class="form-select" id="bussiness_type">
-                                    <option value="retail">Retail</option>
-                                    <option value="fnb">F&B</option>
+                                    <option value="retail">Retail (Toko Umum / Fashion / Grosir / Swalayan / ATK)</option>
+                                    <option value="fnb">F&B (Restoran / Kafe / Bakery)</option>
+                                    <option value="pharmacy">Pharmacy (Apotik / Toko Obat)</option>
                                 </select>
                                 <div class="invalid-feedback" id="err-bussiness_type"></div>
                             </div>
+                            {{-- Addons Khusus F&B --}}
                             <div class="col-md-12" id="addonFields" style="display: none;">
                                 <label class="form-label fw-semibold text-primary">Fitur Add-on (Khusus F&B)</label>
                                 <div class="row g-2 p-2 border rounded-3 bg-light">
@@ -346,6 +365,40 @@
                                             <input class="form-check-input" type="checkbox" id="addon_multi_printer">
                                             <label class="form-check-label fw-bold" for="addon_multi_printer">Multi-Printer (Dapur/Bar)</label>
                                             <div class="text-muted small" style="font-size: 11px;">Pemisahan cetak pesanan multi-stasiun</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{-- Addons Retail & Pharmacy --}}
+                            <div class="col-md-12" id="addonRetailPharmacyFields">
+                                <label class="form-label fw-semibold text-primary">Fitur Add-on (Retail & Apotik)</label>
+                                <div class="row g-2 p-2 border rounded-3 bg-light">
+                                    <div class="col-md-6" id="wrapAddonSalesPerson">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_sales_person">
+                                            <label class="form-check-label fw-bold" for="addon_sales_person">Pramuniaga / SPG</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Pencatatan sales closing toko baju / retail</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6" id="wrapAddonMultiUnit">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_multi_unit">
+                                            <label class="form-check-label fw-bold" for="addon_multi_unit">Multi-Satuan Dinamis</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Satuan bertingkat (Pcs/Lusin/Kodi/Dus/Strip/Box)</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6" id="wrapAddonFefo">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_fefo">
+                                            <label class="form-check-label fw-bold" for="addon_fefo">Nomor Batch & FEFO</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Expired Date & First-Expired First-Out</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6" id="wrapAddonConcoction" style="display: none;">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="addon_concoction">
+                                            <label class="form-check-label fw-bold" for="addon_concoction">Obat Racikan & Resep</label>
+                                            <div class="text-muted small" style="font-size: 11px;">Puyer/Kapsul/Sirup, Signa & Embalase (Apotik)</div>
                                         </div>
                                     </div>
                                 </div>
@@ -831,6 +884,7 @@
     <script>
         let currentActiveStoreId = null;
         let currentActiveStoreData = null;
+        let currentEditStoreData = null;
 
         const routes = {
             store: "{{ route('stores.store') }}",
@@ -931,6 +985,7 @@
 
         // ── open create ──────────────────────────────────────────────────────────
         function openCreate() {
+            currentEditStoreData = null;
             document.getElementById('storeForm').reset();
             document.getElementById('storeId').value   = '';
             document.getElementById('logo_data').value = '';
@@ -941,7 +996,13 @@
             document.getElementById('addon_self_service').checked = false;
             document.getElementById('addon_kds').checked = false;
             document.getElementById('addon_multi_printer').checked = false;
+            document.getElementById('addon_sales_person').checked = false;
+            document.getElementById('addon_multi_unit').checked = false;
+            document.getElementById('addon_fefo').checked = false;
+            document.getElementById('addon_concoction').checked = false;
             document.getElementById('addonFields').style.display = 'none';
+            document.getElementById('addonRetailPharmacyFields').style.display = 'block';
+            document.getElementById('wrapAddonConcoction').style.display = 'none';
 
             // Onboarding defaults
             document.getElementById('onboardingSection').style.display = 'block';
@@ -964,6 +1025,7 @@
             fetch(routes.edit(id))
                 .then(r => r.json())
                 .then(data => {
+                    currentEditStoreData = data;
                     document.getElementById('storeId').value      = data.id;
                     document.getElementById('name').value         = data.name;
                     document.getElementById('code').value         = data.code;
@@ -979,7 +1041,15 @@
                     document.getElementById('addon_self_service').checked = data.addon_self_service == 1;
                     document.getElementById('addon_kds').checked = data.addon_kds == 1;
                     document.getElementById('addon_multi_printer').checked = data.addon_multi_printer == 1;
-                    document.getElementById('addonFields').style.display = data.business_type === 'fnb' ? 'block' : 'none';
+                    document.getElementById('addon_sales_person').checked = data.addon_sales_person == 1;
+                    document.getElementById('addon_multi_unit').checked = data.addon_multi_unit == 1;
+                    document.getElementById('addon_fefo').checked = data.addon_fefo == 1;
+                    document.getElementById('addon_concoction').checked = data.addon_concoction == 1;
+
+                    const bType = data.business_type ?? 'retail';
+                    document.getElementById('addonFields').style.display = bType === 'fnb' ? 'block' : 'none';
+                    document.getElementById('addonRetailPharmacyFields').style.display = bType !== 'fnb' ? 'block' : 'none';
+                    document.getElementById('wrapAddonConcoction').style.display = bType === 'pharmacy' ? 'block' : 'none';
                     
                     // Hide onboarding when editing
                     document.getElementById('onboardingSection').style.display = 'none';
@@ -1020,8 +1090,12 @@
                 logo_data:            document.getElementById('logo_data').value || null,
                 bussiness_type:       document.getElementById('bussiness_type').value,
                 addon_self_service:   document.getElementById('addon_self_service').checked ? 1 : 0,
-                addon_kds:             document.getElementById('addon_kds').checked ? 1 : 0,
+                addon_kds:            document.getElementById('addon_kds').checked ? 1 : 0,
                 addon_multi_printer:  document.getElementById('addon_multi_printer').checked ? 1 : 0,
+                addon_sales_person:   document.getElementById('addon_sales_person').checked ? 1 : 0,
+                addon_multi_unit:     document.getElementById('addon_multi_unit').checked ? 1 : 0,
+                addon_fefo:           document.getElementById('addon_fefo').checked ? 1 : 0,
+                addon_concoction:     document.getElementById('addon_concoction').checked ? 1 : 0,
                 _token:               '{{ csrf_token() }}',
             };
 
@@ -1103,13 +1177,43 @@
 
         // ── business type change listener ────────────────────────────────────────
         document.getElementById('bussiness_type').addEventListener('change', function() {
-            const isFnB = this.value === 'fnb';
+            const val = this.value;
+            const isFnB = val === 'fnb';
+            const isPharmacy = val === 'pharmacy';
+
             document.getElementById('addonFields').style.display = isFnB ? 'block' : 'none';
+            document.getElementById('addonRetailPharmacyFields').style.display = !isFnB ? 'block' : 'none';
             document.getElementById('onboardTenantWrap').style.display = isFnB ? 'block' : 'none';
-            if (!isFnB) {
+            document.getElementById('wrapAddonConcoction').style.display = isPharmacy ? 'block' : 'none';
+
+            if (isFnB) {
+                document.getElementById('addon_sales_person').checked = false;
+                document.getElementById('addon_multi_unit').checked = false;
+                document.getElementById('addon_fefo').checked = false;
+                document.getElementById('addon_concoction').checked = false;
+            } else {
                 document.getElementById('addon_self_service').checked = false;
                 document.getElementById('addon_kds').checked = false;
                 document.getElementById('addon_multi_printer').checked = false;
+
+                if (isPharmacy) {
+                    // Otomatis centang fitur pharmacy default
+                    document.getElementById('addon_multi_unit').checked = true;
+                    document.getElementById('addon_fefo').checked = true;
+                    document.getElementById('addon_concoction').checked = true;
+                } else {
+                    // Kembali ke Retail: pulihkan ke data tersimpan awal jika toko berjenis retail, jika tidak default unchecked (tidak dicentang)
+                    if (currentEditStoreData && currentEditStoreData.business_type === 'retail') {
+                        document.getElementById('addon_sales_person').checked = currentEditStoreData.addon_sales_person == 1;
+                        document.getElementById('addon_multi_unit').checked = currentEditStoreData.addon_multi_unit == 1;
+                        document.getElementById('addon_fefo').checked = currentEditStoreData.addon_fefo == 1;
+                    } else {
+                        document.getElementById('addon_sales_person').checked = false;
+                        document.getElementById('addon_multi_unit').checked = false;
+                        document.getElementById('addon_fefo').checked = false;
+                    }
+                    document.getElementById('addon_concoction').checked = false;
+                }
             }
         });
 

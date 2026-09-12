@@ -67,6 +67,11 @@ class FirestoreService
             'business_type' => (string)$store->business_type,
             'addon_self_service' => (bool)$store->addon_self_service,
             'addon_kds' => (bool)$store->addon_kds,
+            'addon_multi_printer' => (bool)$store->addon_multi_printer,
+            'addon_sales_person' => (bool)$store->addon_sales_person,
+            'addon_multi_unit' => (bool)$store->addon_multi_unit,
+            'addon_fefo' => (bool)$store->addon_fefo,
+            'addon_concoction' => (bool)$store->addon_concoction,
             'updated_at' => now()->toIso8601String(),
         ];
 

@@ -24,6 +24,7 @@ class Sale extends Model
         'customer_phone',
         'receipt_name',
         'user_id',
+        'sales_person_id',
         'cash_register_id',
         'subtotal',
         'discount_total',
@@ -45,10 +46,27 @@ class Sale extends Model
         'kitchen_printed_at',
         'bar_printed_at',
         'printed_stations_log',
+
+        // Farmasi Resep Dokter & Pasien
+        'doctor_name',
+        'doctor_sip',
+        'patient_name',
+        'patient_age',
+        'patient_gender',
+        'patient_phone',
+        'prescription_number',
+        'prescription_date',
+        'total_tuslah',
+        'total_embalase',
+
+        // Diskon Promosi
+        'discount_id',
+        'discount_name',
     ];
 
     protected $casts = [
         'sale_date'            => 'datetime',
+        'prescription_date'    => 'date',
         'kitchen_printed_at'   => 'datetime',
         'bar_printed_at'       => 'datetime',
         'printed_stations_log' => 'array',
@@ -98,6 +116,11 @@ class Sale extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function salesPerson()
+    {
+        return $this->belongsTo(SalesPerson::class, 'sales_person_id');
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -130,5 +153,10 @@ class Sale extends Model
     public function biodata()
     {
         return $this->belongsTo(NseCalonSiswa::class, 'customer_id', 'id_biodatadiri');
+    }
+
+    public function discount()
+    {
+        return $this->belongsTo(Discount::class, 'discount_id');
     }
 }

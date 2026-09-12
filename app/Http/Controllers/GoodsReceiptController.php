@@ -18,8 +18,12 @@ class GoodsReceiptController extends Controller
 {
     public function create(PurchaseOrder $po)
     {
-        $po->load('items.variant.product', 'goodsReceipts.items.purchaseOrderItem.variant.product', 'goodsReceipts.receiver');
-        // dd(json_encode($po->items, JSON_PRETTY_PRINT));
+        $po->load([
+            'items.variant.product.units',
+            'items.productUnit',
+            'goodsReceipts.items.purchaseOrderItem.variant.product',
+            'goodsReceipts.receiver',
+        ]);
         return view('goods_receipts.create', compact('po'));
     }
     /* =========================
@@ -33,6 +37,8 @@ class GoodsReceiptController extends Controller
             'items' => 'required|array|min:1',
             'items.*.purchase_item_id' => 'required|exists:purchase_order_items,id',
             'items.*.qty_received' => 'nullable|numeric|min:0',
+            'items.*.batch_number' => 'nullable|string|max:100',
+            'items.*.expired_date' => 'nullable|date',
         ]);
 
 
@@ -64,24 +70,37 @@ class GoodsReceiptController extends Controller
                     throw new \Exception('Qty diterima melebihi sisa PO');
                 }
 
+                $batchNumber = !empty($item['batch_number']) ? trim($item['batch_number']) : null;
+                $expiredDate = !empty($item['expired_date']) ? trim($item['expired_date']) : null;
+                $multiplier = ($poItem->unit_multiplier && $poItem->unit_multiplier > 0) ? (int) $poItem->unit_multiplier : 1;
+                $qtyReceived = (float) $item['qty_received'];
+                $baseQtyReceived = $qtyReceived * $multiplier;
+                $basePrice = $multiplier > 0 ? ($poItem->price / $multiplier) : $poItem->price;
+
                 GoodsReceiptItem::create([
                     'goods_receipt_id' => $receipt->id,
                     'purchase_order_item_id' => $poItem->id,
-                    'qty_received' => $item['qty_received'],
+                    'qty_received' => $qtyReceived,
+                    'unit_name' => $poItem->unit_name,
+                    'unit_multiplier' => $multiplier,
+                    'base_qty_received' => $baseQtyReceived,
+                    'batch_number' => $batchNumber,
+                    'expired_date' => $expiredDate,
                 ]);
 
                 // Update qty_received di PO item
-                $poItem->increment('qty_received', $item['qty_received']);
+                $poItem->increment('qty_received', $qtyReceived);
 
-                // 🔴 NANTI: tambah stok
                 StockService::receiveFromPurchase(
                     $poItem->product_variant_id,
                     $poItem->id,
                     'store',
                     $request->receipt_date,
-                    $item['qty_received'],
-                    $poItem->price,
-                    $receipt->id
+                    (int) round($baseQtyReceived),
+                    $basePrice,
+                    $receipt->id,
+                    $batchNumber,
+                    $expiredDate
                 );
             }
 

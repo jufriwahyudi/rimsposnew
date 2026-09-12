@@ -24,6 +24,10 @@ class Store extends Model
         'addon_self_service',
         'addon_kds',
         'addon_multi_printer',
+        'addon_sales_person',
+        'addon_multi_unit',
+        'addon_fefo',
+        'addon_concoction',
         'enable_cash_register',
     ];
 
@@ -32,6 +36,10 @@ class Store extends Model
         'addon_self_service' => 'boolean',
         'addon_kds' => 'boolean',
         'addon_multi_printer' => 'boolean',
+        'addon_sales_person' => 'boolean',
+        'addon_multi_unit' => 'boolean',
+        'addon_fefo' => 'boolean',
+        'addon_concoction' => 'boolean',
         'enable_cash_register' => 'boolean',
     ];
 

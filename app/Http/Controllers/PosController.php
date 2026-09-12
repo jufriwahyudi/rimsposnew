@@ -563,16 +563,52 @@ class PosController extends Controller
 
         $q = trim($request->query('q'));
 
+        $store = Store::find($storeId);
+        $hasMultiUnit = $store && (bool) $store->addon_multi_unit;
+        $hasFEFO = $store && ($store->addon_fefo || $store->business_type === 'pharmacy');
+
         // helper biar tidak nulis berulang
-        $format = function ($v) {
+        $format = function ($v) use ($hasMultiUnit, $hasFEFO) {
             $productType = $v->product?->product_type ?? 'SINGLE';
             $isService = $productType === 'SERVICE';
+            $units = [];
+            if ($hasMultiUnit && $v->product && $v->product->relationLoaded('units')) {
+                $units = $v->product->units->where('is_active', true)->map(function ($u) {
+                    return [
+                        'id'         => $u->id,
+                        'name'       => $u->name,
+                        'multiplier' => (int) $u->multiplier,
+                        'price'      => (float) $u->price,
+                        'barcode'    => $u->barcode,
+                    ];
+                })->values()->toArray();
+            }
+
+            $nearestExp = null;
+            $nearestBatch = null;
+            if ($hasFEFO && $v->track_stock && !$isService) {
+                $earliestBatch = StockBatch::where('product_variant_id', $v->id)
+                    ->where('posisi', 'store')
+                    ->where('qty_sisa', '>', 0)
+                    ->whereNotNull('expired_date')
+                    ->orderBy('expired_date', 'asc')
+                    ->first(['batch_number', 'expired_date']);
+                if ($earliestBatch) {
+                    $nearestExp = $earliestBatch->expired_date ? $earliestBatch->expired_date->toDateString() : null;
+                    $nearestBatch = $earliestBatch->batch_number;
+                }
+            }
+
             return [
                 'id'                      => $v->id,
                 'product_id'              => $v->product_id,
                 'sku'                     => $v->sku,
                 'name'                    => $v->product?->nama_produk ?? $v->variant_name,
                 'variant'                 => $v->variant_label,
+                'base_unit'               => $v->product?->base_unit ?? 'Pcs',
+                'units'                   => $units,
+                'nearest_expired_date'    => $nearestExp,
+                'nearest_batch_number'    => $nearestBatch,
                 'product_type'            => $productType,
                 'default_commission_type' => $v->product?->default_commission_type ?? 'none',
                 'default_commission_rate' => (float) ($v->product?->default_commission_rate ?? 0),
@@ -587,8 +623,8 @@ class PosController extends Controller
             ];
         };
 
-        // 1. Cek SKU / barcode aktif
-        $variant = ProductVariant::with(['product.tenant', 'product.category', 'variantAttributes.value', 'barcodeActive'])
+        // 1. Cek SKU / barcode aktif pada variant
+        $variant = ProductVariant::with(['product.tenant', 'product.category', 'product.units', 'variantAttributes.value', 'barcodeActive'])
             ->where(function ($q2) use ($q) {
                 $q2->where('sku', $q)
                     ->orWhereHas('barcodes', function ($q3) use ($q) {
@@ -605,8 +641,34 @@ class PosController extends Controller
             ]);
         }
 
+        // 1.1 Cek barcode pada satuan kemasan bertingkat (product_units.barcode)
+        if ($hasMultiUnit) {
+            $unitMatch = \App\Models\ProductUnit::with(['product.tenant', 'product.category', 'product.units', 'product.variants.variantAttributes.value', 'variant'])
+                ->where('barcode', $q)
+                ->where('is_active', true)
+                ->first();
+
+            if ($unitMatch && $unitMatch->product) {
+                $targetVariant = $unitMatch->variant ?: $unitMatch->product->variants->first();
+                if ($targetVariant) {
+                    $formatted = $format($targetVariant);
+                    $formatted['scanned_unit'] = [
+                        'id'         => $unitMatch->id,
+                        'name'       => $unitMatch->name,
+                        'multiplier' => (int) $unitMatch->multiplier,
+                        'price'      => (float) $unitMatch->price,
+                        'barcode'    => $unitMatch->barcode,
+                    ];
+                    return response()->json([
+                        'type' => 'single',
+                        'data' => $formatted,
+                    ]);
+                }
+            }
+        }
+
         // 2. Search nama produk
-        $variants = ProductVariant::with(['product.tenant', 'product.category', 'variantAttributes.value'])
+        $variants = ProductVariant::with(['product.tenant', 'product.category', 'product.units', 'variantAttributes.value'])
             ->where(function ($q2) use ($q) {
                 $q2->where('variant_name', 'like', "%{$q}%")
                     ->orWhereHas('product', function ($q3) use ($q) {
@@ -920,11 +982,14 @@ class PosController extends Controller
                     'member_id'      => $memberId,
                     'customer_name'  => $customerName,
                     'user_id'        => auth()->id(),
+                    'sales_person_id' => $cart['sales_person_id'] ?? null,
                     'cash_register_id' => $cashRegisterId,
 
                     'subtotal'       => $cart['subtotal'],
                     'discount_total' => $cart['discount_total'],
                     'trans_discount' => $cart['transaction_discount'] ?? 0,
+                    'discount_id'    => $cart['discount_id'] ?? null,
+                    'discount_name'  => $cart['discount_name'] ?? null,
                     'tax_total'      => 0,
                     'grand_total'    => $cart['total'],
                     'points_redeemed' => $pointsRedeemed,
@@ -935,6 +1000,18 @@ class PosController extends Controller
                     'tip_amount'     => $tipAmount,
                     'status'         => 'paid',
                     'payment_status' => $paymentMethod === 'hutang' ? 'hutang' : 'lunas',
+
+                    // Farmasi Resep Dokter & Pasien
+                    'doctor_name'         => $cart['prescription']['doctor_name'] ?? ($cart['doctor_name'] ?? null),
+                    'doctor_sip'          => $cart['prescription']['doctor_sip'] ?? ($cart['doctor_sip'] ?? null),
+                    'patient_name'        => $cart['prescription']['patient_name'] ?? ($cart['patient_name'] ?? null),
+                    'patient_age'         => $cart['prescription']['patient_age'] ?? ($cart['patient_age'] ?? null),
+                    'patient_gender'      => $cart['prescription']['patient_gender'] ?? ($cart['patient_gender'] ?? null),
+                    'patient_phone'       => $cart['prescription']['patient_phone'] ?? ($cart['patient_phone'] ?? null),
+                    'prescription_number' => $cart['prescription']['prescription_number'] ?? ($cart['prescription_number'] ?? null),
+                    'prescription_date'   => $cart['prescription']['prescription_date'] ?? ($cart['prescription_date'] ?? null),
+                    'total_tuslah'        => (float) ($cart['total_tuslah'] ?? 0),
+                    'total_embalase'      => (float) ($cart['total_embalase'] ?? 0),
                 ]);
 
                 foreach ($cart['items'] as $item) {
@@ -967,6 +1044,9 @@ class PosController extends Controller
                         }
                     }
 
+                    $multiplier = max(1, (int) ($item['unit_multiplier'] ?? 1));
+                    $baseDeductQty = ($item['qty'] ?? 1) * $multiplier;
+
                     $saleItem = SaleItem::create([
                         'sale_id'                 => $sale->id,
                         'product_id'              => $productId,
@@ -975,6 +1055,9 @@ class PosController extends Controller
                         'product_name'            => $item['variant'] ?? ($item['name'] ?? 'Item'),
                         'price'                   => $item['price'] ?? 0,
                         'qty'                     => $item['qty'] ?? 1,
+                        'unit_id'                 => $item['unit_id'] ?? null,
+                        'unit_name'               => $item['unit_name'] ?? null,
+                        'unit_multiplier'         => $multiplier,
                         'discount_amount'         => $item['discount_amount'] ?? 0,
                         'subtotal'                => $item['subtotal'] ?? 0,
                         'notes'                   => $item['notes'] ?? null,
@@ -982,7 +1065,48 @@ class PosController extends Controller
                         'staff_commission_type'   => $commType,
                         'staff_commission_rate'   => $commRate,
                         'staff_commission_amount' => $commAmount,
+
+                        // Farmasi Racikan & Aturan Pakai (Signa)
+                        'is_concoction'           => !empty($item['is_concoction']),
+                        'concoction_name'         => $item['concoction_name'] ?? null,
+                        'concoction_form'         => $item['concoction_form'] ?? null,
+                        'dosage_instruction'      => $item['dosage_instruction'] ?? null,
+                        'usage_type'              => $item['usage_type'] ?? 'oral',
+                        'tuslah_fee'              => (float) ($item['tuslah_fee'] ?? 0),
+                        'embalase_fee'            => (float) ($item['embalase_fee'] ?? 0),
                     ]);
+
+                    // Jika item adalah racikan farmasi, simpan bahan-bahannya dan potong stok FEFO
+                    if (!empty($item['is_concoction'])) {
+                        $concoctionIngredients = $item['concoction_items'] ?? [];
+                        foreach ($concoctionIngredients as $ing) {
+                            $ingVariantId = !empty($ing['variant_id']) ? (int) $ing['variant_id'] : null;
+                            $ingQty = (float) ($ing['quantity'] ?? 1);
+                            $ingPrice = (float) ($ing['unit_price'] ?? 0);
+                            $ingSubtotal = (float) ($ing['subtotal'] ?? ($ingQty * $ingPrice));
+
+                            \App\Models\SaleConcoctionItem::create([
+                                'sale_item_id'       => $saleItem->id,
+                                'product_variant_id' => $ingVariantId,
+                                'product_name'       => $ing['product_name'] ?? 'Bahan Obat',
+                                'dosage_per_package' => $ing['dosage_per_package'] ?? null,
+                                'quantity'           => $ingQty,
+                                'unit_name'          => $ing['unit_name'] ?? 'Tablet',
+                                'unit_price'         => $ingPrice,
+                                'subtotal'           => $ingSubtotal,
+                            ]);
+
+                            if ($ingVariantId) {
+                                $this->issueFIFOWithBatchLog(
+                                    $transactionDate,
+                                    $ingVariantId,
+                                    'store',
+                                    $ingQty,
+                                    $saleItem
+                                );
+                            }
+                        }
+                    }
 
                     // Auto-sync Service Order if item notes contain ticket number
                     if (!empty($item['notes']) && preg_match('/Tiket #(WO-[A-Za-z0-9\-]+)/', $item['notes'], $m)) {
@@ -1014,11 +1138,13 @@ class PosController extends Controller
 
                     if (($product && $product->product_type === 'SERVICE') || (isset($item['product_type']) && $item['product_type'] === 'SERVICE')) {
                         // Layanan / Jasa non-stok
+                    } elseif (!empty($item['is_concoction'])) {
+                        // Stok bahan racikan sudah dipotong di atas
                     } elseif ($product && $product->product_type === 'RECIPE') {
                         app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                             session('store_id'),
                             $product->id,
-                            (float) $item['qty'],
+                            (float) $baseDeductQty,
                             $sale->id,
                             $saleItem
                         );
@@ -1027,7 +1153,7 @@ class PosController extends Controller
                             $transactionDate,
                             $variantId,
                             'store',
-                            $item['qty'],
+                            $baseDeductQty,
                             $saleItem
                         );
                     }
@@ -1324,10 +1450,13 @@ class PosController extends Controller
                         $variantId = $item['variant_id'] ?? null;
                         $newQty    = $item['qty'] ?? 0;
                         $existing  = $variantId ? $existingItems->get($variantId) : null;
+                        $multiplier = max(1, (int) ($item['unit_multiplier'] ?? 1));
 
                         if ($existing) {
-                            $oldQty = $existing->qty;
-                            $qtyDiff = $newQty - $oldQty;
+                            $oldMultiplier = max(1, (int) ($existing->unit_multiplier ?: 1));
+                            $oldBaseQty = $existing->qty * $oldMultiplier;
+                            $newBaseQty = $newQty * $multiplier;
+                            $baseQtyDiff = $newBaseQty - $oldBaseQty;
 
                             // Update item fields but PRESERVE kds_status
                             $existing->update([
@@ -1335,20 +1464,23 @@ class PosController extends Controller
                                 'product_name'        => $item['variant'] ?? ($item['name'] ?? $existing->product_name),
                                 'price'               => $item['price'] ?? $existing->price,
                                 'qty'                 => $newQty,
+                                'unit_id'             => $item['unit_id'] ?? $existing->unit_id,
+                                'unit_name'           => $item['unit_name'] ?? $existing->unit_name,
+                                'unit_multiplier'     => $multiplier,
                                 'kitchen_printed_qty' => min($existing->kitchen_printed_qty, $newQty),
                                 'discount_amount'     => $item['discount_amount'] ?? 0,
                                 'subtotal'            => $item['subtotal'] ?? 0,
                                 'notes'               => $item['notes'] ?? $existing->notes,
                             ]);
 
-                            // Adjust stock only if qty increased
-                            if ($qtyDiff > 0) {
+                            // Adjust stock only if base qty increased
+                            if ($baseQtyDiff > 0) {
                                 $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
                                 if ($product && $product->product_type === 'RECIPE') {
                                     app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                                         $storeId,
                                         $product->id,
-                                        (float) $qtyDiff,
+                                        (float) $baseQtyDiff,
                                         $sale->id,
                                         $existing
                                     );
@@ -1357,14 +1489,14 @@ class PosController extends Controller
                                         $transactionDate,
                                         $variantId,
                                         'store',
-                                        $qtyDiff,
+                                        $baseQtyDiff,
                                         $existing
                                     );
                                 }
-                            } elseif ($qtyDiff < 0) {
-                                // Qty decreased: restore excess stock
+                            } elseif ($baseQtyDiff < 0) {
+                                // Base qty decreased: restore excess stock
                                 $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
-                                $absDiff = abs($qtyDiff);
+                                $absDiff = abs($baseQtyDiff);
                                 if ($product && $product->product_type === 'RECIPE') {
                                     app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
                                         $storeId,
@@ -1396,13 +1528,14 @@ class PosController extends Controller
                                         $transactionDate,
                                         $variantId,
                                         'store',
-                                        $newQty,
+                                        $newBaseQty,
                                         $existing
                                     );
                                 }
                             }
                         } else {
                             // Brand new item — create with default kds_status (pending)
+                            $baseNewQty = $newQty * $multiplier;
                             $saleItem = SaleItem::create([
                                 'sale_id'            => $sale->id,
                                 'product_id'         => $item['product_id'] ?? null,
@@ -1411,6 +1544,9 @@ class PosController extends Controller
                                 'product_name'       => $item['variant'] ?? ($item['name'] ?? ''),
                                 'price'              => $item['price'] ?? 0,
                                 'qty'                => $newQty,
+                                'unit_id'            => $item['unit_id'] ?? null,
+                                'unit_name'          => $item['unit_name'] ?? null,
+                                'unit_multiplier'    => $multiplier,
                                 'discount_amount'    => $item['discount_amount'] ?? 0,
                                 'subtotal'           => $item['subtotal'] ?? 0,
                                 'notes'              => $item['notes'] ?? null,
@@ -1421,7 +1557,7 @@ class PosController extends Controller
                                 app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                                     $storeId,
                                     $product->id,
-                                    (float) $newQty,
+                                    (float) $baseNewQty,
                                     $sale->id,
                                     $saleItem
                                 );
@@ -1430,7 +1566,7 @@ class PosController extends Controller
                                     $transactionDate,
                                     $variantId,
                                     'store',
-                                    $newQty,
+                                    $baseNewQty,
                                     $saleItem
                                 );
                             }
@@ -1443,10 +1579,13 @@ class PosController extends Controller
                         'member_id'      => $memberId,
                         'customer_name'  => $customerName,
                         'customer_phone' => $customerPhone,
+                        'sales_person_id' => $cart['sales_person_id'] ?? $sale->sales_person_id,
                         'cash_register_id' => $cashRegisterId ?: $sale->cash_register_id,
                         'subtotal'       => $cart['subtotal'] ?? 0,
                         'discount_total' => $cart['discount_total'] ?? 0,
                         'trans_discount' => $cart['transaction_discount'] ?? 0,
+                        'discount_id'    => $cart['discount_id'] ?? $sale->discount_id,
+                        'discount_name'  => $cart['discount_name'] ?? $sale->discount_name,
                         'grand_total'    => $cartTotal,
                         'points_redeemed' => $pointsRedeemed,
                         'point_discount_amount' => $pointDiscountAmount,
@@ -1470,10 +1609,13 @@ class PosController extends Controller
                         'customer_name'  => $customerName,
                         'customer_phone' => $customerPhone,
                         'user_id'        => auth()->id(),
+                        'sales_person_id' => $cart['sales_person_id'] ?? null,
                         'cash_register_id' => $cashRegisterId,
                         'subtotal'       => $cart['subtotal'] ?? 0,
                         'discount_total' => $cart['discount_total'] ?? 0,
                         'trans_discount' => $cart['transaction_discount'] ?? 0,
+                        'discount_id'    => $cart['discount_id'] ?? null,
+                        'discount_name'  => $cart['discount_name'] ?? null,
                         'tax_total'      => 0,
                         'grand_total'    => $cartTotal,
                         'points_redeemed' => $pointsRedeemed,
@@ -1485,6 +1627,18 @@ class PosController extends Controller
                         'payment_status' => $paymentMethod === 'hold' ? 'unpaid' : ($paymentMethod === 'hutang' ? 'hutang' : 'lunas'),
                         'voucher_code'   => $voucherCode,
                         'voucher_discount_amount' => $voucherDiscountAmount,
+
+                        // Farmasi Resep Dokter & Pasien
+                        'doctor_name'         => $cart['prescription']['doctor_name'] ?? ($cart['doctor_name'] ?? null),
+                        'doctor_sip'          => $cart['prescription']['doctor_sip'] ?? ($cart['doctor_sip'] ?? null),
+                        'patient_name'        => $cart['prescription']['patient_name'] ?? ($cart['patient_name'] ?? null),
+                        'patient_age'         => $cart['prescription']['patient_age'] ?? ($cart['patient_age'] ?? null),
+                        'patient_gender'      => $cart['prescription']['patient_gender'] ?? ($cart['patient_gender'] ?? null),
+                        'patient_phone'       => $cart['prescription']['patient_phone'] ?? ($cart['patient_phone'] ?? null),
+                        'prescription_number' => $cart['prescription']['prescription_number'] ?? ($cart['prescription_number'] ?? null),
+                        'prescription_date'   => $cart['prescription']['prescription_date'] ?? ($cart['prescription_date'] ?? null),
+                        'total_tuslah'        => (float) ($cart['total_tuslah'] ?? 0),
+                        'total_embalase'      => (float) ($cart['total_embalase'] ?? 0),
                     ]);
 
                     // Create items for new sale
@@ -1519,6 +1673,9 @@ class PosController extends Controller
                             }
                         }
 
+                        $multiplier = max(1, (int) ($item['unit_multiplier'] ?? 1));
+                        $baseQty = ($item['qty'] ?? 0) * $multiplier;
+
                         $saleItem = SaleItem::create([
                             'sale_id'                 => $sale->id,
                             'product_id'              => $productId,
@@ -1527,6 +1684,9 @@ class PosController extends Controller
                             'product_name'            => $item['variant'] ?? ($item['name'] ?? 'Item'),
                             'price'                   => $item['price'] ?? 0,
                             'qty'                     => $item['qty'] ?? 0,
+                            'unit_id'                 => $item['unit_id'] ?? null,
+                            'unit_name'               => $item['unit_name'] ?? null,
+                            'unit_multiplier'         => $multiplier,
                             'discount_amount'         => $item['discount_amount'] ?? 0,
                             'subtotal'                => $item['subtotal'] ?? 0,
                             'notes'                   => $item['notes'] ?? null,
@@ -1534,7 +1694,48 @@ class PosController extends Controller
                             'staff_commission_type'   => $commType,
                             'staff_commission_rate'   => $commRate,
                             'staff_commission_amount' => $commAmount,
+
+                            // Farmasi Racikan & Aturan Pakai (Signa)
+                            'is_concoction'           => !empty($item['is_concoction']),
+                            'concoction_name'         => $item['concoction_name'] ?? null,
+                            'concoction_form'         => $item['concoction_form'] ?? null,
+                            'dosage_instruction'      => $item['dosage_instruction'] ?? null,
+                            'usage_type'              => $item['usage_type'] ?? 'oral',
+                            'tuslah_fee'              => (float) ($item['tuslah_fee'] ?? 0),
+                            'embalase_fee'            => (float) ($item['embalase_fee'] ?? 0),
                         ]);
+
+                        // Jika item adalah racikan farmasi, simpan bahan-bahannya dan potong stok FEFO
+                        if (!empty($item['is_concoction'])) {
+                            $concoctionIngredients = $item['concoction_items'] ?? [];
+                            foreach ($concoctionIngredients as $ing) {
+                                $ingVariantId = !empty($ing['variant_id']) ? (int) $ing['variant_id'] : null;
+                                $ingQty = (float) ($ing['quantity'] ?? 1);
+                                $ingPrice = (float) ($ing['unit_price'] ?? 0);
+                                $ingSubtotal = (float) ($ing['subtotal'] ?? ($ingQty * $ingPrice));
+
+                                \App\Models\SaleConcoctionItem::create([
+                                    'sale_item_id'       => $saleItem->id,
+                                    'product_variant_id' => $ingVariantId,
+                                    'product_name'       => $ing['product_name'] ?? 'Bahan Obat',
+                                    'dosage_per_package' => $ing['dosage_per_package'] ?? null,
+                                    'quantity'           => $ingQty,
+                                    'unit_name'          => $ing['unit_name'] ?? 'Tablet',
+                                    'unit_price'         => $ingPrice,
+                                    'subtotal'           => $ingSubtotal,
+                                ]);
+
+                                if ($ingVariantId) {
+                                    $this->issueFIFOWithBatchLog(
+                                        $transactionDate,
+                                        $ingVariantId,
+                                        'store',
+                                        $ingQty,
+                                        $saleItem
+                                    );
+                                }
+                            }
+                        }
 
                         // Auto-sync Service Order if item notes contain ticket number
                         if (!empty($item['notes']) && preg_match('/Tiket #(WO-[A-Za-z0-9\-]+)/', $item['notes'], $m)) {
@@ -1566,11 +1767,13 @@ class PosController extends Controller
 
                         if (($product && $product->product_type === 'SERVICE') || (isset($item['product_type']) && $item['product_type'] === 'SERVICE')) {
                             // Layanan / Jasa non-stok
+                        } elseif (!empty($item['is_concoction'])) {
+                            // Stok bahan racikan sudah dipotong di atas via FEFO
                         } elseif ($product && $product->product_type === 'RECIPE') {
                             app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
                                 $storeId,
                                 $product->id,
-                                (float) ($item['qty'] ?? 0),
+                                (float) $baseQty,
                                 $sale->id,
                                 $saleItem
                             );
@@ -1579,7 +1782,7 @@ class PosController extends Controller
                                 $transactionDate,
                                 $variantId,
                                 'store',
-                                $item['qty'] ?? 0,
+                                $baseQty,
                                 $saleItem
                             );
                         }
@@ -2618,8 +2821,9 @@ class PosController extends Controller
                         StockBatch::where('id', $batch->stock_batch_id)
                             ->increment('qty_sisa', $batch->qty);
 
+                        $variantId = $item->product_variant_id ?: ($batch->stockBatch?->product_variant_id);
                         StockMovement::create([
-                            'product_variant_id' => $item->product_variant_id,
+                            'product_variant_id' => $variantId,
                             'stock_batch_id'     => $batch->stock_batch_id,
                             'posisi'             => 'store',
                             'tanggal'            => now(),
@@ -3126,12 +3330,33 @@ class PosController extends Controller
             return;
         }
 
-        $batches = StockBatch::where('product_variant_id', $variantId)
+        $store = Store::find(session('store_id') ?: $variant->store_id);
+        $useFEFO = (bool) ($store && ($store->addon_fefo || $store->business_type === 'pharmacy'));
+        $today = now()->toDateString();
+
+        $query = StockBatch::where('product_variant_id', $variantId)
             ->where('posisi', $posisi)
-            ->where('qty_sisa', '>', 0)
-            ->orderBy('tanggal_masuk')
-            ->lockForUpdate()
-            ->get();
+            ->where('qty_sisa', '>', 0);
+
+        if ($useFEFO) {
+            // First-Expired, First-Out:
+            // 1. Skip batch yang sudah kadaluarsa (keamanan pasien apotik)
+            // 2. Prioritaskan expired_date paling awal, disusul batch tanpa ED
+            $batches = $query->where(function ($q) use ($today) {
+                $q->whereNull('expired_date')->orWhere('expired_date', '>=', $today);
+            })
+                ->orderByRaw('CASE WHEN expired_date IS NOT NULL THEN 0 ELSE 1 END')
+                ->orderBy('expired_date', 'asc')
+                ->orderBy('tanggal_masuk', 'asc')
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+        } else {
+            $batches = $query->orderBy('tanggal_masuk', 'asc')
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+        }
 
         $sisa = $qty;
 
@@ -3142,13 +3367,15 @@ class PosController extends Controller
 
             $batch->decrement('qty_sisa', $ambil);
 
-            // LOG FIFO DETAIL
+            // LOG FIFO / FEFO DETAIL
             SaleItemBatch::create([
-                'sale_item_id'  => $saleItem->id,
+                'sale_item_id'   => $saleItem->id,
                 'stock_batch_id' => $batch->id,
-                'qty'           => $ambil,
-                'cost_price'    => $batch->harga_beli,
-                'sell_price'    => $saleItem->price,
+                'batch_number'   => $batch->batch_number,
+                'expired_date'   => $batch->expired_date,
+                'qty'            => $ambil,
+                'cost_price'     => $batch->harga_beli,
+                'sell_price'     => $saleItem->price,
             ]);
 
             // OPTIONAL: movement log (kalau belum dipanggil di StockService)
@@ -3168,7 +3395,10 @@ class PosController extends Controller
         }
 
         if ($sisa > 0) {
-            throw new \Exception('Stok tidak mencukupi');
+            $msg = $useFEFO 
+                ? 'Stok aktif (non-kadaluarsa) tidak mencukupi' 
+                : 'Stok tidak mencukupi';
+            throw new \Exception($msg);
         }
     }
 
@@ -3199,8 +3429,9 @@ class PosController extends Controller
                                 ->increment('qty_sisa', $batch->qty);
 
                             // Log movement IN
+                            $variantId = $item->product_variant_id ?: ($batch->stockBatch?->product_variant_id);
                             StockMovement::create([
-                                'product_variant_id' => $item->product_variant_id,
+                                'product_variant_id' => $variantId,
                                 'stock_batch_id'     => $batch->stock_batch_id,
                                 'posisi'             => 'store',
                                 'tanggal'            => now(),

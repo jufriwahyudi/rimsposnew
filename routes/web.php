@@ -39,6 +39,8 @@ use App\Http\Controllers\MemberController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\KitchenController;
+use App\Http\Controllers\SalesPersonController;
+use App\Http\Controllers\DiscountController;
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
@@ -129,6 +131,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
+        Route::resource('sales-persons', SalesPersonController::class);
+        Route::resource('discounts', DiscountController::class);
         // Customer Custom Fields Management
         Route::get('/customers/custom-fields', [CustomerController::class, 'customFieldsIndex'])->name('customers.custom-fields.index');
         Route::post('/customers/custom-fields', [CustomerController::class, 'customFieldsStore'])->name('customers.custom-fields.store');

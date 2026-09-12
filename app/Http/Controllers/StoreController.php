@@ -46,10 +46,14 @@ class StoreController extends Controller
             'printer_type'         => 'required|in:58mm,80mm,pdf',
             'is_active'            => 'nullable|boolean',
             'logo_data'            => 'nullable|string',
-            'bussiness_type'       => 'required|in:retail,fnb',
+            'bussiness_type'       => 'required|in:retail,fnb,pharmacy',
             'addon_self_service'   => 'nullable|boolean',
             'addon_kds'            => 'nullable|boolean',
             'addon_multi_printer'  => 'nullable|boolean',
+            'addon_sales_person'   => 'nullable|boolean',
+            'addon_multi_unit'     => 'nullable|boolean',
+            'addon_fefo'           => 'nullable|boolean',
+            'addon_concoction'     => 'nullable|boolean',
             'enable_cash_register' => 'nullable|boolean',
 
             // Onboarding options
@@ -107,6 +111,10 @@ class StoreController extends Controller
                 'addon_self_service'   => $request->boolean('addon_self_service', false),
                 'addon_kds'            => $request->boolean('addon_kds', false),
                 'addon_multi_printer'  => $request->boolean('addon_multi_printer', false),
+                'addon_sales_person'   => $request->boolean('addon_sales_person', false),
+                'addon_multi_unit'     => $request->boolean('addon_multi_unit', false),
+                'addon_fefo'           => $request->boolean('addon_fefo', false),
+                'addon_concoction'     => $request->boolean('addon_concoction', false),
                 'enable_cash_register' => $request->boolean('enable_cash_register', false),
             ]);
 
@@ -121,9 +129,13 @@ class StoreController extends Controller
 
             // 2. Auto-create Rekening Kas Utama (Cash Drawer)
             if ($request->boolean('create_rekening', true)) {
+                $noRek = '1001';
+                if (Rekening::where('no_rek', $noRek)->exists()) {
+                    $noRek = '1001-' . $store->id;
+                }
                 Rekening::create([
                     'store_id' => $store->id,
-                    'no_rek'   => '1001',
+                    'no_rek'   => $noRek,
                     'nama_rek' => 'Kas Toko ' . $store->name,
                     'bank_rek' => 'KAS / TUNAI',
                 ]);
@@ -221,10 +233,14 @@ class StoreController extends Controller
             'printer_type'         => 'required|in:58mm,80mm,pdf',
             'is_active'            => 'nullable|boolean',
             'logo_data'            => 'nullable|string',
-            'bussiness_type'       => 'required|in:retail,fnb',
+            'bussiness_type'       => 'required|in:retail,fnb,pharmacy',
             'addon_self_service'   => 'nullable|boolean',
             'addon_kds'            => 'nullable|boolean',
             'addon_multi_printer'  => 'nullable|boolean',
+            'addon_sales_person'   => 'nullable|boolean',
+            'addon_multi_unit'     => 'nullable|boolean',
+            'addon_fefo'           => 'nullable|boolean',
+            'addon_concoction'     => 'nullable|boolean',
             'enable_cash_register' => 'nullable|boolean',
         ];
 
@@ -258,6 +274,10 @@ class StoreController extends Controller
             'addon_self_service'   => $request->boolean('addon_self_service', false),
             'addon_kds'            => $request->boolean('addon_kds', false),
             'addon_multi_printer'  => $request->boolean('addon_multi_printer', false),
+            'addon_sales_person'   => $request->boolean('addon_sales_person', false),
+            'addon_multi_unit'     => $request->boolean('addon_multi_unit', false),
+            'addon_fefo'           => $request->boolean('addon_fefo', false),
+            'addon_concoction'     => $request->boolean('addon_concoction', false),
             'enable_cash_register' => $request->boolean('enable_cash_register', false),
         ];
 

@@ -24,7 +24,9 @@ class StockTemplateExport implements FromCollection, WithHeadings, ShouldAutoSiz
             'Nama Varian',
             'Posisi (store/warehouse)',
             'Jumlah Stok',
-            'Harga Beli/Modal'
+            'Harga Beli/Modal',
+            'Nomor Batch',
+            'Expired Date (YYYY-MM-DD)',
         ];
     }
 
@@ -44,6 +46,8 @@ class StockTemplateExport implements FromCollection, WithHeadings, ShouldAutoSiz
                 'posisi' => '',       // Empty for user to input: store / warehouse
                 'jumlah_stok' => '',  // Empty for user to input
                 'harga_beli' => '',   // Empty for user to input
+                'nomor_batch' => '',  // Opsional
+                'expired_date' => '', // Opsional (YYYY-MM-DD)
             ];
         });
     }

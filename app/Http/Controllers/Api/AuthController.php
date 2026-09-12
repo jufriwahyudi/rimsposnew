@@ -96,6 +96,10 @@ class AuthController extends Controller
                 'printer_type'        => $store->printer_type,
                 'business_type'       => $store->business_type,
                 'addon_multi_printer' => (bool)$store->addon_multi_printer,
+                'addon_sales_person'  => (bool)$store->addon_sales_person,
+                'addon_multi_unit'    => (bool)$store->addon_multi_unit,
+                'addon_fefo'          => (bool)$store->addon_fefo,
+                'addon_concoction'    => (bool)$store->addon_concoction,
                 'subscription_info'   => $subscriptionInfo,
             ];
         })->values();
@@ -241,6 +245,10 @@ class AuthController extends Controller
                 'printer_type'        => $store->printer_type,
                 'business_type'       => $store->business_type,
                 'addon_multi_printer' => (bool)$store->addon_multi_printer,
+                'addon_sales_person'  => (bool)$store->addon_sales_person,
+                'addon_multi_unit'    => (bool)$store->addon_multi_unit,
+                'addon_fefo'          => (bool)$store->addon_fefo,
+                'addon_concoction'    => (bool)$store->addon_concoction,
                 'subscription_info'   => $subscriptionInfo,
             ];
         })->values();

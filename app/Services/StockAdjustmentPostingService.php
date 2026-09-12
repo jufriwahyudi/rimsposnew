@@ -56,10 +56,12 @@ class StockAdjustmentPostingService
             $stockbatch->save();
         } else {
 
-            // 🆕 Batch baru khusus opname
+            // 🆕 Batch baru khusus opname / import
             $stockbatch = StockBatch::create([
                 'product_variant_id' => $item->product_variant_id,
                 'posisi'             => $adjustment->posisi,
+                'batch_number'       => $item->batch_number,
+                'expired_date'       => $item->expired_date,
                 'tanggal_masuk'      => $adjustment->effective_date,
                 'qty_awal'           => $item->qty,
                 'qty_sisa'           => $item->qty,

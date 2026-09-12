@@ -56,33 +56,71 @@
                             <input type="date" name="receipt_date" class="form-control mb-3" value="{{ date('Y-m-d') }}"
                                 required>
 
-                            <table class="table table-bordered">
-                                <tr>
-                                    <th>Produk</th>
-                                    <th class="text-center" width="8%">Jumlah Order</th>
-                                    <th class="text-center" width="8%">Sudah Diterima</th>
-                                    <th class="text-center" width="8%">Belum Diterima</th>
-                                    <th class="text-center" width="8%">Qty Terima</th>
-                                </tr>
-                                @foreach ($po->items as $item)
+                            <table class="table table-bordered align-middle">
+                                <thead class="table-light">
                                     <tr>
-                                        <td class="align-middle">{{ $item->variant->variant_label }}<br>
-                                            <small>SKU: {{ $item->variant->sku }}</small>
-                                        </td>
-                                        <td class="text-end align-middle">{{ round($item->qty_order) }}</td>
-                                        <td class="text-end align-middle">{{ round($item->qty_received) }}</td>
-                                        <td class="text-end align-middle">
-                                            {{ round($item->qty_order - $item->qty_received) }}</td>
-                                        <td class="align-middle">
-                                            <input type="hidden" name="items[{{ $loop->index }}][purchase_item_id]"
-                                                value="{{ $item->id }}">
-                                            <input type="number" name="items[{{ $loop->index }}][qty_received]"
-                                                class="form-control form-control-sm"
-                                                max="{{ $item->qty_order - $item->qty_received }}"
-                                                value="{{ $item->qty_order - $item->qty_received }}">
-                                        </td>
+                                        <th width="28%">Produk</th>
+                                        <th class="text-center" width="12%">Satuan Beli</th>
+                                        <th class="text-center" width="8%">Jumlah Order</th>
+                                        <th class="text-center" width="8%">Sudah Diterima</th>
+                                        <th class="text-center" width="8%">Belum Diterima</th>
+                                        <th class="text-center" width="10%">Qty Terima</th>
+                                        <th class="text-center" width="13%">No. Batch</th>
+                                        <th class="text-center" width="13%">Tgl Expired</th>
                                     </tr>
-                                @endforeach
+                                </thead>
+                                <tbody>
+                                    @foreach ($po->items as $item)
+                                        @php
+                                            $multiplier = ($item->unit_multiplier && $item->unit_multiplier > 0) ? $item->unit_multiplier : 1;
+                                            $unitName = $item->unit_name ?? $item->variant->product->base_unit ?? 'Pcs';
+                                            $baseUnit = $item->variant->product->base_unit ?? 'Pcs';
+                                            $remainingQty = round($item->qty_order - $item->qty_received, 2);
+                                        @endphp
+                                        <tr>
+                                            <td>
+                                                <span class="fw-semibold text-dark">{{ $item->variant->variant_label }}</span><br>
+                                                <small class="text-muted">SKU: {{ $item->variant->sku }}</small>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-light text-dark border px-2 py-1">
+                                                    {{ $unitName }}
+                                                </span>
+                                                @if ($multiplier > 1)
+                                                    <br><small class="text-muted" style="font-size: 11px;">(1 {{ $unitName }} = {{ $multiplier }} {{ $baseUnit }})</small>
+                                                @endif
+                                            </td>
+                                            <td class="text-end fw-semibold">{{ round($item->qty_order, 2) }}</td>
+                                            <td class="text-end text-success">{{ round($item->qty_received, 2) }}</td>
+                                            <td class="text-end text-danger fw-semibold">{{ $remainingQty }}</td>
+                                            <td>
+                                                <input type="hidden" name="items[{{ $loop->index }}][purchase_item_id]"
+                                                    value="{{ $item->id }}">
+                                                <input type="number" step="any" name="items[{{ $loop->index }}][qty_received]"
+                                                    class="form-control form-control-sm text-end gr-qty-input"
+                                                    data-multiplier="{{ $multiplier }}"
+                                                    data-base-unit="{{ $baseUnit }}"
+                                                    data-target-note="#note_{{ $loop->index }}"
+                                                    max="{{ $remainingQty }}"
+                                                    value="{{ $remainingQty }}">
+                                                @if ($multiplier > 1)
+                                                    <small id="note_{{ $loop->index }}" class="text-primary d-block mt-1" style="font-size: 10.5px;">
+                                                        = {{ $remainingQty * $multiplier }} {{ $baseUnit }} stok dasar
+                                                    </small>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <input type="text" name="items[{{ $loop->index }}][batch_number]"
+                                                    class="form-control form-control-sm"
+                                                    placeholder="No. Batch (Opsional)">
+                                            </td>
+                                            <td>
+                                                <input type="date" name="items[{{ $loop->index }}][expired_date]"
+                                                    class="form-control form-control-sm">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
                             </table>
                             <a href="{{ route('po.index') }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i>
                                 Kembali</a>
@@ -128,12 +166,29 @@
                                         {{ number_format($gr->items->sum('qty_received')) }}
                                     </td>
                                     <td>
-                                        <ul class="mb-0">
+                                        <ul class="mb-0 ps-3">
                                             @foreach ($gr->items as $item)
-                                                <li>
-                                                    {{ $item->purchaseOrderItem->variant->variant_label }} -
-                                                    {{ $item->purchaseOrderItem->variant->sku }} :
-                                                    {{ number_format($item->qty_received) }}
+                                                @php
+                                                    $poIt = $item->purchaseOrderItem;
+                                                    $pUnitName = $item->unit_name ?? $poIt->unit_name ?? $poIt->variant->product->base_unit ?? 'Pcs';
+                                                    $bUnitName = $poIt->variant->product->base_unit ?? 'Pcs';
+                                                    $bMultiplier = $item->unit_multiplier ?? $poIt->unit_multiplier ?? 1;
+                                                    $baseTotal = $item->base_qty_received > 0 ? $item->base_qty_received : ($item->qty_received * $bMultiplier);
+                                                @endphp
+                                                <li class="mb-1">
+                                                    <strong>{{ $poIt->variant->variant_label }}</strong> <small class="text-muted">({{ $poIt->variant->sku }})</small> :
+                                                    <span class="fw-bold">{{ round($item->qty_received, 2) }} {{ $pUnitName }}</span>
+                                                    @if ($bMultiplier > 1)
+                                                        <span class="badge bg-light text-primary border ms-1">
+                                                            = {{ round($baseTotal, 2) }} {{ $bUnitName }}
+                                                        </span>
+                                                    @endif
+                                                    @if ($item->batch_number)
+                                                        <span class="badge bg-secondary ms-1">Batch: {{ $item->batch_number }}</span>
+                                                    @endif
+                                                    @if ($item->expired_date)
+                                                        <span class="badge bg-warning text-dark ms-1">ED: {{ \Carbon\Carbon::parse($item->expired_date)->format('d/m/Y') }}</span>
+                                                    @endif
                                                 </li>
                                             @endforeach
                                         </ul>
@@ -171,8 +226,22 @@
 @endsection
 @push('scripts')
     <script>
+        // Real-time update live note stok dasar
+        document.querySelectorAll('.gr-qty-input').forEach(input => {
+            input.addEventListener('input', function() {
+                const multiplier = parseFloat(this.dataset.multiplier) || 1;
+                const baseUnit = this.dataset.baseUnit || '';
+                const targetNote = document.querySelector(this.dataset.targetNote);
+                if (targetNote && multiplier > 1) {
+                    const qty = parseFloat(this.value) || 0;
+                    const totalBase = Math.round(qty * multiplier);
+                    targetNote.textContent = `= ${totalBase} ${baseUnit} stok dasar`;
+                }
+            });
+        });
+
         // Validasi form sebelum submit
-        document.getElementById('goodsReceiptForm').addEventListener('submit', function(event) {
+        document.getElementById('goodsReceiptForm')?.addEventListener('submit', function(event) {
             event.preventDefault();
             let valid = true;
             const qtyInputs = this.querySelectorAll('input[name^="items"][name$="[qty_received]"]');
@@ -197,11 +266,11 @@
                 Swal.fire('Mohon periksa kembali jumlah qty terima yang diinput.');
             } else {
                 Swal.fire({
-                    title: 'Konfirmasi',
-                    text: 'Apakah data sudah benar?',
+                    title: 'Konfirmasi Penerimaan',
+                    text: 'Apakah data barang, nomor batch, dan tanggal expired sudah benar?',
                     icon: 'question',
                     showCancelButton: true,
-                    confirmButtonText: 'Ya, simpan',
+                    confirmButtonText: 'Ya, simpan ke stok',
                     cancelButtonText: 'Batal'
                 }).then((result) => {
                     if (result.isConfirmed) {

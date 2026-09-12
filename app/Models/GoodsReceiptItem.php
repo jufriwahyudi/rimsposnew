@@ -11,7 +11,18 @@ class GoodsReceiptItem extends Model
     protected $fillable = [
         'goods_receipt_id',
         'purchase_order_item_id',
+        'batch_number',
+        'expired_date',
         'qty_received',
+        'unit_name',
+        'unit_multiplier',
+        'base_qty_received',
+    ];
+
+    protected $casts = [
+        'expired_date' => 'date',
+        'unit_multiplier' => 'integer',
+        'base_qty_received' => 'decimal:2',
     ];
 
     public function goodsReceipt()

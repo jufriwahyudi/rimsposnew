@@ -36,11 +36,22 @@ class StockImportService
             return strtolower(trim($header));
         }, $sheet[0]);
 
+        $batchCol = array_search('nomor batch', $headers);
+        if ($batchCol === false) $batchCol = array_search('no batch', $headers);
+        if ($batchCol === false) $batchCol = array_search('batch', $headers);
+
+        $expCol = array_search('expired date (yyyy-mm-dd)', $headers);
+        if ($expCol === false) $expCol = array_search('expired date', $headers);
+        if ($expCol === false) $expCol = array_search('tanggal kadaluarsa', $headers);
+        if ($expCol === false) $expCol = array_search('tgl kadaluarsa', $headers);
+
         $columnMapping = [
             'sku' => array_search('sku', $headers),
             'posisi' => array_search('posisi (store/warehouse)', $headers),
             'jumlah_stok' => array_search('jumlah stok', $headers),
             'harga_beli' => array_search('harga beli/modal', $headers),
+            'nomor_batch' => $batchCol,
+            'expired_date' => $expCol,
         ];
 
         if ($columnMapping['sku'] === false || $columnMapping['posisi'] === false || $columnMapping['jumlah_stok'] === false || $columnMapping['harga_beli'] === false) {
@@ -68,6 +79,10 @@ class StockImportService
             $posisi = isset($row[$columnMapping['posisi']]) ? strtolower(trim($row[$columnMapping['posisi']])) : '';
             $qty = isset($row[$columnMapping['jumlah_stok']]) ? trim($row[$columnMapping['jumlah_stok']]) : '';
             $cost = isset($row[$columnMapping['harga_beli']]) ? trim($row[$columnMapping['harga_beli']]) : '';
+            $batch = ($columnMapping['nomor_batch'] !== false && isset($row[$columnMapping['nomor_batch']])) ? trim($row[$columnMapping['nomor_batch']]) : null;
+            if ($batch === '') $batch = null;
+            $expDate = ($columnMapping['expired_date'] !== false && isset($row[$columnMapping['expired_date']])) ? trim($row[$columnMapping['expired_date']]) : null;
+            if ($expDate === '') $expDate = null;
 
             // If SKU is empty, check if other fields are empty. If all empty, skip.
             if (empty($sku) && empty($posisi) && empty($qty) && empty($cost)) {
@@ -125,6 +140,24 @@ class StockImportService
                 $errors[] = "Harga Beli/Modal tidak boleh negatif.";
             }
 
+            // 5. Validate Expired Date (jika diisi)
+            if (!empty($expDate)) {
+                if (is_numeric($expDate)) {
+                    try {
+                        $expDate = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$expDate)->format('Y-m-d');
+                    } catch (\Throwable $e) {
+                        $errors[] = "Format Expired Date tidak valid.";
+                    }
+                } else {
+                    $ts = strtotime($expDate);
+                    if ($ts) {
+                        $expDate = date('Y-m-d', $ts);
+                    } else {
+                        $errors[] = "Format Expired Date harus YYYY-MM-DD (contoh: 2027-12-31).";
+                    }
+                }
+            }
+
             $status = empty($errors) ? 'valid' : 'error';
             if ($status === 'valid') {
                 $validCount++;
@@ -140,6 +173,8 @@ class StockImportService
                 'posisi' => $posisi,
                 'qty' => (float)$qty,
                 'cost' => (float)$cost,
+                'batch_number' => $batch,
+                'expired_date' => $expDate,
                 'variant_id' => $variant ? $variant->id : null,
                 'status' => $status,
                 'errors' => $errors,
@@ -177,6 +212,8 @@ class StockImportService
                             StockAdjustmentItem::create([
                                 'stock_adjustment_id' => $adjustment->id,
                                 'product_variant_id' => $item['variant_id'],
+                                'batch_number' => $item['batch_number'] ?? null,
+                                'expired_date' => $item['expired_date'] ?? null,
                                 'qty' => $item['qty'],
                                 'cost' => $item['cost'],
                                 'total_value' => $item['qty'] * $item['cost'],
@@ -248,6 +285,8 @@ class StockImportService
                         GoodsReceiptItem::create([
                             'goods_receipt_id' => $receipt->id,
                             'purchase_order_item_id' => $poItem->id,
+                            'batch_number' => $item['batch_number'] ?? null,
+                            'expired_date' => $item['expired_date'] ?? null,
                             'qty_received' => $item['qty'],
                         ]);
 
@@ -259,7 +298,9 @@ class StockImportService
                             now()->toDateString(),
                             $item['qty'],
                             $item['cost'],
-                            $receipt->id
+                            $receipt->id,
+                            $item['batch_number'] ?? null,
+                            $item['expired_date'] ?? null
                         );
 
                         $importedCount++;

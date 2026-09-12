@@ -20,7 +20,9 @@ class StockService
         string $tanggalMasuk,
         int $qty,
         float $hargaBeli,
-        int $refId
+        int $refId,
+        ?string $batchNumber = null,
+        ?string $expiredDate = null
     ) {
         DB::transaction(function () use (
             $productVariantId,
@@ -29,7 +31,9 @@ class StockService
             $tanggalMasuk,
             $qty,
             $hargaBeli,
-            $refId
+            $refId,
+            $batchNumber,
+            $expiredDate
         ) {
 
             // 1️⃣ Buat batch baru
@@ -37,6 +41,8 @@ class StockService
                 'product_variant_id' => $productVariantId,
                 'purchase_item_id'   => $purchaseItemId,
                 'posisi'             => $posisi,
+                'batch_number'       => $batchNumber,
+                'expired_date'       => $expiredDate,
                 'tanggal_masuk'      => $tanggalMasuk,
                 'qty_awal'           => $qty,
                 'qty_sisa'           => $qty,
@@ -60,7 +66,7 @@ class StockService
     }
 
     /**
-     * STOCK KELUAR (FIFO)
+     * STOCK KELUAR (FIFO / FEFO)
      */
     public static function issueFIFO(
         int $productVariantId,
@@ -71,12 +77,27 @@ class StockService
     ): array {
         $result = [];
 
-        $batches = StockBatch::where('product_variant_id', $productVariantId)
+        $variant = \App\Models\ProductVariant::find($productVariantId);
+        $store = $variant ? \App\Models\Store::find($variant->store_id) : null;
+        $useFEFO = (bool) ($store && ($store->addon_fefo || $store->business_type === 'pharmacy'));
+
+        $query = StockBatch::where('product_variant_id', $productVariantId)
             ->where('posisi', $posisi)
-            ->where('qty_sisa', '>', 0)
-            ->orderBy('tanggal_masuk')
-            ->lockForUpdate()
-            ->get();
+            ->where('qty_sisa', '>', 0);
+
+        if ($useFEFO) {
+            $batches = $query->orderByRaw('CASE WHEN expired_date IS NOT NULL THEN 0 ELSE 1 END')
+                ->orderBy('expired_date', 'asc')
+                ->orderBy('tanggal_masuk', 'asc')
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+        } else {
+            $batches = $query->orderBy('tanggal_masuk', 'asc')
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+        }
 
         $sisa = $qtyKeluar;
 
@@ -100,15 +121,17 @@ class StockService
             ]);
 
             $result[] = [
-                'harga_beli' => $batch->harga_beli,
-                'qty'        => $ambil,
+                'harga_beli'   => $batch->harga_beli,
+                'qty'          => $ambil,
+                'batch_number' => $batch->batch_number,
+                'expired_date' => $batch->expired_date ? $batch->expired_date->toDateString() : null,
             ];
 
             $sisa -= $ambil;
         }
 
         if ($sisa > 0) {
-            throw new Exception('Stok tidak mencukupi (FIFO)');
+            throw new Exception('Stok tidak mencukupi (' . ($useFEFO ? 'FEFO' : 'FIFO') . ')');
         }
 
         return $result;

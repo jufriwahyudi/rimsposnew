@@ -13,6 +13,8 @@ class StockBatch extends Model
         'purchase_item_id',
         'stock_transfer_id',
         'posisi',
+        'batch_number',
+        'expired_date',
         'tanggal_masuk',
         'qty_awal',
         'qty_sisa',
@@ -29,7 +31,39 @@ class StockBatch extends Model
     protected $casts = [
         'posisi' => 'string', // warehouse | store
         'tanggal_masuk' => 'date',
+        'expired_date' => 'date',
     ];
+
+    protected $appends = [
+        'days_until_expired',
+        'expired_status',
+    ];
+
+    public function getDaysUntilExpiredAttribute(): ?int
+    {
+        if (!$this->expired_date) {
+            return null;
+        }
+        return (int) now()->startOfDay()->diffInDays($this->expired_date->startOfDay(), false);
+    }
+
+    public function getExpiredStatusAttribute(): string
+    {
+        if (!$this->expired_date) {
+            return 'none';
+        }
+        $days = $this->days_until_expired;
+        if ($days < 0) {
+            return 'expired'; // Sudah lewat kadaluarsa (merah)
+        }
+        if ($days <= 30) {
+            return 'danger';  // Kritis <= 30 hari
+        }
+        if ($days <= 90) {
+            return 'warning'; // Perhatian <= 90 hari
+        }
+        return 'safe';        // Aman > 90 hari
+    }
 
 
     public function variant()

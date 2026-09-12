@@ -61,10 +61,18 @@
                                         value="{{ old('kode', $product->kode_produk) }}" readonly>
                                 </div>
 
-                                <div class="mb-2">
-                                    <label>Nama Produk</label>
-                                    <input name="nama" class="form-control"
-                                        value="{{ old('nama', $product->nama_produk) }}" required>
+                                <div class="row">
+                                    <div class="col-md-8 mb-2">
+                                        <label>Nama Produk</label>
+                                        <input name="nama" class="form-control"
+                                            value="{{ old('nama', $product->nama_produk) }}" required>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label>Satuan Dasar / Terkecil</label>
+                                        <input name="base_unit" class="form-control"
+                                            value="{{ old('base_unit', $product->base_unit ?? 'Pcs') }}" required placeholder="Pcs, Botol, Tablet, dll">
+                                        <small class="text-muted">Satuan fisik dasar inventori</small>
+                                    </div>
                                 </div>
 
                                 <div class="mb-2">
@@ -133,6 +141,85 @@
                                                 <img src="{{ asset('storage/' . $product->image) }}" alt="Foto Produk" style="max-height: 80px; border-radius: 8px;" class="border">
                                             </div>
                                         @endif
+                                    </div>
+                                @endif
+
+                                {{-- Satuan Kemasan Bertingkat (Multi-Satuan) --}}
+                                @if ($hasMultiUnit)
+                                    <input type="hidden" name="units_submitted" value="1">
+                                    <div class="mt-4 pt-3 border-top">
+                                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                            <div>
+                                                <h6 class="fw-bold mb-0" style="color: #7c3aed;">
+                                                    <i class="bi bi-boxes me-1"></i> Satuan Kemasan Bertingkat (Multi-Satuan)
+                                                </h6>
+                                                <small class="text-muted">Contoh: Lusin (12 Pcs), Dus (24 Pcs), Strip (10 Tablet), Box (100 Tablet)</small>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addEditUnitRow()">
+                                                <i class="bi bi-plus-circle me-1"></i> Tambah Satuan Kemasan
+                                            </button>
+                                        </div>
+
+                                        <div class="table-responsive">
+                                            <table class="table table-bordered table-hover align-middle mb-0" id="tableProductUnitsEdit">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th style="width: 25%;">Nama Satuan / Kemasan</th>
+                                                        <th style="width: 20%;">Isi (Pengali Satuan Dasar)</th>
+                                                        <th style="width: 25%;">Harga Jual Satuan Ini (Rp)</th>
+                                                        <th style="width: 25%;">Barcode Kemasan (Opsional)</th>
+                                                        <th style="width: 5%; text-align: center;">Aksi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="unitEditContainer">
+                                                    @php
+                                                        $activeUnits = old('units') ?? $product->units;
+                                                    @endphp
+                                                    @if ($activeUnits && count($activeUnits) > 0)
+                                                        @foreach ($activeUnits as $uIdx => $u)
+                                                            @php
+                                                                $uId = is_array($u) ? ($u['id'] ?? null) : $u->id;
+                                                                $uName = is_array($u) ? ($u['name'] ?? '') : $u->name;
+                                                                $uMultiplier = is_array($u) ? ($u['multiplier'] ?? '') : $u->multiplier;
+                                                                $uPrice = is_array($u) ? ($u['price'] ?? '') : $u->price;
+                                                                $uBarcode = is_array($u) ? ($u['barcode'] ?? '') : $u->barcode;
+                                                            @endphp
+                                                            <tr class="unit-edit-row">
+                                                                <td>
+                                                                    @if ($uId)
+                                                                        <input type="hidden" name="units[{{ $uIdx }}][id]" value="{{ $uId }}">
+                                                                    @endif
+                                                                    <input name="units[{{ $uIdx }}][name]" class="form-control form-control-sm" value="{{ $uName }}" placeholder="Misal: Lusin, Box, Strip" required>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="input-group input-group-sm">
+                                                                        <input type="number" name="units[{{ $uIdx }}][multiplier]" class="form-control" value="{{ $uMultiplier }}" min="2" placeholder="12" required>
+                                                                        <span class="input-group-text base-unit-label">{{ old('base_unit', $product->base_unit ?? 'Pcs') }}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="input-group input-group-sm">
+                                                                        <span class="input-group-text">Rp</span>
+                                                                        <input type="number" name="units[{{ $uIdx }}][price]" class="form-control" value="{{ (int)$uPrice }}" min="0" placeholder="0" required>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <input name="units[{{ $uIdx }}][barcode]" class="form-control form-control-sm barcode-input" value="{{ $uBarcode }}" placeholder="Barcode kemasan">
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeEditUnitRow(this)" title="Hapus Satuan">
+                                                                        <i class="bi bi-trash"></i>
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        @endforeach
+                                                    @endif
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">
+                                            <i class="bi bi-info-circle me-1"></i> Saat kasir menjual satuan ini di POS, stok fisik dasar otomatis terpotong sebesar <code>Qty x Pengali</code>.
+                                        </small>
                                     </div>
                                 @endif
                             </div>
@@ -740,6 +827,53 @@
                     );
                 }
             });
+        });
+
+        // Dynamic Multi-Satuan Rows in Edit Product
+        let unitEditIndex = {{ isset($activeUnits) && $activeUnits ? count($activeUnits) + 10 : 100 }};
+        function addEditUnitRow() {
+            const container = document.getElementById('unitEditContainer');
+            if (!container) return;
+            const baseUnit = document.querySelector('input[name="base_unit"]')?.value || 'Pcs';
+            const rowHtml = `
+                <tr class="unit-edit-row">
+                    <td>
+                        <input name="units[${unitEditIndex}][name]" class="form-control form-control-sm" placeholder="Misal: Lusin, Box, Dus, Strip" required>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="units[${unitEditIndex}][multiplier]" class="form-control" min="2" placeholder="12" required>
+                            <span class="input-group-text base-unit-label">${baseUnit}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">Rp</span>
+                            <input type="number" name="units[${unitEditIndex}][price]" class="form-control" min="0" placeholder="0" required>
+                        </div>
+                    </td>
+                    <td>
+                        <input name="units[${unitEditIndex}][barcode]" class="form-control form-control-sm barcode-input" placeholder="Barcode kemasan">
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeEditUnitRow(this)" title="Hapus Satuan">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+            container.insertAdjacentHTML('beforeend', rowHtml);
+            unitEditIndex++;
+        }
+
+        function removeEditUnitRow(btn) {
+            btn.closest('tr').remove();
+        }
+
+        // Update label satuan dasar pada tabel satuan kemasan saat base_unit diubah
+        document.querySelector('input[name="base_unit"]')?.addEventListener('input', function() {
+            const val = this.value || 'Pcs';
+            document.querySelectorAll('.base-unit-label').forEach(el => el.textContent = val);
         });
     </script>
 @endpush

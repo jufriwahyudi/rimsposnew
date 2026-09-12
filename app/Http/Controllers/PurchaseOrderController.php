@@ -46,6 +46,9 @@ class PurchaseOrderController extends Controller
     public function create()
     {
         $products = Product::with([
+            'units' => function ($query) {
+                $query->where('is_active', true);
+            },
             'variants' => function ($query) {
                 $query->where('is_active', 'Y');
                 $query->where('track_stock', true);
@@ -80,8 +83,11 @@ class PurchaseOrderController extends Controller
             'discount_total' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.variant_id' => 'required',
-            'items.*.qty' => 'required|numeric|min:1',
+            'items.*.qty' => 'required|numeric|min:0.01',
             'items.*.price' => 'required|numeric|min:0',
+            'items.*.unit_id' => 'nullable|integer',
+            'items.*.unit_name' => 'nullable|string|max:50',
+            'items.*.unit_multiplier' => 'nullable|numeric|min:1',
         ]);
 
         DB::transaction(function () use ($request) {
@@ -102,9 +108,16 @@ class PurchaseOrderController extends Controller
             foreach ($request->items as $item) {
                 $subtotal = $item['qty'] * $item['price'];
 
+                $unitId = !empty($item['unit_id']) ? $item['unit_id'] : null;
+                $unitName = !empty($item['unit_name']) ? $item['unit_name'] : null;
+                $unitMultiplier = !empty($item['unit_multiplier']) ? (int) $item['unit_multiplier'] : 1;
+
                 PurchaseOrderItem::create([
                     'purchase_order_id'     => $po->id,
                     'product_variant_id'    => $item['variant_id'] ?? null,
+                    'unit_id'               => $unitId,
+                    'unit_name'             => $unitName,
+                    'unit_multiplier'       => $unitMultiplier,
                     'qty_order'             => $item['qty'],
                     'price'                 => $item['price'],
                     'subtotal'              => $subtotal,

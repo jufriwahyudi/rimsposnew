@@ -321,16 +321,26 @@
                             style="width:30px; height:30px; filter:brightness(0) invert(1);">
                     </div>
                     <div>
-                        <div class="d-flex align-items-center gap-2 mb-1">
+                        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
                             <h5 class="product-title mb-0">{{ $product->nama_produk }}</h5>
                             <span class="product-code">{{ $product->kode_produk }}</span>
+                            @if (!empty($product->base_unit))
+                                <span class="badge bg-purple-subtle text-purple border px-2 py-1" style="background:#f3f0ff; color:#7c3aed; font-size:0.75rem; border-radius:6px;">
+                                    <i class="bi bi-tag-fill me-1"></i>Satuan Dasar: <strong>{{ $product->base_unit }}</strong>
+                                </span>
+                            @endif
                         </div>
                         <small class="text-muted"><i class="bi bi-building me-1"></i>{{ session('store_name') }}</small>
                     </div>
                 </div>
-                <a href="{{ route('produk.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
-                    <i class="bi bi-arrow-left me-1"></i> Kembali
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="{{ route('produk.edit', $product->id) }}" class="btn btn-primary btn-sm rounded-3 px-3">
+                        <i class="bi bi-pencil me-1"></i> Edit Produk
+                    </a>
+                    <a href="{{ route('produk.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
+                        <i class="bi bi-arrow-left me-1"></i> Kembali
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -342,7 +352,10 @@
                 <div class="card-body d-flex align-items-center gap-3 py-3">
                     <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
                     <div>
-                        <div class="stat-value">{{ number_format($product->stock_warehouse ?? 0) }}</div>
+                        <div class="stat-value">
+                            {{ number_format($product->stock_warehouse ?? 0) }}
+                            <span style="font-size:0.85rem; font-weight:normal; opacity:0.9;">{{ $product->base_unit ?? 'Pcs' }}</span>
+                        </div>
                         <div class="stat-label">Stok Gudang</div>
                     </div>
                 </div>
@@ -353,7 +366,10 @@
                 <div class="card-body d-flex align-items-center gap-3 py-3">
                     <div class="stat-icon"><i class="bi bi-shop"></i></div>
                     <div>
-                        <div class="stat-value">{{ number_format($product->stock_store ?? 0) }}</div>
+                        <div class="stat-value">
+                            {{ number_format($product->stock_store ?? 0) }}
+                            <span style="font-size:0.85rem; font-weight:normal; opacity:0.9;">{{ $product->base_unit ?? 'Pcs' }}</span>
+                        </div>
                         <div class="stat-label">Stok Toko</div>
                     </div>
                 </div>
@@ -371,6 +387,238 @@
             </div>
         </div>
     </div>
+
+    {{-- Multi-Satuan Dinamis / Konversi Stok Section --}}
+    @if (($hasMultiUnit ?? false) && $product->units && $product->units->count() > 0)
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width:38px; height:38px; background:#f3f0ff; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                            <i class="bi bi-boxes text-primary" style="font-size: 1.25rem;"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0" style="font-size: 1.05rem;">Konversi Stok & Satuan Kemasan Bertingkat</h6>
+                            <small class="text-muted">Kemasan grosir/pack yang otomatis terkonversi dan memotong stok satuan dasar saat penjualan POS</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill" style="font-size: 0.8rem; font-weight: 600;">
+                            <i class="bi bi-tag-fill me-1"></i> Satuan Dasar: <strong>{{ $product->base_unit ?? 'Pcs' }}</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="table-responsive rounded-3 border">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center" style="width: 50px;">#</th>
+                                <th>Nama Satuan Kemasan</th>
+                                <th>Rasio Konversi</th>
+                                <th>Harga Jual Kemasan</th>
+                                <th>Barcode Kemasan</th>
+                                <th>Estimasi Stok Toko</th>
+                                <th class="text-center" style="width: 100px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($product->units as $index => $u)
+                                @php
+                                    $estStokToko = ($product->stock_store ?? 0) > 0 && $u->multiplier > 0 
+                                        ? floor($product->stock_store / $u->multiplier) 
+                                        : 0;
+                                    $sisaStokDasar = ($product->stock_store ?? 0) > 0 && $u->multiplier > 0 
+                                        ? ($product->stock_store % $u->multiplier) 
+                                        : 0;
+                                @endphp
+                                <tr>
+                                    <td class="text-center text-muted fw-semibold">{{ $index + 1 }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="badge px-2.5 py-1 rounded" style="background: #f3f0ff; color: #7c3aed; font-weight: 600; font-size: 0.85rem; border: 1px solid #ddd6fe;">
+                                                <i class="bi bi-box-seam me-1"></i>{{ $u->name }}
+                                            </span>
+                                            @if ($u->is_default_purchase)
+                                                <span class="badge bg-info-subtle text-info border px-2 py-0.5 rounded-pill" style="font-size: 0.7rem;">Default Beli</span>
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-dark">1 {{ $u->name }}</span>
+                                        <span class="text-muted mx-1">=</span>
+                                        <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.8rem;">
+                                            {{ number_format($u->multiplier) }} {{ $product->base_unit ?? 'Pcs' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-success" style="font-size: 0.95rem;">
+                                            Rp {{ number_format($u->price, 0, ',', '.') }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if ($u->barcode)
+                                            <span class="font-monospace text-secondary bg-light px-2 py-1 rounded border" style="font-size: 0.8rem;">
+                                                <i class="bi bi-upc-scan me-1 text-muted"></i>{{ $u->barcode }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted fst-italic" style="font-size: 0.8rem;">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="fw-bold text-primary">{{ number_format($estStokToko) }}</span>
+                                            <span class="text-muted" style="font-size: 0.85rem;">{{ $u->name }}</span>
+                                            @if ($sisaStokDasar > 0)
+                                                <small class="text-muted ms-1" style="font-size: 0.75rem;">(+{{ $sisaStokDasar }} {{ $product->base_unit ?? 'Pcs' }})</small>
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        @if ($u->is_active)
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-check-circle me-1"></i>Aktif
+                                            </span>
+                                        @else
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-x-circle me-1"></i>Nonaktif
+                                            </span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- FEFO / Batch & Expired Date Monitoring Section --}}
+    @if (($hasFEFO ?? false) && isset($activeBatches) && $activeBatches->count() > 0)
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <div style="width:38px; height:38px; background:#fef3c7; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                            <i class="bi bi-calendar-event text-warning" style="font-size: 1.25rem;"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0" style="font-size: 1.05rem;">Daftar Batch & Pemantauan Kadaluarsa (FEFO)</h6>
+                            <small class="text-muted">Urutan prioritas stok keluar berdasarkan tanggal kadaluarsa terawal (First-Expired, First-Out)</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill" style="font-size: 0.8rem; font-weight: 600;">
+                            <i class="bi bi-shield-check me-1"></i> Metode: <strong>FEFO Aktif</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="table-responsive rounded-3 border">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center" style="width: 50px;">#</th>
+                                <th>No. Batch</th>
+                                <th>Varian</th>
+                                <th>Posisi</th>
+                                <th>Tgl Masuk</th>
+                                <th>Expired Date</th>
+                                <th>Sisa Waktu</th>
+                                <th>Sisa Stok</th>
+                                <th class="text-center" style="width: 130px;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($activeBatches as $idx => $b)
+                                @php
+                                    $status = $b->expired_status;
+                                    $days = $b->days_until_expired;
+                                @endphp
+                                <tr>
+                                    <td class="text-center text-muted fw-semibold">{{ $idx + 1 }}</td>
+                                    <td>
+                                        <span class="font-monospace fw-bold text-dark px-2 py-1 rounded bg-light border" style="font-size:0.85rem;">
+                                            <i class="bi bi-qr-code me-1 text-muted"></i>{{ $b->batch_number ?: 'Tanpa Batch' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted fw-semibold">{{ $b->variant?->variant_label ?: 'Reguler' }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge {{ $b->posisi === 'store' ? 'bg-success-subtle text-success border-success-subtle' : 'bg-primary-subtle text-primary border-primary-subtle' }} border px-2 py-0.5 rounded-pill" style="font-size: 0.75rem;">
+                                            <i class="bi {{ $b->posisi === 'store' ? 'bi-shop' : 'bi-building' }} me-1"></i>{{ ucfirst($b->posisi) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ $b->tanggal_masuk ? $b->tanggal_masuk->format('d M Y') : '-' }}</small>
+                                    </td>
+                                    <td>
+                                        @if ($b->expired_date)
+                                            <span class="fw-semibold {{ $status === 'expired' || $status === 'danger' ? 'text-danger' : 'text-dark' }}">
+                                                <i class="bi bi-calendar2-x me-1 text-muted"></i>{{ $b->expired_date->format('d M Y') }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted fst-italic">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if (is_null($days))
+                                            <span class="text-muted fst-italic" style="font-size: 0.8rem;">Tidak diset</span>
+                                        @elseif ($days < 0)
+                                            <span class="badge bg-danger text-white px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                Lewat {{ abs($days) }} hari
+                                            </span>
+                                        @elseif ($days <= 30)
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                Sisa {{ $days }} hari
+                                            </span>
+                                        @elseif ($days <= 90)
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                Sisa {{ $days }} hari
+                                            </span>
+                                        @else
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                {{ $days }} hari lagi
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-dark">{{ number_format($b->qty_sisa) }}</span>
+                                        <small class="text-muted">{{ $product->base_unit ?? 'Pcs' }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        @if ($status === 'expired')
+                                            <span class="badge bg-danger text-white px-2.5 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-x-octagon-fill me-1"></i>Kadaluarsa
+                                            </span>
+                                        @elseif ($status === 'danger')
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Kritis (&le;30 hr)
+                                            </span>
+                                        @elseif ($status === 'warning')
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2.5 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-exclamation-circle-fill me-1"></i>Perhatian
+                                            </span>
+                                        @elseif ($status === 'safe')
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-check-circle-fill me-1"></i>Aman
+                                            </span>
+                                        @else
+                                            <span class="badge bg-light text-muted border px-2 py-1 rounded-pill" style="font-size: 0.75rem;">
+                                                Standar
+                                            </span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- Filter Section --}}
     <div class="card filter-card mb-4">

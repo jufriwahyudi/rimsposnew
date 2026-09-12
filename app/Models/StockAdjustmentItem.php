@@ -10,9 +10,15 @@ class StockAdjustmentItem extends Model
         'stock_adjustment_id',
         'product_variant_id',
         'stock_batch_id',
+        'batch_number',
+        'expired_date',
         'qty',
         'cost',
         'total_value'
+    ];
+
+    protected $casts = [
+        'expired_date' => 'date',
     ];
 
     public function adjustment()

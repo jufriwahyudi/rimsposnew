@@ -25,7 +25,13 @@ class Product extends Model
         'product_type',
         'default_commission_type',
         'default_commission_rate',
+        'base_unit',
     ];
+
+    public function units()
+    {
+        return $this->hasMany(ProductUnit::class, 'product_id');
+    }
 
     protected $appends = ['image_url'];
 

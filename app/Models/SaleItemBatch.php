@@ -11,9 +11,15 @@ class SaleItemBatch extends Model
     protected $fillable = [
         'sale_item_id',
         'stock_batch_id',
+        'batch_number',
+        'expired_date',
         'qty',
         'cost_price',
         'sell_price',
+    ];
+
+    protected $casts = [
+        'expired_date' => 'date',
     ];
 
     public function saleItem()

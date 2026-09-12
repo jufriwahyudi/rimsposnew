@@ -88,14 +88,15 @@
 
                         <h5>Item Pembelian</h5>
 
-                        <table class="table table-bordered" id="items-table">
-                            <thead>
+                        <table class="table table-bordered align-middle" id="items-table">
+                            <thead class="table-light">
                                 <tr>
-                                    <th width="40%">Produk</th>
-                                    <th width="15%" class="text-center">Qty</th>
-                                    <th width="20%" class="text-center">Harga</th>
-                                    <th width="20%" class="text-center">Subtotal</th>
-                                    <th width="5%"></th>
+                                    <th width="32%">Produk</th>
+                                    <th width="18%" class="text-center">Satuan Beli</th>
+                                    <th width="12%" class="text-center">Qty Order</th>
+                                    <th width="18%" class="text-center">Harga Beli Satuan</th>
+                                    <th width="15%" class="text-center">Subtotal</th>
+                                    <th width="5%" class="text-center"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -191,41 +192,76 @@
         let rowIndex = 0;
         const variants = [];
 
-        function addRow() {
+        function addRow(product = null, variant = null) {
             let tbody = document.querySelector('#items-table tbody');
+            let rIdx = rowIndex;
+
+            let baseUnit = (product && product.base_unit) ? product.base_unit : 'Pcs';
+            let units = (product && product.units) ? product.units : [];
+
+            let unitOptions = `<option value="" data-id="" data-name="${baseUnit}" data-multiplier="1">${baseUnit} (Satuan Dasar)</option>`;
+            let defaultMultiplier = 1;
+            let defaultUnitName = baseUnit;
+            let defaultUnitId = '';
+
+            units.forEach(u => {
+                let isDef = u.is_default_purchase ? 'selected' : '';
+                if (u.is_default_purchase) {
+                    defaultMultiplier = u.multiplier;
+                    defaultUnitName = u.name;
+                    defaultUnitId = u.id;
+                }
+                unitOptions += `<option value="${u.id}" data-id="${u.id}" data-name="${u.name}" data-multiplier="${u.multiplier}" ${isDef}>${u.name} (Isi ${u.multiplier} ${baseUnit})</option>`;
+            });
+
+            let variantLabel = variant 
+                ? `${variant.variant_name || variant.sku}<br><small class="text-muted">${product ? product.nama_produk : ''} (${variant.sku})</small>`
+                : 'Belum dipilih';
 
             let row = document.createElement('tr');
             row.innerHTML = `
                 <td>
-                    <input type="hidden" name="items[${rowIndex}][variant_id]" class="variant-input">
+                    <input type="hidden" name="items[${rIdx}][variant_id]" class="variant-input" value="${variant ? variant.id : ''}">
+                    <input type="hidden" name="items[${rIdx}][unit_id]" class="unit-id-input" value="${defaultUnitId}">
+                    <input type="hidden" name="items[${rIdx}][unit_name]" class="unit-name-input" value="${defaultUnitName}">
+                    <input type="hidden" name="items[${rIdx}][unit_multiplier]" class="unit-multiplier-input" value="${defaultMultiplier}">
 
-                    <div class="text-muted selected-variant">
-                        Belum dipilih
+                    <div class="selected-variant ${variant ? 'text-primary fw-semibold' : 'text-muted'}">
+                        ${variantLabel}
                     </div>
                 </td>
 
                 <td>
-                    <input type="number" name="items[${rowIndex}][qty]"
-                        class="form-control qty"
-                        min="1" value="1"
-                        oninput="calculateRow(${rowIndex})">
+                    <select class="form-select form-select-sm unit-select" onchange="onUnitChange(this, ${rIdx})">
+                        ${unitOptions}
+                    </select>
                 </td>
 
                 <td>
-                    <input type="number" name="items[${rowIndex}][price]"
-                        class="form-control price"
-                        min="0" step="0.01"
+                    <input type="number" step="any" name="items[${rIdx}][qty]"
+                        class="form-control form-control-sm text-end qty"
+                        min="0.01" value="1"
+                        oninput="calculateRow(${rIdx})">
+                    <small class="text-muted d-block mt-1 base-qty-info" id="base_qty_info_${rIdx}" style="font-size: 10.5px;">
+                        ${defaultMultiplier > 1 ? `= ${defaultMultiplier} ${baseUnit}` : ''}
+                    </small>
+                </td>
+
+                <td>
+                    <input type="number" step="any" name="items[${rIdx}][price]"
+                        class="form-control form-control-sm text-end price"
+                        min="0"
                         value="0"
-                        oninput="calculateRow(${rowIndex})">
+                        oninput="calculateRow(${rIdx})">
                 </td>
 
                 <td>
-                    <input type="text" class="form-control subtotal"
-                        id="subtotal_${rowIndex}"
+                    <input type="text" class="form-control form-control-sm text-end subtotal"
+                        id="subtotal_${rIdx}"
                         readonly value="0">
                 </td>
 
-                <td>
+                <td class="text-center">
                     <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(this)"><i class="bi bi-x"></i></button>
                 </td>
             `;
@@ -234,6 +270,21 @@
             rowIndex++;
 
             return row;
+        }
+
+        function onUnitChange(selectEl, rIdx) {
+            let row = selectEl.closest('tr');
+            let selectedOption = selectEl.options[selectEl.selectedIndex];
+
+            let unitId = selectedOption.dataset.id || '';
+            let unitName = selectedOption.dataset.name || '';
+            let multiplier = parseInt(selectedOption.dataset.multiplier) || 1;
+
+            row.querySelector('.unit-id-input').value = unitId;
+            row.querySelector('.unit-name-input').value = unitName;
+            row.querySelector('.unit-multiplier-input').value = multiplier;
+
+            calculateRow(rIdx);
         }
 
         function removeRow(btn) {
@@ -245,11 +296,28 @@
             let row = document.querySelectorAll('#items-table tbody tr')[index];
             if (!row) return;
 
-            let qty = row.querySelector('.qty').value || 0;
-            let price = row.querySelector('.price').value || 0;
-            let subtotal = qty * price;
+            let qty = parseFloat(row.querySelector('.qty').value) || 0;
+            let price = parseFloat(row.querySelector('.price').value) || 0;
+            let multiplier = parseInt(row.querySelector('.unit-multiplier-input').value) || 1;
+            let baseUnitInfo = row.querySelector('.base-qty-info');
 
-            document.getElementById(`subtotal_${index}`).value = formatNumber(subtotal);
+            let subtotal = qty * price;
+            let subtotalEl = document.getElementById(`subtotal_${index}`);
+            if (subtotalEl) {
+                subtotalEl.value = formatNumber(subtotal);
+            }
+
+            if (baseUnitInfo) {
+                let opt = row.querySelector('.unit-select')?.options[0];
+                let baseUnitName = opt ? (opt.dataset.name || 'unit') : 'unit';
+                if (multiplier > 1) {
+                    let totalBase = Math.round(qty * multiplier);
+                    baseUnitInfo.textContent = `= ${totalBase} ${baseUnitName}`;
+                } else {
+                    baseUnitInfo.textContent = '';
+                }
+            }
+
             calculateTotal();
         }
 
@@ -402,19 +470,10 @@
 
             checked.forEach((cb) => {
                 const variantId = cb.value;
-                const sku = cb.dataset.sku;
-                // nama variant dari variant yang dipilih
                 const variant = selectedProduct.variants.find(v => v.id == variantId);
-                const label =
-                    `${variant ? variant.variant_name : ''}<br><small>${selectedProduct.nama_produk} (${sku})</small>`;
-                // console.log('Selected variant:', variant);
-
-                const targetRow = addRow();
-
-                targetRow.querySelector('.variant-input').value = variantId;
-                targetRow.querySelector('.selected-variant').innerHTML = label;
-                targetRow.querySelector('.selected-variant').classList.remove('text-muted');
-                targetRow.querySelector('.selected-variant').classList.add('text-primary', 'fw-semibold');
+                if (variant) {
+                    addRow(selectedProduct, variant);
+                }
             });
 
             bootstrap.Modal.getInstance(

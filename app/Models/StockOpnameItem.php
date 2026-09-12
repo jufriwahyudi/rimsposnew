@@ -18,7 +18,7 @@ class StockOpnameItem extends Model
 
     public function opname()
     {
-        return $this->belongsTo(StockOpname::class);
+        return $this->belongsTo(StockOpname::class, 'stock_opname_id');
     }
 
     public function productVariant()

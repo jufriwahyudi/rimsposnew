@@ -24,6 +24,18 @@ class SaleItem extends Model
         'staff_commission_type',
         'staff_commission_rate',
         'staff_commission_amount',
+        'unit_id',
+        'unit_name',
+        'unit_multiplier',
+
+        // Farmasi Resep & Obat Racikan
+        'is_concoction',
+        'concoction_name',
+        'concoction_form',
+        'dosage_instruction',
+        'usage_type',
+        'tuslah_fee',
+        'embalase_fee',
         
         // Virtual/Delegated fields for FnB details
         'kitchen_printed_qty',
@@ -32,6 +44,12 @@ class SaleItem extends Model
         'commission_rate',
         'commission_amount',
         'cost_price',
+    ];
+
+    protected $casts = [
+        'is_concoction' => 'boolean',
+        'tuslah_fee'    => 'decimal:2',
+        'embalase_fee'  => 'decimal:2',
     ];
 
     protected $fnbDetailData = [];
@@ -51,6 +69,11 @@ class SaleItem extends Model
     public function staff()
     {
         return $this->belongsTo(User::class, 'staff_user_id');
+    }
+
+    public function productUnit()
+    {
+        return $this->belongsTo(ProductUnit::class, 'unit_id');
     }
 
     public function getKdsStatusAttribute()
@@ -244,5 +267,10 @@ class SaleItem extends Model
     public function batches()
     {
         return $this->hasMany(SaleItemBatch::class, 'sale_item_id');
+    }
+
+    public function concoctionItems()
+    {
+        return $this->hasMany(SaleConcoctionItem::class, 'sale_item_id');
     }
 }
