@@ -551,6 +551,7 @@
                                                             <option value="ADMIN">ADMIN (Admin Toko)</option>
                                                             <option value="WAREHOUSE">WAREHOUSE (Gudang)</option>
                                                             <option value="STELLING">STELLING (Tenant / Dapur)</option>
+                                                            <option value="WAITER">WAITER (Pelayan / Order Meja)</option>
                                                         </select>
                                                     </div>
                                                     <div class="col-md-6">
@@ -560,6 +561,7 @@
                                                             <option value="admin_store">Admin Toko Lengkap (POS, Produk, Stok, Laporan)</option>
                                                             <option value="warehouse">Gudang (PO, Stock Opname, Bahan Baku)</option>
                                                             <option value="kitchen">Dapur (Bahan Baku & Resep)</option>
+                                                            <option value="waiter">Waiter (POS / Order Meja)</option>
                                                         </select>
                                                     </div>
                                                     <div class="col-md-6">
@@ -813,6 +815,7 @@
                                 <option value="ADMIN">ADMIN (Admin Toko)</option>
                                 <option value="WAREHOUSE">WAREHOUSE (Gudang)</option>
                                 <option value="STELLING">STELLING (Tenant / Dapur)</option>
+                                <option value="WAITER">WAITER (Pelayan / Order Meja)</option>
                             </select>
                         </div>
                         <div class="mb-2">
@@ -822,6 +825,7 @@
                                 <option value="admin_store">Admin Toko Lengkap (POS, Produk, Stok, Laporan)</option>
                                 <option value="warehouse">Gudang (PO, Stock Opname, Bahan Baku)</option>
                                 <option value="kitchen">Dapur (Bahan Baku & Resep)</option>
+                                <option value="waiter">Waiter (POS / Order Meja)</option>
                             </select>
                         </div>
                         <div class="mb-2">

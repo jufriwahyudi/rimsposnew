@@ -90,6 +90,7 @@
                                 <option value="WAREHOUSE">Warehouse</option>
                                 <option value="STORE">Store</option>
                                 <option value="STELLING">Stelling</option>
+                                <option value="WAITER">Waiter</option>
                             </select>
                         </div>
                     </form>

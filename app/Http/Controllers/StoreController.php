@@ -71,9 +71,9 @@ class StoreController extends Controller
                 $rules['existing_role_id'] = 'required|exists:role_master,id';
             } else {
                 $rules['new_role_name']    = 'required|string|max:200';
-                $rules['new_role_type']    = 'required|in:STORE,ADMIN,WAREHOUSE,STELLING';
+                $rules['new_role_type']    = 'required|in:STORE,ADMIN,WAREHOUSE,STELLING,WAITER';
                 $rules['copy_role_from']   = 'nullable|exists:role_master,id';
-                $rules['menu_preset']      = 'nullable|in:cashier,admin_store,warehouse,kitchen';
+                $rules['menu_preset']      = 'nullable|in:cashier,admin_store,warehouse,kitchen,waiter';
             }
         }
 
@@ -376,9 +376,9 @@ class StoreController extends Controller
     {
         $request->validate([
             'nama_role'       => 'required|string|max:200',
-            'jenis_role'      => 'required|in:STORE,ADMIN,WAREHOUSE,SUPERADMIN,STELLING',
+            'jenis_role'      => 'required|in:STORE,ADMIN,WAREHOUSE,SUPERADMIN,STELLING,WAITER',
             'copy_role_from'  => 'nullable|exists:role_master,id',
-            'menu_preset'     => 'nullable|in:cashier,admin_store,warehouse,kitchen',
+            'menu_preset'     => 'nullable|in:cashier,admin_store,warehouse,kitchen,waiter',
         ]);
 
         $role = RoleMaster::create([
@@ -437,6 +437,11 @@ class StoreController extends Controller
             case 'kitchen':
                 // Kitchen / Dapur: Bahan Baku, Resep
                 $routeNames = ['ingredients.index', 'recipes.index', 'ingredient-stocks.index'];
+                break;
+
+            case 'waiter':
+                // Waiter: Point of Sales (Order Meja)
+                $routeNames = ['pos.index'];
                 break;
         }
 
