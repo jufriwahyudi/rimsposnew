@@ -15,7 +15,7 @@ return new class extends Migration
             $parent = DB::table('menu_list')
                 ->where(function ($q) {
                     $q->where('nama', 'Master Data')
-                      ->orWhere('nama', 'Pengaturan');
+                        ->orWhere('nama', 'Pengaturan');
                 })
                 ->where('id_parent', 0)
                 ->orderByRaw("CASE WHEN nama = 'Master Data' THEN 1 ELSE 2 END")
@@ -44,15 +44,15 @@ return new class extends Migration
                     'updated_at' => now(),
                 ]);
 
-                if (Schema::hasTable('menuby_role')) {
-                    $roles = DB::table('role_master')->get();
-                    foreach ($roles as $role) {
-                        DB::table('menuby_role')->insertOrIgnore([
-                            'role_id' => $role->id,
-                            'menu_id' => $menuId,
-                        ]);
-                    }
-                }
+                // if (Schema::hasTable('menuby_role')) {
+                //     $roles = DB::table('role_master')->get();
+                //     foreach ($roles as $role) {
+                //         DB::table('menuby_role')->insertOrIgnore([
+                //             'role_id' => $role->id,
+                //             'menu_id' => $menuId,
+                //         ]);
+                //     }
+                // }
             }
         }
     }
