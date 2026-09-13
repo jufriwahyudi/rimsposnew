@@ -270,8 +270,12 @@ class AuthController extends Controller
             return $ru->roles && $ru->roles->role_type === 'STELLING';
         });
 
+        $isWaiter = $user->roles->contains(function ($ru) {
+            return $ru->roles && $ru->roles->role_type === 'WAITER';
+        });
+
         $activeRole = $user->roles->first()?->roles;
-        $roleType = $isStelling ? 'STELLING' : ($activeRole?->role_type ?? 'STORE');
+        $roleType = $isStelling ? 'STELLING' : ($isWaiter ? 'WAITER' : ($activeRole?->role_type ?? 'STORE'));
 
         $data = [
             'id'          => $user->id,

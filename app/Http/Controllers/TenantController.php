@@ -3,14 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
+use App\Models\StorePrinter;
 use Illuminate\Http\Request;
 
 class TenantController extends Controller
 {
     public function index()
     {
-        $tenants = Tenant::orderBy('nama_tenant')->get();
-        return view('tenants.index', compact('tenants'));
+        $tenants = Tenant::with('printer')->orderBy('nama_tenant')->get();
+        $storePrinters = StorePrinter::where('store_id', session('store_id'))
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        return view('tenants.index', compact('tenants', 'storePrinters'));
     }
 
     public function store(Request $request)
@@ -18,6 +24,7 @@ class TenantController extends Controller
         $request->validate([
             'kode_tenant'     => 'required|string|max:50|unique:tenants,kode_tenant',
             'nama_tenant'     => 'required|string|max:255',
+            'printer_id'      => 'nullable|exists:store_printers,id',
             'telepon'         => 'nullable|string|max:50',
             'alamat'          => 'nullable|string',
             'commission_rate' => 'required|numeric|min:0|max:100',
@@ -26,6 +33,7 @@ class TenantController extends Controller
 
         $tenant = Tenant::create([
             'store_id'        => session('store_id'),
+            'printer_id'      => $request->printer_id ?: null,
             'kode_tenant'     => $request->kode_tenant,
             'nama_tenant'     => $request->nama_tenant,
             'telepon'         => $request->telepon,
@@ -43,7 +51,7 @@ class TenantController extends Controller
 
     public function edit(Tenant $tenant)
     {
-        return response()->json($tenant);
+        return response()->json($tenant->load('printer'));
     }
 
     public function update(Request $request, Tenant $tenant)
@@ -51,6 +59,7 @@ class TenantController extends Controller
         $request->validate([
             'kode_tenant'     => 'required|string|max:50|unique:tenants,kode_tenant,' . $tenant->id,
             'nama_tenant'     => 'required|string|max:255',
+            'printer_id'      => 'nullable|exists:store_printers,id',
             'telepon'         => 'nullable|string|max:50',
             'alamat'          => 'nullable|string',
             'commission_rate' => 'required|numeric|min:0|max:100',
@@ -58,6 +67,7 @@ class TenantController extends Controller
         ]);
 
         $tenant->update([
+            'printer_id'      => $request->printer_id ?: null,
             'kode_tenant'     => $request->kode_tenant,
             'nama_tenant'     => $request->nama_tenant,
             'telepon'         => $request->telepon,

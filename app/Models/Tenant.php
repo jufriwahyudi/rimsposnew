@@ -16,6 +16,7 @@ class Tenant extends Model
 
     protected $fillable = [
         'store_id',
+        'printer_id',
         'kode_tenant',
         'nama_tenant',
         'telepon',
@@ -27,6 +28,11 @@ class Tenant extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function printer()
+    {
+        return $this->belongsTo(StorePrinter::class, 'printer_id');
     }
 
     public function products()

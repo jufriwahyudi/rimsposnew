@@ -946,6 +946,16 @@ class PosController extends Controller
                     throw new \Exception('Pembayaran kurang dari total belanja');
                 }
 
+                // Validasi role WAITER: hanya boleh simpan order meja ('hold')
+                $currentUser = auth()->user();
+                $isWaiter = $currentUser && $currentUser->roles->contains(function ($ru) {
+                    return $ru->roles && $ru->roles->role_type === 'WAITER';
+                });
+
+                if ($isWaiter && $paymentMethod !== 'hold') {
+                    throw new \Exception('Akun Waiter hanya diizinkan untuk menyimpan pesanan meja (Hold). Pembayaran harus diselesaikan di kasir.');
+                }
+
                 $memberId = $cart['member_id'] ?? null;
                 $pointsRedeemed = $cart['points_to_redeem'] ?? 0;
                 $pointDiscountAmount = 0.00;
@@ -1388,6 +1398,16 @@ class PosController extends Controller
                 $cartTotal = $cart['total'] ?? 0;
                 if ($paymentMethod !== 'hold' && $paymentMethod !== 'hutang' && $paidAmount < $cartTotal) {
                     throw new \Exception('Pembayaran kurang dari total belanja');
+                }
+
+                // Validasi role WAITER: hanya boleh simpan order meja ('hold')
+                $currentUser = auth()->user();
+                $isWaiter = $currentUser && $currentUser->roles->contains(function ($ru) {
+                    return $ru->roles && $ru->roles->role_type === 'WAITER';
+                });
+
+                if ($isWaiter && $paymentMethod !== 'hold') {
+                    throw new \Exception('Akun Waiter hanya diizinkan untuk menyimpan pesanan meja (Hold). Pembayaran harus diselesaikan di kasir.');
                 }
 
                 // Check active cashier register if required by store
@@ -2296,6 +2316,8 @@ class PosController extends Controller
         $sale = Sale::with([
             'items.product.category.printer',
             'items.variant.product.category.printer',
+            'items.product.tenant.printer',
+            'items.variant.product.tenant.printer',
             'items.fnbDetail',
             'cashier',
         ])
@@ -2318,8 +2340,10 @@ class PosController extends Controller
                     if (!$station || $station === 'all') {
                         return true;
                     }
-                    $cat = $item->product?->category ?: $item->variant?->product?->category;
-                    $itemStation = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
+                    $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
+                    $cat    = $item->product?->category ?: $item->variant?->product?->category;
+                    // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori / 'kitchen'
+                    $itemStation = $tenant?->printer?->code ?: ($cat?->printer?->code ?: ($cat?->station ?: 'kitchen'));
                     return strtolower($itemStation) === strtolower($station);
                 });
 
@@ -2461,6 +2485,8 @@ class PosController extends Controller
         $sale = Sale::with([
             'items.product.category.printer',
             'items.variant.product.category.printer',
+            'items.product.tenant.printer',
+            'items.variant.product.tenant.printer',
             'items.fnbDetail',
         ])->where('store_id', $storeId)->findOrFail($id);
 
@@ -2471,8 +2497,10 @@ class PosController extends Controller
                         $item->update(['kitchen_printed_qty' => $item->qty]);
                     }
                 } else {
-                    $cat = $item->product?->category ?: $item->variant?->product?->category;
-                    $itemStation = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
+                    $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
+                    $cat    = $item->product?->category ?: $item->variant?->product?->category;
+                    // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori / 'kitchen'
+                    $itemStation = $tenant?->printer?->code ?: ($cat?->printer?->code ?: ($cat?->station ?: 'kitchen'));
                     if (strtolower($itemStation) === strtolower($station)) {
                         if ($item->kitchen_printed_qty < $item->qty) {
                             $item->update(['kitchen_printed_qty' => $item->qty]);
@@ -2530,6 +2558,8 @@ class PosController extends Controller
         $sales = Sale::with([
             'items.product.category.printer',
             'items.variant.product.category.printer',
+            'items.product.tenant.printer',
+            'items.variant.product.tenant.printer',
             'cashier',
         ])
             ->where('store_id', $storeId)
@@ -2547,9 +2577,11 @@ class PosController extends Controller
                     continue;
                 }
 
-                $cat = $item->product?->category ?: $item->variant?->product?->category;
-                $stationCode = $cat?->station ?: ($cat?->printer?->code ?: 'kitchen');
-                $stationName = $cat?->printer?->name ?: (ucfirst(str_replace('_', ' ', $stationCode)));
+                $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
+                $cat    = $item->product?->category ?: $item->variant?->product?->category;
+                // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori / 'kitchen'
+                $stationCode = $tenant?->printer?->code ?: ($cat?->printer?->code ?: ($cat?->station ?: 'kitchen'));
+                $stationName = $tenant?->printer?->name ?: ($cat?->printer?->name ?: (ucfirst(str_replace('_', ' ', $stationCode))));
 
                 if (!isset($stationsMap[$stationCode])) {
                     $stationsMap[$stationCode] = [

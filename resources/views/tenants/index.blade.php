@@ -40,6 +40,7 @@
                                     <th width="40">#</th>
                                     <th>Kode Tenant</th>
                                     <th>Nama Tenant</th>
+                                    <th>Printer Stasiun / Cluster</th>
                                     <th>Komisi (%)</th>
                                     <th>Telepon</th>
                                     <th>Alamat</th>
@@ -57,6 +58,19 @@
                                             </span>
                                         </td>
                                         <td><strong>{{ $tenant->nama_tenant }}</strong></td>
+                                        <td>
+                                            @if ($tenant->printer)
+                                                <span class="badge bg-info text-dark">
+                                                    <i class="material-icons-outlined" style="font-size:12px;vertical-align:middle">print</i>
+                                                    {{ $tenant->printer->name }}
+                                                    @if($tenant->printer->ip_address)
+                                                        ({{ $tenant->printer->ip_address }})
+                                                    @endif
+                                                </span>
+                                            @else
+                                                <span class="badge bg-light text-muted border">Ikut Kategori / Default</span>
+                                            @endif
+                                        </td>
                                         <td>{{ number_format($tenant->commission_rate, 2) }}%</td>
                                         <td>{{ $tenant->telepon ?? '-' }}</td>
                                         <td>{{ $tenant->alamat ?? '-' }}</td>
@@ -72,6 +86,7 @@
                                                 data-id="{{ $tenant->id }}"
                                                 data-kode_tenant="{{ $tenant->kode_tenant }}" 
                                                 data-nama_tenant="{{ $tenant->nama_tenant }}"
+                                                data-printer_id="{{ $tenant->printer_id ?? '' }}"
                                                 data-telepon="{{ $tenant->telepon }}" 
                                                 data-alamat="{{ $tenant->alamat }}"
                                                 data-commission_rate="{{ $tenant->commission_rate }}"
@@ -85,7 +100,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center text-muted">Belum ada tenant / kantin</td>
+                                        <td colspan="9" class="text-center text-muted">Belum ada tenant / kantin</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -130,6 +145,18 @@
                         <div class="mb-3">
                             <label class="form-label">Alamat</label>
                             <textarea class="form-control" id="tenant_alamat" rows="3" placeholder="contoh: Stand No. 3, Kantin Utama"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Target Printer Stasiun (Cluster LAN / Dapur)</label>
+                            <select class="form-select" id="tenant_printer_id">
+                                <option value="">-- Default / Ikut Kategori Produk --</option>
+                                @if(isset($storePrinters))
+                                    @foreach($storePrinters as $p)
+                                        <option value="{{ $p->id }}">{{ $p->name }} ({{ strtoupper($p->connection_type) }} - {{ $p->ip_address ?? $p->mac_address ?? 'Port ' . $p->port }})</option>
+                                    @endforeach
+                                @endif
+                            </select>
+                            <small class="text-muted">Pilih printer stasiun jika tenant ini memiliki printer khusus, atau gunakan 1 printer LAN bersama untuk 3-5 tenant.</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Status <span class="text-danger">*</span></label>
@@ -180,6 +207,7 @@
             document.getElementById('tenant_id').value = '';
             document.getElementById('tenant_kode').value = '';
             document.getElementById('tenant_nama').value = '';
+            document.getElementById('tenant_printer_id').value = '';
             document.getElementById('tenant_commission').value = '0';
             document.getElementById('tenant_telepon').value = '';
             document.getElementById('tenant_alamat').value = '';
@@ -193,6 +221,7 @@
                 document.getElementById('tenant_id').value = this.dataset.id;
                 document.getElementById('tenant_kode').value = this.dataset.kode_tenant;
                 document.getElementById('tenant_nama').value = this.dataset.nama_tenant;
+                document.getElementById('tenant_printer_id').value = this.dataset.printer_id || '';
                 document.getElementById('tenant_commission').value = this.dataset.commission_rate;
                 document.getElementById('tenant_telepon').value = this.dataset.telepon !== 'null' && this.dataset.telepon !== 'undefined' ? this.dataset.telepon : '';
                 document.getElementById('tenant_alamat').value = this.dataset.alamat !== 'null' && this.dataset.alamat !== 'undefined' ? this.dataset.alamat : '';
@@ -218,6 +247,7 @@
                     body: JSON.stringify({
                         kode_tenant: document.getElementById('tenant_kode').value,
                         nama_tenant: document.getElementById('tenant_nama').value,
+                        printer_id: document.getElementById('tenant_printer_id').value || null,
                         commission_rate: document.getElementById('tenant_commission').value,
                         telepon: document.getElementById('tenant_telepon').value,
                         alamat: document.getElementById('tenant_alamat').value,
