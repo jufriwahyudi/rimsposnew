@@ -370,6 +370,7 @@
                         <td>TOTAL</td>
                         <td class="text-right">Rp {{ number_format($summary['total'], 0, ',', '.') }}</td>
                     </tr>
+                    @if (strtoupper($transaction['status'] ?? '') !== 'HOLD')
                     <tr>
                         <td style="color: #64748b;">Bayar</td>
                         <td class="text-right">Rp {{ number_format($summary['paid'], 0, ',', '.') }}</td>
@@ -384,11 +385,12 @@
                         <td class="text-right" style="color: #16a34a; font-weight: bold;">Rp {{ number_format($summary['tip'], 0, ',', '.') }}</td>
                     </tr>
                     @endif
-                    @if (isset($summary['payment_status']) && $summary['payment_status'] === 'hutang')
+                    @if (isset($summary['payment_status']) && strtolower($summary['payment_status']) === 'hutang')
                     <tr class="debt-row">
                         <td>SISA HUTANG</td>
                         <td class="text-right">Rp {{ number_format($summary['remaining_debt'], 0, ',', '.') }}</td>
                     </tr>
+                    @endif
                     @endif
                 </table>
             </td>
@@ -397,8 +399,13 @@
 
     {{-- FOOTER SECTION --}}
     <div class="footer">
-        <p>Terima kasih atas kunjungan Anda</p>
-        <p style="font-size: 10px; margin-top: 5px;">Barang yang sudah dibeli tidak dapat ditukar atau dikembalikan</p>
+        @if (strtoupper($transaction['status'] ?? '') === 'HOLD')
+            <p style="font-weight: bold;">TAGIHAN SEMENTARA (PRE-BILL)</p>
+            <p style="font-size: 10px; margin-top: 5px;">Silakan lakukan pembayaran di kasir</p>
+        @else
+            <p>Terima kasih atas kunjungan Anda</p>
+            <p style="font-size: 10px; margin-top: 5px;">Barang yang sudah dibeli tidak dapat ditukar atau dikembalikan</p>
+        @endif
     </div>
 </div>
 

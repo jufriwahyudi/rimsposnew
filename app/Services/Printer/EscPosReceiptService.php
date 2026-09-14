@@ -124,11 +124,12 @@ class EscPosReceiptService
             $this->printChecklistFooter($triggerBuzzer);
         } else {
             $openDrawer = $data['open_drawer'] ?? true;
+            $status     = strtoupper($data['transaction']['status'] ?? 'PAID');
             $this->printHeader($data['store']            ?? []);
             $this->printTransaction($data['transaction'] ?? []);
             $this->printItems($data['items']             ?? []);
-            $this->printSummary($data['summary']         ?? []);
-            $this->printFooter($openDrawer);
+            $this->printSummary($data['summary']         ?? [], $status);
+            $this->printFooter($openDrawer, $status);
         }
     }
 
@@ -384,7 +385,7 @@ class EscPosReceiptService
         }
     }
 
-    protected function printSummary(array $summary): void
+    protected function printSummary(array $summary, string $status = 'PAID'): void
     {
         $subtotal = (int) ($summary['subtotal'] ?? 0);
         $discount = (int) ($summary['discount'] ?? 0);
@@ -395,7 +396,7 @@ class EscPosReceiptService
         $pointDisc = (int) ($summary['point_discount_amount'] ?? 0);
         $voucherDisc = (int) ($summary['voucher_discount_amount'] ?? 0);
         $remDebt   = (int) ($summary['remaining_debt'] ?? 0);
-        $payStatus = (string) ($summary['payment_status'] ?? '');
+        $payStatus = strtolower((string) ($summary['payment_status'] ?? ''));
 
         $this->separator();
         $this->writeLine($this->cols('Subtotal',  $this->rupiah($subtotal)));
@@ -414,6 +415,11 @@ class EscPosReceiptService
 
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total)));
 
+        // Khusus Prebill (Pesanan status HOLD): cukup sampai TOTAL saja
+        if ($status === 'HOLD') {
+            return;
+        }
+
         $this->separator();
         $this->writeLine($this->cols('Bayar',   $this->rupiah($paid)));
         if ($tip > 0) {
@@ -421,19 +427,24 @@ class EscPosReceiptService
         }
         $this->writeLine($this->cols('Kembali', $this->rupiah($change)));
 
-        if ($payStatus === 'hutang' || $remDebt > 0) {
+        if ($payStatus === 'hutang') {
             $this->writeLine($this->cols('SISA HUTANG', $this->rupiah($remDebt)));
         }
     }
 
-    protected function printFooter(bool $openDrawer = true): void
+    protected function printFooter(bool $openDrawer = true, string $status = 'PAID'): void
     {
         $this->separator();
-        $this->writeCentered('Terima Kasih!');
-        $this->writeCentered('Barang yg sudah dibeli');
-        $this->writeCentered('tidak dapat dikembalikan');
+        if ($status === 'HOLD') {
+            $this->writeCentered('TAGIHAN SEMENTARA (PRE-BILL)');
+            $this->writeCentered('Silakan lakukan pembayaran di kasir');
+        } else {
+            $this->writeCentered('Terima Kasih!');
+            $this->writeCentered('Barang yg sudah dibeli');
+            $this->writeCentered('tidak dapat dikembalikan');
+        }
 
-        if ($openDrawer) {
+        if ($openDrawer && $status !== 'HOLD') {
             // Trigger sinyal pulse untuk membuka cash drawer (laci kasir) via port RJ11 printer
             $this->printer->pulse();
         }
