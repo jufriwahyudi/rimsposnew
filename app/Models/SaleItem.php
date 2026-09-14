@@ -273,4 +273,16 @@ class SaleItem extends Model
     {
         return $this->hasMany(SaleConcoctionItem::class, 'sale_item_id');
     }
+
+    public function getDisplayNameAttribute(): string
+    {
+        $itemName = $this->product_name ?: '';
+        $prodName = $this->product?->nama_produk ?? $this->variant?->product?->nama_produk;
+        if ($prodName && $itemName) {
+            if (stripos($itemName, $prodName) === false && stripos($prodName, $itemName) === false) {
+                return "{$prodName} ({$itemName})";
+            }
+        }
+        return $itemName ?: ($prodName ?: 'Item');
+    }
 }

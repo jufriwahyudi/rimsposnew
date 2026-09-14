@@ -1062,7 +1062,7 @@ class PosController extends Controller
                         'product_id'              => $productId,
                         'product_variant_id'      => $variantId,
                         'sku'                     => $item['sku'] ?? 'SRV',
-                        'product_name'            => $item['variant'] ?? ($item['name'] ?? 'Item'),
+                        'product_name'            => $this->resolveItemName($item, $productId, $variantId),
                         'price'                   => $item['price'] ?? 0,
                         'qty'                     => $item['qty'] ?? 1,
                         'unit_id'                 => $item['unit_id'] ?? null,
@@ -1471,6 +1471,7 @@ class PosController extends Controller
                         $newQty    = $item['qty'] ?? 0;
                         $existing  = $variantId ? $existingItems->get($variantId) : null;
                         $multiplier = max(1, (int) ($item['unit_multiplier'] ?? 1));
+                        $staffUserId = $item['staff_user_id'] ?? null;
 
                         if ($existing) {
                             $oldMultiplier = max(1, (int) ($existing->unit_multiplier ?: 1));
@@ -1481,16 +1482,17 @@ class PosController extends Controller
                             // Update item fields but PRESERVE kds_status
                             $existing->update([
                                 'sku'                 => $item['sku'] ?? $existing->sku,
-                                'product_name'        => $item['variant'] ?? ($item['name'] ?? $existing->product_name),
+                                'product_name'        => $this->resolveItemName($item, $item['product_id'] ?? $existing->product_id, $variantId, $existing->product_name),
                                 'price'               => $item['price'] ?? $existing->price,
                                 'qty'                 => $newQty,
                                 'unit_id'             => $item['unit_id'] ?? $existing->unit_id,
                                 'unit_name'           => $item['unit_name'] ?? $existing->unit_name,
                                 'unit_multiplier'     => $multiplier,
                                 'kitchen_printed_qty' => min($existing->kitchen_printed_qty, $newQty),
+                                'notes'               => $item['notes'] ?? $existing->notes,
+                                'staff_user_id'       => $staffUserId,
                                 'discount_amount'     => $item['discount_amount'] ?? 0,
                                 'subtotal'            => $item['subtotal'] ?? 0,
-                                'notes'               => $item['notes'] ?? $existing->notes,
                             ]);
 
                             // Adjust stock only if base qty increased
@@ -1561,7 +1563,7 @@ class PosController extends Controller
                                 'product_id'         => $item['product_id'] ?? null,
                                 'product_variant_id' => $variantId,
                                 'sku'                => $item['sku'] ?? '',
-                                'product_name'       => $item['variant'] ?? ($item['name'] ?? ''),
+                                'product_name'       => $this->resolveItemName($item, $item['product_id'] ?? null, $variantId),
                                 'price'              => $item['price'] ?? 0,
                                 'qty'                => $newQty,
                                 'unit_id'            => $item['unit_id'] ?? null,
@@ -1701,7 +1703,7 @@ class PosController extends Controller
                             'product_id'              => $productId,
                             'product_variant_id'      => $variantId,
                             'sku'                     => $item['sku'] ?? 'SRV',
-                            'product_name'            => $item['variant'] ?? ($item['name'] ?? 'Item'),
+                            'product_name'            => $this->resolveItemName($item, $productId, $variantId),
                             'price'                   => $item['price'] ?? 0,
                             'qty'                     => $item['qty'] ?? 0,
                             'unit_id'                 => $item['unit_id'] ?? null,
@@ -2357,7 +2359,7 @@ class PosController extends Controller
                     }
                     $printQty = ($unprinted > 0) ? $unprinted : $item->qty;
                     return [
-                        'name'  => $item->product_name,
+                        'name'  => $item->display_name,
                         'sku'   => $item->sku,
                         'qty'   => $printQty,
                         'price' => round($item->price),
@@ -2396,7 +2398,7 @@ class PosController extends Controller
                     $first = $group->first();
                     $notes = $group->pluck('notes')->filter()->map(fn($n) => trim($n))->filter()->unique()->implode(', ');
                     return [
-                        'name'  => $first->product_name,
+                        'name'  => $first->display_name,
                         'sku'   => $first->sku,
                         'qty'   => $group->sum('qty'),
                         'price' => round($first->price),
@@ -4030,7 +4032,7 @@ class PosController extends Controller
     {
         $store = Store::findOrFail(session('store_id'));
         $sale = Sale::with(['items' => function ($query) {
-            $query->whereIn('status', ['sold', 'exchanged_in']);
+            $query->whereIn('status', ['sold', 'exchanged_in'])->with(['product', 'variant.product']);
         }, 'cashier', 'refunds'])->findOrFail($id);
 
         return response()->json([
@@ -4050,7 +4052,7 @@ class PosController extends Controller
             ],
             'items' => $sale->items->map(function ($item) {
                 return [
-                    'name'  => $item->product_name,
+                    'name'  => $item->display_name,
                     'sku'   => $item->sku,
                     'qty'   => $item->qty,
                     'price' => round($item->price),
@@ -4187,5 +4189,48 @@ class PosController extends Controller
     protected function generateInvoice()
     {
         return 'POS-' . now()->format('YmdHis');
+    }
+
+    protected function resolveItemName(array $item, ?int $productId = null, ?int $variantId = null, ?string $fallback = null): string
+    {
+        $name = trim($item['name'] ?? '');
+        $variant = trim($item['variant'] ?? '');
+
+        if ($variant !== '' && $name !== '') {
+            if (stripos($name, $variant) !== false) {
+                return $name;
+            }
+            if (stripos($variant, $name) !== false) {
+                return $variant;
+            }
+            return "{$name} ({$variant})";
+        }
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        if ($variant !== '') {
+            $product = $productId ? \App\Models\Product::find($productId) : null;
+            if ($product && stripos($variant, $product->nama_produk) === false) {
+                return "{$product->nama_produk} ({$variant})";
+            }
+            return $variant;
+        }
+
+        // Fallback to database query if needed
+        $product = $productId ? \App\Models\Product::find($productId) : null;
+        $variantObj = $variantId ? \App\Models\ProductVariant::find($variantId) : null;
+        $pName = $product?->nama_produk;
+        $vName = $variantObj?->variant_name;
+
+        if ($pName && $vName) {
+            if (stripos($pName, $vName) === false && stripos($vName, $pName) === false) {
+                return "{$pName} ({$vName})";
+            }
+            return $vName ?: $pName;
+        }
+
+        return $fallback ?: ($vName ?: ($pName ?: 'Item'));
     }
 }
