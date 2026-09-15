@@ -4193,44 +4193,46 @@ class PosController extends Controller
 
     protected function resolveItemName(array $item, ?int $productId = null, ?int $variantId = null, ?string $fallback = null): string
     {
-        $name = trim($item['name'] ?? '');
+        $name    = trim($item['name'] ?? '');
         $variant = trim($item['variant'] ?? '');
 
-        if ($variant !== '' && $name !== '') {
-            if (stripos($name, $variant) !== false) {
-                return $name;
-            }
-            if (stripos($variant, $name) !== false) {
-                return $variant;
-            }
-            return "{$name} ({$variant})";
+        if ($variant === '') {
+            return $name ?: ($fallback ?: 'Item');
         }
 
-        if ($name !== '') {
-            return $name;
-        }
-
-        if ($variant !== '') {
-            $product = $productId ? \App\Models\Product::find($productId) : null;
-            if ($product && stripos($variant, $product->nama_produk) === false) {
-                return "{$product->nama_produk} ({$variant})";
-            }
+        if ($name === '') {
             return $variant;
         }
 
-        // Fallback to database query if needed
-        $product = $productId ? \App\Models\Product::find($productId) : null;
-        $variantObj = $variantId ? \App\Models\ProductVariant::find($variantId) : null;
-        $pName = $product?->nama_produk;
-        $vName = $variantObj?->variant_name;
-
-        if ($pName && $vName) {
-            if (stripos($pName, $vName) === false && stripos($vName, $pName) === false) {
-                return "{$pName} ({$vName})";
-            }
-            return $vName ?: $pName;
+        // 1. If variant already contains the entire product name (e.g. name="AYAM", variant="AYAM DADA")
+        if (stripos($variant, $name) !== false) {
+            return $variant;
         }
 
-        return $fallback ?: ($vName ?: ($pName ?: 'Item'));
+        // 2. If product name already contains variant (e.g. name="Ayam Geprek (Level 1)", variant="Level 1")
+        if (stripos($name, $variant) !== false) {
+            return $name;
+        }
+
+        // 3. If variant already contains all significant words of the product name (e.g. "AYAM ORI" -> "AYAM DADA ORI")
+        $nameWords = array_filter(preg_split('/\s+/', strtolower($name)), fn($w) => strlen($w) >= 3);
+        $matched = 0;
+        foreach ($nameWords as $w) {
+            if (stripos($variant, $w) !== false) {
+                $matched++;
+            }
+        }
+        if (!empty($nameWords) && $matched >= count($nameWords)) {
+            return $variant;
+        }
+
+        // 4. If product name is a generic category (e.g. "MINUMAN", "SAMBAL", "SNACK", "FOOD")
+        $genericCategories = ['minuman', 'makanan', 'sambal', 'snack', 'food', 'beverage', 'dessert', 'aneka', 'paket', 'menu'];
+        if (in_array(strtolower($name), $genericCategories)) {
+            return $variant;
+        }
+
+        // 5. Otherwise, variant is a modifier like "Level 1", "Pedas", "XL", etc.
+        return "{$name} ({$variant})";
     }
 }

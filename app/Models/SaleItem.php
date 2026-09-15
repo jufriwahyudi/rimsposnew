@@ -276,13 +276,47 @@ class SaleItem extends Model
 
     public function getDisplayNameAttribute(): string
     {
-        $itemName = $this->product_name ?: '';
-        $prodName = $this->product?->nama_produk ?? $this->variant?->product?->nama_produk;
-        if ($prodName && $itemName) {
-            if (stripos($itemName, $prodName) === false && stripos($prodName, $itemName) === false) {
-                return "{$prodName} ({$itemName})";
+        $itemName = trim($this->product_name ?: '');
+        if ($itemName === '') {
+            return $this->product?->nama_produk ?? ($this->variant?->product?->nama_produk ?? 'Item');
+        }
+
+        if (str_contains($itemName, '(')) {
+            return $itemName;
+        }
+
+        $prodName = trim($this->product?->nama_produk ?? ($this->variant?->product?->nama_produk ?? ''));
+        if ($prodName === '') {
+            return $itemName;
+        }
+
+        // If itemName already includes the product name or all significant words
+        if (stripos($itemName, $prodName) !== false) {
+            return $itemName;
+        }
+
+        $nameWords = array_filter(preg_split('/\s+/', strtolower($prodName)), fn($w) => strlen($w) >= 3);
+        $matched = 0;
+        foreach ($nameWords as $w) {
+            if (stripos($itemName, $w) !== false) {
+                $matched++;
             }
         }
-        return $itemName ?: ($prodName ?: 'Item');
+        if (!empty($nameWords) && $matched >= count($nameWords)) {
+            return $itemName;
+        }
+
+        // Check generic categories
+        $genericCategories = ['minuman', 'makanan', 'sambal', 'snack', 'food', 'beverage', 'dessert', 'aneka', 'paket', 'menu'];
+        if (in_array(strtolower($prodName), $genericCategories)) {
+            return $itemName;
+        }
+
+        // Only prefix if itemName is a short modifier (e.g. "Level 1", "Pedas", "XL")
+        if (preg_match('/^(level|lv|pedas|size|ukuran|warna)\b/i', $itemName) || strlen($itemName) <= 4) {
+            return "{$prodName} ({$itemName})";
+        }
+
+        return $itemName;
     }
 }
