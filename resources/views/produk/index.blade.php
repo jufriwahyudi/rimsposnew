@@ -585,7 +585,7 @@
                 $('#table-import-stok-details tbody').empty();
             });
         });
+    </script>
 
-        // ==========================================
-        @include('pos.partials.menu_availability_modal')
+    @include('pos.partials.menu_availability_modal')
 @endpush
