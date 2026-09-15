@@ -73,8 +73,8 @@ const POS = {
             const res = await Api.findProduct(code);
 
             if (res.type === 'single') {
-                if (res.data.stok <= 0) {
-                    Swal.fire('Stok habis', 'Produk tidak tersedia', 'warning');
+                if (res.data.is_available === false || res.data.stok <= 0) {
+                    Swal.fire('Menu Habis (86)', 'Produk ini sedang tidak tersedia atau kuota porsi habis.', 'warning');
                     return;
                 }
                 Cart.addItem(this.cart, res.data);
@@ -99,20 +99,33 @@ const POS = {
 
         variants.forEach(v => {
             const tr = document.createElement('tr');
-            if (v.stok <= 0) {
+            const isSoldOut = v.is_available === false || v.stok <= 0;
+            if (isSoldOut) {
                 tr.classList.add('table-secondary');
             }
-            tr.style.cursor = 'pointer';
+            tr.style.cursor = isSoldOut ? 'not-allowed' : 'pointer';
+
+            let stockBadge = '';
+            if (isSoldOut) {
+                stockBadge = '<span class="badge bg-danger">Habis (86)</span>';
+            } else if (v.daily_quota !== null && v.daily_quota !== undefined) {
+                stockBadge = `<span class="badge bg-warning text-dark">Sisa ${v.daily_quota}</span>`;
+            } else if (v.track_stock) {
+                stockBadge = `<span>${v.stok}</span>`;
+            } else {
+                stockBadge = '<span class="badge bg-success">Tersedia</span>';
+            }
+
             tr.innerHTML = `
                 <td>${v.sku}</td>
                 <td>${v.name}<br><small>${v.variant}</small></td>
                 <td class="text-end">
-                    ${v.stok > 0 ? v.stok : '<span class="text-danger">Habis</span>'}
+                    ${stockBadge}
                 </td>
                 <td class="text-end">${this.numberSeparator(v.price)}</td>
             `;
 
-            if (v.stok > 0) {
+            if (!isSoldOut) {
                 tr.addEventListener('click', () => {
                     Cart.addItem(this.cart, v);
                     this.persist();

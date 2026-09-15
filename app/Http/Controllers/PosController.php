@@ -74,8 +74,8 @@ class PosController extends Controller
         $users = \App\Models\User::whereHas('stores', function ($q) use ($storeId) {
             $q->where('stores.id', $storeId);
         })
-        ->orderBy('name')
-        ->get(['id', 'name', 'email']);
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         return response()->json([
             'success' => true,
@@ -613,8 +613,12 @@ class PosController extends Controller
                 'default_commission_type' => $v->product?->default_commission_type ?? 'none',
                 'default_commission_rate' => (float) ($v->product?->default_commission_rate ?? 0),
                 'price'                   => (float) $v->harga_jual,
-                'stok'                    => $isService ? 999999 : (int) $v->stok_store,
+                'stok'                    => $isService ? 999999 : (int) $v->effective_stock,
                 'track_stock'             => $isService ? false : (bool) $v->track_stock,
+                'is_available'            => (bool) ($v->is_available ?? true),
+                'daily_quota'             => $v->daily_quota !== null ? (int) $v->daily_quota : null,
+                'quota_date'              => $v->quota_date ? $v->quota_date->toDateString() : null,
+                'is_sold_out'             => (bool) $v->is_sold_out,
                 'image_url'               => $v->image_url,
                 'category_id'             => $v->product?->category_id,
                 'category_name'           => $v->product?->category?->name ?? 'Tanpa Kategori',
@@ -979,6 +983,24 @@ class PosController extends Controller
                 }
                 $cashRegisterId = $activeRegister?->id;
 
+                // Validasi ketersediaan menu / kuota porsi (FnB 86)
+                foreach ($cart['items'] as $item) {
+                    $vId = !empty($item['variant_id']) ? (int) $item['variant_id'] : null;
+                    if ($vId) {
+                        $vObj = ProductVariant::find($vId);
+                        if ($vObj && !$vObj->track_stock) {
+                            $mult = max(1, (int) ($item['unit_multiplier'] ?? 1));
+                            $reqBase = ($item['qty'] ?? 1) * $mult;
+                            if ($vObj->is_sold_out) {
+                                throw new \Exception("Menu {$vObj->variant_label} sedang habis / sold out");
+                            }
+                            if ($vObj->daily_quota !== null && $vObj->daily_quota < $reqBase) {
+                                throw new \Exception("Porsi {$vObj->variant_label} tidak mencukupi (sisa {$vObj->daily_quota} porsi)");
+                            }
+                        }
+                    }
+                }
+
                 // =========================
                 // 2️⃣ CREATE SALE
                 // =========================
@@ -1036,7 +1058,7 @@ class PosController extends Controller
                     }
 
                     $product = $productId ? \App\Models\Product::find($productId) : null;
-                    
+
                     $commType = !empty($item['commission_type']) && $item['commission_type'] !== 'none'
                         ? $item['commission_type']
                         : ($product ? $product->default_commission_type : 'none');
@@ -1159,6 +1181,10 @@ class PosController extends Controller
                             $saleItem
                         );
                     } elseif ($variantId) {
+                        $variantObj = ProductVariant::find($variantId);
+                        if ($variantObj && !$variantObj->track_stock && $variantObj->daily_quota !== null) {
+                            $variantObj->decrementDailyQuota((int) $baseDeductQty);
+                        }
                         $this->issueFIFOWithBatchLog(
                             $transactionDate,
                             $variantId,
@@ -1436,6 +1462,12 @@ class PosController extends Controller
                     // 2. Revert stock & delete ONLY removed items
                     foreach ($removedItems as $removedItem) {
                         $product = \App\Models\Product::find($removedItem->product_id);
+                        if ($removedItem->product_variant_id) {
+                            $variantObj = ProductVariant::find($removedItem->product_variant_id);
+                            if ($variantObj && !$variantObj->track_stock) {
+                                $variantObj->restoreDailyQuota((int) $removedItem->qty);
+                            }
+                        }
                         if ($product && $product->product_type === 'RECIPE') {
                             app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
                                 $storeId,
@@ -1458,6 +1490,7 @@ class PosController extends Controller
                                     'qty'                => $batch->qty,
                                     'ref_type'           => 'SaleHoldUpdateRevert',
                                     'ref_id'             => $sale->id,
+                                    'notes'              => 'Revert item ' . $removedItem->product_name . ' on hold update',
                                 ]);
                             }
                             $removedItem->batches()->delete();
@@ -1497,6 +1530,15 @@ class PosController extends Controller
 
                             // Adjust stock only if base qty increased
                             if ($baseQtyDiff > 0) {
+                                if ($variantId) {
+                                    $variantObj = ProductVariant::find($variantId);
+                                    if ($variantObj && !$variantObj->track_stock) {
+                                        if ($variantObj->daily_quota !== null && $variantObj->daily_quota < $baseQtyDiff) {
+                                            throw new \Exception("Porsi {$variantObj->variant_label} tidak mencukupi untuk penambahan (sisa {$variantObj->daily_quota} porsi)");
+                                        }
+                                        $variantObj->decrementDailyQuota((int) $baseQtyDiff);
+                                    }
+                                }
                                 $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
                                 if ($product && $product->product_type === 'RECIPE') {
                                     app(\App\Services\IngredientInventoryService::class)->deductRecipeStock(
@@ -1517,8 +1559,14 @@ class PosController extends Controller
                                 }
                             } elseif ($baseQtyDiff < 0) {
                                 // Base qty decreased: restore excess stock
-                                $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
                                 $absDiff = abs($baseQtyDiff);
+                                if ($variantId) {
+                                    $variantObj = ProductVariant::find($variantId);
+                                    if ($variantObj && !$variantObj->track_stock) {
+                                        $variantObj->restoreDailyQuota((int) $absDiff);
+                                    }
+                                }
+                                $product = \App\Models\Product::find($item['product_id'] ?? $existing->product_id);
                                 if ($product && $product->product_type === 'RECIPE') {
                                     app(\App\Services\IngredientInventoryService::class)->restoreRecipeStock(
                                         $storeId,
@@ -1542,6 +1590,7 @@ class PosController extends Controller
                                             'qty'                => $batch->qty,
                                             'ref_type'           => 'SaleHoldUpdateRevert',
                                             'ref_id'             => $sale->id,
+                                            'notes'              => 'Revert stock batch for ' . $existing->product_name . ' on hold update',
                                         ]);
                                     }
                                     $existing->batches()->delete();
@@ -1556,6 +1605,20 @@ class PosController extends Controller
                                 }
                             }
                         } else {
+                            // Brand new item added to hold order — validate availability & quota (FnB 86)
+                            if ($variantId) {
+                                $vObj = ProductVariant::find($variantId);
+                                if ($vObj && !$vObj->track_stock) {
+                                    $reqBase = $newQty * $multiplier;
+                                    if ($vObj->is_sold_out) {
+                                        throw new \Exception("Menu {$vObj->variant_label} sedang habis / sold out");
+                                    }
+                                    if ($vObj->daily_quota !== null && $vObj->daily_quota < $reqBase) {
+                                        throw new \Exception("Porsi {$vObj->variant_label} tidak mencukupi (sisa {$vObj->daily_quota} porsi)");
+                                    }
+                                }
+                            }
+
                             // Brand new item — create with default kds_status (pending)
                             $baseNewQty = $newQty * $multiplier;
                             $saleItem = SaleItem::create([
@@ -1584,6 +1647,12 @@ class PosController extends Controller
                                     $saleItem
                                 );
                             } else {
+                                if ($variantId) {
+                                    $variantObj = ProductVariant::find($variantId);
+                                    if ($variantObj && !$variantObj->track_stock && $variantObj->daily_quota !== null) {
+                                        $variantObj->decrementDailyQuota((int) $baseNewQty);
+                                    }
+                                }
                                 $this->issueFIFOWithBatchLog(
                                     $transactionDate,
                                     $variantId,
@@ -1620,6 +1689,24 @@ class PosController extends Controller
                         'voucher_discount_amount' => $voucherDiscountAmount,
                     ]);
                 } else {
+                    // Validasi ketersediaan menu / kuota porsi untuk order baru (FnB 86)
+                    foreach ($cart['items'] ?? [] as $item) {
+                        $vId = !empty($item['variant_id']) ? (int) $item['variant_id'] : null;
+                        if ($vId) {
+                            $vObj = ProductVariant::find($vId);
+                            if ($vObj && !$vObj->track_stock) {
+                                $mult = max(1, (int) ($item['unit_multiplier'] ?? 1));
+                                $reqBase = ($item['qty'] ?? 1) * $mult;
+                                if ($vObj->is_sold_out) {
+                                    throw new \Exception("Menu {$vObj->variant_label} sedang habis / sold out");
+                                }
+                                if ($vObj->daily_quota !== null && $vObj->daily_quota < $reqBase) {
+                                    throw new \Exception("Porsi {$vObj->variant_label} tidak mencukupi (sisa {$vObj->daily_quota} porsi)");
+                                }
+                            }
+                        }
+                    }
+
                     $sale = Sale::create([
                         'store_id'       => $storeId,
                         'invoice_number' => $this->generateInvoice(),
@@ -1800,6 +1887,10 @@ class PosController extends Controller
                                 $saleItem
                             );
                         } elseif ($variantId) {
+                            $variantObj = ProductVariant::find($variantId);
+                            if ($variantObj && !$variantObj->track_stock && $variantObj->daily_quota !== null) {
+                                $variantObj->decrementDailyQuota((int) $baseQty);
+                            }
                             $this->issueFIFOWithBatchLog(
                                 $transactionDate,
                                 $variantId,
@@ -1901,8 +1992,9 @@ class PosController extends Controller
                 \Storage::disk('public')->delete($buktiBayarPath);
             }
             return response()->json([
+                'success' => false,
                 'message' => 'Transaksi gagal: ' . $e->getMessage()
-            ], 500);
+            ], 422);
         }
     }
 
@@ -2868,6 +2960,13 @@ class PosController extends Controller
                             'ref_id'             => $sale->id,
                         ]);
                     }
+                    if ($item->product_variant_id) {
+                        $variantObj = ProductVariant::find($item->product_variant_id);
+                        if ($variantObj && !$variantObj->track_stock) {
+                            $restoreQty = (int) ($item->qty * ($item->unit_multiplier ?? 1));
+                            $variantObj->restoreDailyQuota($restoreQty);
+                        }
+                    }
                     $item->update(['status' => 'voided']);
                 }
 
@@ -3429,8 +3528,8 @@ class PosController extends Controller
         }
 
         if ($sisa > 0) {
-            $msg = $useFEFO 
-                ? 'Stok aktif (non-kadaluarsa) tidak mencukupi' 
+            $msg = $useFEFO
+                ? 'Stok aktif (non-kadaluarsa) tidak mencukupi'
                 : 'Stok tidak mencukupi';
             throw new \Exception($msg);
         }
@@ -3475,6 +3574,12 @@ class PosController extends Controller
                                 'ref_type'           => $sale->sale_type === 'nse' ? 'NSEVoid' : 'SaleVoid',
                                 'ref_id'             => $sale->id,
                             ]);
+                        }
+                    }
+                    if ($item->product_variant_id) {
+                        $variantObj = ProductVariant::find($item->product_variant_id);
+                        if ($variantObj && !$variantObj->track_stock) {
+                            $variantObj->restoreDailyQuota((int) $item->qty);
                         }
                     }
                     $item->update([
@@ -3631,6 +3736,13 @@ class PosController extends Controller
                         'ref_type'           => 'PartialVoid',
                         'ref_id'             => $voidedItem->id,
                     ]);
+                }
+
+                if ($voidedItem->product_variant_id) {
+                    $variantObj = ProductVariant::find($voidedItem->product_variant_id);
+                    if ($variantObj && !$variantObj->track_stock) {
+                        $variantObj->restoreDailyQuota((int) $voidQty);
+                    }
                 }
 
                 // ── 3. Recalculate total sale ─────────────────────────────────
@@ -4234,5 +4346,229 @@ class PosController extends Controller
 
         // 5. Otherwise, variant is a modifier like "Level 1", "Pedas", "XL", etc.
         return "{$name} ({$variant})";
+    }
+
+    /**
+     * GET /api/pos/menu-availability?store_id=N&tenant_id=M&q=keyword
+     * Returns products & variants with availability and daily quota for quick 86 / portion control.
+     */
+    public function apiGetMenuAvailability(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $user = auth()->user();
+        if ($user) {
+            $hasAccess = $user->stores()->where('stores.id', $storeId)->exists();
+            if (!$hasAccess) {
+                return response()->json(['message' => 'Akses ke toko ini ditolak'], 403);
+            }
+        }
+
+        // Set tenant context
+        \App\Support\Tenant::set($storeId);
+
+        $q = trim($request->input('q', ''));
+        $filterTenantId = $request->input('tenant_id');
+
+        // If user is a tenant user, strictly limit to their tenant_id
+        if ($user && $user->tenant_id) {
+            $filterTenantId = $user->tenant_id;
+        }
+
+        $query = ProductVariant::with(['product.tenant', 'product.category', 'units'])
+            ->where('store_id', $storeId)
+            ->where('is_active', 'Y')
+            ->whereHas('product', function ($pq) use ($filterTenantId) {
+                if ($filterTenantId) {
+                    $pq->where('tenant_id', $filterTenantId);
+                }
+            });
+
+        if (!empty($q)) {
+            $query->where(function ($vq) use ($q) {
+                $vq->where('variant_name', 'like', "%{$q}%")
+                    ->orWhere('sku', 'like', "%{$q}%")
+                    ->orWhereHas('product', function ($pq) use ($q) {
+                        $pq->where('nama_produk', 'like', "%{$q}%");
+                    });
+            });
+        }
+
+        $variants = $query->orderBy('product_id')->orderBy('id')->get();
+
+        $data = $variants->map(function ($v) {
+            $productName = $v->product?->nama_produk ?? $v->variant_name;
+            $variantLabel = $v->variant_label;
+            $effStock = (int) $v->effective_stock;
+            $units = $v->units ? $v->units->map(function ($u) {
+                return [
+                    'id'               => $u->id,
+                    'unit_name'        => $u->unit_name,
+                    'conversion_value' => (int) $u->conversion_value,
+                    'price'            => (float) $u->price,
+                    'barcode'          => $u->barcode,
+                ];
+            })->toArray() : [];
+
+            return [
+                'id'                      => $v->id,
+                'product_id'              => $v->product_id,
+                'sku'                     => $v->sku,
+                // Format standar ProductVariant.fromJson
+                'name'                    => $productName,
+                'variant'                 => $variantLabel,
+                'stok'                    => $effStock,
+                'price'                   => (float) $v->harga_jual,
+                'track_stock'             => (bool) $v->track_stock,
+                'is_available'            => (bool) ($v->is_available ?? true),
+                'daily_quota'             => $v->daily_quota !== null ? (int) $v->daily_quota : null,
+                'quota_date'              => $v->quota_date ? $v->quota_date->toDateString() : null,
+                'is_sold_out'             => (bool) $v->is_sold_out,
+                'image_url'               => $v->image_url,
+                'category_id'             => $v->product?->category_id,
+                'category_name'           => $v->product?->category?->name ?? 'Tanpa Kategori',
+                'tenant_id'               => $v->product?->tenant_id,
+                'tenant_name'             => $v->product?->tenant?->nama_tenant ?? 'Umum',
+                'product_type'            => $v->product?->product_type ?? 'SINGLE',
+                'base_unit'               => $v->product?->base_unit ?? 'Pcs',
+                'units'                   => $units,
+                // Backward-compatible alias
+                'product_name'            => $productName,
+                'variant_name'            => $variantLabel,
+                'effective_stock'         => $effStock,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $data,
+        ]);
+    }
+
+    /**
+     * POST /api/pos/menu-availability/update
+     * Update is_available and/or daily_quota for a variant or entire product.
+     */
+    public function apiUpdateMenuAvailability(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $user = auth()->user();
+        if ($user) {
+            $hasAccess = $user->stores()->where('stores.id', $storeId)->exists();
+            if (!$hasAccess) {
+                return response()->json(['message' => 'Akses ditolak'], 403);
+            }
+        }
+
+        $request->validate([
+            'variant_id'   => 'nullable|integer',
+            'product_id'   => 'nullable|integer',
+            'is_available' => 'required|boolean',
+            'daily_quota'  => 'nullable|integer|min:0',
+        ]);
+
+        $variantId   = $request->input('variant_id');
+        $productId   = $request->input('product_id');
+        $isAvailable = $request->boolean('is_available');
+        $dailyQuota  = $request->has('daily_quota') && $request->input('daily_quota') !== null
+            ? (int) $request->input('daily_quota')
+            : null;
+
+        if (!$variantId && !$productId) {
+            return response()->json(['message' => 'variant_id atau product_id wajib diisi'], 422);
+        }
+
+        $query = ProductVariant::where('store_id', $storeId);
+        if ($variantId) {
+            $query->where('id', $variantId);
+        } else {
+            $query->where('product_id', $productId);
+        }
+
+        $variants = $query->with('product')->get();
+        if ($variants->isEmpty()) {
+            return response()->json(['message' => 'Produk/varian tidak ditemukan'], 404);
+        }
+
+        // Authorization check: Tenant users can only edit their own tenant's products
+        if ($user && $user->tenant_id) {
+            foreach ($variants as $v) {
+                if ($v->product && $v->product->tenant_id != $user->tenant_id) {
+                    return response()->json([
+                        'message' => 'Anda hanya berhak mengatur ketersediaan menu milik tenant Anda sendiri'
+                    ], 403);
+                }
+            }
+        }
+
+        $today = now()->toDateString();
+        foreach ($variants as $v) {
+            $v->is_available = $isAvailable;
+            $v->daily_quota  = $dailyQuota;
+            $v->quota_date   = $today;
+            // If quota is set to 0, mark as unavailable
+            if ($dailyQuota !== null && $dailyQuota <= 0) {
+                $v->is_available = false;
+            }
+            $v->save();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Ketersediaan menu berhasil diperbarui',
+            'data'    => $variants->map(function ($v) {
+                return [
+                    'id'              => $v->id,
+                    'is_available'    => (bool) $v->is_available,
+                    'daily_quota'     => $v->daily_quota,
+                    'quota_date'      => $v->quota_date ? $v->quota_date->toDateString() : null,
+                    'effective_stock' => (int) $v->effective_stock,
+                    'is_sold_out'     => (bool) $v->is_sold_out,
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * POST /api/pos/menu-availability/reset-all
+     * Reset all daily quotas to unlimited and set is_available = true for store (or tenant).
+     */
+    public function apiResetAllMenuAvailability(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (!$storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $user = auth()->user();
+        $filterTenantId = $request->input('tenant_id');
+        if ($user && $user->tenant_id) {
+            $filterTenantId = $user->tenant_id;
+        }
+
+        $query = ProductVariant::where('store_id', $storeId)
+            ->where('is_active', 'Y');
+
+        if ($filterTenantId) {
+            $query->whereHas('product', fn($q) => $q->where('tenant_id', $filterTenantId));
+        }
+
+        $query->update([
+            'is_available' => true,
+            'daily_quota'  => null,
+            'quota_date'   => now()->toDateString(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Semua menu berhasil di-reset menjadi Tersedia (Tanpa Batas)',
+        ]);
     }
 }

@@ -93,7 +93,10 @@
                         <button type="button" class="btn btn-success btn-sm" onclick="POS.newTab()">
                             + New
                         </button>
-                        <button type="button" class="btn btn-outline-primary btn-sm ms-auto" onclick="openServiceOrdersModal()">
+                        <button type="button" class="btn btn-outline-warning btn-sm ms-auto" onclick="openMenuAvailabilityModal()">
+                            <i class="bi bi-slash-circle"></i> Ketersediaan Menu
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="openServiceOrdersModal()">
                             <i class="bi bi-tools"></i> Tarik Tiket Servis
                         </button>
                     </div>
@@ -1064,5 +1067,6 @@
                 showConfirmButton: false
             });
         }
-    </script>
+
+        @include('pos.partials.menu_availability_modal')
 @endpush

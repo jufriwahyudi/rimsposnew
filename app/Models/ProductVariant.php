@@ -20,6 +20,9 @@ class ProductVariant extends Model
         'reward_points',
         'image',
         'is_active',
+        'is_available',
+        'daily_quota',
+        'quota_date',
         'track_stock',
         'cost_price_manual',
         'commission_type',
@@ -27,13 +30,18 @@ class ProductVariant extends Model
     ];
 
     protected $casts = [
-        'track_stock' => 'boolean',
+        'track_stock'   => 'boolean',
+        'is_available'  => 'boolean',
+        'daily_quota'   => 'integer',
+        'quota_date'    => 'date',
     ];  
 
     protected $appends = [
         'stok_warehouse',
         'stok_store',
         'stok_total',
+        'effective_stock',
+        'is_sold_out',
         'variant_label',
         'image_url',
         'has_custom_image',
@@ -157,9 +165,64 @@ class ProductVariant extends Model
         if (!$this->track_stock) {
             return 999999;
         }
-        return $this->batches()
+        return (int) $this->batches()
             ->where('posisi', 'store')
             ->sum('qty_sisa');
+    }
+
+    public function getEffectiveStockAttribute()
+    {
+        if ($this->is_available === false) {
+            return 0;
+        }
+
+        if (!$this->track_stock) {
+            if ($this->daily_quota !== null) {
+                if ($this->quota_date && $this->quota_date->isBefore(now()->startOfDay())) {
+                    return 999999;
+                }
+                return max(0, (int) $this->daily_quota);
+            }
+            return 999999;
+        }
+
+        return (int) $this->stok_store;
+    }
+
+    public function getIsSoldOutAttribute()
+    {
+        if ($this->is_available === false) {
+            return true;
+        }
+
+        if (!$this->track_stock) {
+            if ($this->daily_quota !== null) {
+                if ($this->quota_date && $this->quota_date->isBefore(now()->startOfDay())) {
+                    return false;
+                }
+                return $this->daily_quota <= 0;
+            }
+            return false;
+        }
+
+        return $this->stok_store <= 0;
+    }
+
+    public function decrementDailyQuota(int $qty = 1): void
+    {
+        if ($this->daily_quota !== null) {
+            $newQuota = max(0, (int) $this->daily_quota - $qty);
+            $this->daily_quota = $newQuota;
+            $this->save();
+        }
+    }
+
+    public function restoreDailyQuota(int $qty = 1): void
+    {
+        if ($this->daily_quota !== null) {
+            $this->daily_quota = (int) $this->daily_quota + $qty;
+            $this->save();
+        }
     }
 
     public function calculateCommission($sellPrice)

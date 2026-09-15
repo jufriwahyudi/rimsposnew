@@ -105,6 +105,12 @@ class CustomerSelfServiceController extends Controller
 
                 foreach ($itemsData as $itemData) {
                     $variant = ProductVariant::with('product')->findOrFail($itemData['variant_id']);
+                    if ($variant->is_available === false) {
+                        throw new \Exception("Menu " . ($variant->product?->nama_produk ?? $variant->variant_label) . " sedang habis (Sold Out).");
+                    }
+                    if (!$variant->track_stock && $variant->daily_quota !== null && (int)$itemData['qty'] > $variant->daily_quota) {
+                        throw new \Exception("Sisa porsi untuk " . ($variant->product?->nama_produk ?? $variant->variant_label) . " hanya tersisa {$variant->daily_quota} porsi.");
+                    }
                     $qty = (int)$itemData['qty'];
                     $price = (float)$variant->harga_jual;
                     $itemSubtotal = $price * $qty;
@@ -172,6 +178,9 @@ class CustomerSelfServiceController extends Controller
                                 $saleItem
                             );
                         } else {
+                            if (!$variant->track_stock && $variant->daily_quota !== null) {
+                                $variant->decrementDailyQuota((int) $item['qty']);
+                            }
                             $this->issueFIFOWithBatchLog(
                                 now()->format('Y-m-d H:i:s'),
                                 $variant->id,
@@ -238,6 +247,9 @@ class CustomerSelfServiceController extends Controller
                                 $saleItem
                             );
                         } else {
+                            if (!$variant->track_stock && $variant->daily_quota !== null) {
+                                $variant->decrementDailyQuota((int) $item['qty']);
+                            }
                             $this->issueFIFOWithBatchLog(
                                 now()->format('Y-m-d H:i:s'),
                                 $variant->id,

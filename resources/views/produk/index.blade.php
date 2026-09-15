@@ -37,6 +37,11 @@
                         <button type="button" class="btn btn-info btn-sm text-white" data-bs-toggle="modal" data-bs-target="#modalImportStok">
                             <i class="bi bi-boxes"></i> Import Stok Awal
                         </button>
+                        @if ($isFnB)
+                            <button type="button" class="btn btn-warning btn-sm text-dark fw-semibold" onclick="openMenuAvailabilityModal()">
+                                <i class="bi bi-slash-circle"></i> Ketersediaan Menu
+                            </button>
+                        @endif
                         <a href="{{ route('produk.create') }}" class="btn btn-success btn-sm">
                             <i class="bi bi-plus"></i> Tambah Produk
                         </a>
@@ -580,5 +585,7 @@
                 $('#table-import-stok-details tbody').empty();
             });
         });
-    </script>
+
+        // ==========================================
+        @include('pos.partials.menu_availability_modal')
 @endpush
