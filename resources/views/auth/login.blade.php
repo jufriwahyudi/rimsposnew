@@ -562,11 +562,23 @@
                     <p class="form-subtitle">Premium Cloud POS System</p>
                 </div>
 
-                {{-- Error Alerts --}}
+                {{-- Error & Warning Alerts --}}
                 @if (session('error'))
-                    <div class="alert alert-danger small border-0 text-white py-2 px-3 mb-4 rounded-3" 
+                    <div class="alert alert-danger small border-0 text-white py-2 px-3 mb-3 rounded-3" 
                          style="background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4) !important;">
-                        <i class="fa fa-exclamation-circle me-2"></i> {{ session('error') }}
+                        <i class="fa fa-exclamation-circle me-2 text-danger"></i> {{ session('error') }}
+                    </div>
+                @endif
+                @if (session('warning'))
+                    <div class="alert alert-warning small border-0 text-white py-2 px-3 mb-3 rounded-3" 
+                         style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4) !important;">
+                        <i class="fa fa-triangle-exclamation me-2 text-warning"></i> {{ session('warning') }}
+                    </div>
+                @endif
+                @if (session('status'))
+                    <div class="alert alert-success small border-0 text-white py-2 px-3 mb-3 rounded-3" 
+                         style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4) !important;">
+                        <i class="fa fa-check-circle me-2 text-success"></i> {{ session('status') }}
                     </div>
                 @endif
 
@@ -914,6 +926,54 @@
 
         // Initial render
         renderTransactions();
+    })();
+
+    // Auto-refresh CSRF token saat tab ditinggal diam/idle
+    (function () {
+        let lastRefreshed = Date.now();
+
+        async function refreshCsrfToken() {
+            try {
+                const res = await fetch("{{ url('/refresh-csrf') }}", {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    cache: 'no-store'
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.csrf_token) {
+                        const tokenInputs = document.querySelectorAll('input[name="_token"]');
+                        tokenInputs.forEach(input => input.value = data.csrf_token);
+
+                        const metaToken = document.querySelector('meta[name="csrf-token"]');
+                        if (metaToken) {
+                            metaToken.setAttribute('content', data.csrf_token);
+                        }
+                        lastRefreshed = Date.now();
+                    }
+                }
+            } catch (e) {
+                // Abaikan jika offline / koneksi sementara terputus
+            }
+        }
+
+        // Segarkan token saat pengguna kembali ke tab atau fokus ke jendela
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                // Segarkan jika sudah lebih dari 2 menit sejak penyegaran terakhir
+                if (Date.now() - lastRefreshed > 2 * 60 * 1000) {
+                    refreshCsrfToken();
+                }
+            }
+        });
+
+        window.addEventListener('focus', function () {
+            if (Date.now() - lastRefreshed > 2 * 60 * 1000) {
+                refreshCsrfToken();
+            }
+        });
+
+        // Segarkan token berkala setiap 5 menit jika halaman tetap terbuka
+        setInterval(refreshCsrfToken, 5 * 60 * 1000);
     })();
 </script>
 @endsection

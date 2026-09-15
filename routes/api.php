@@ -51,6 +51,7 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::get('/pos/sales/active-bills',    [PosController::class, 'apiActiveBills']);
     Route::post('/pos/sales/{id}/change-table', [PosController::class, 'apiChangeTable']);
     Route::post('/pos/sales/merge-bills',    [PosController::class, 'apiMergeBills']);
+    Route::post('/pos/sales/{id}/split',     [PosController::class, 'apiSplitBill']);
     Route::get('/pos/sales/{id}',            [PosController::class, 'apiSaleDetail']);
     Route::get('/pos/sales/{id}/receipt',    [PosController::class, 'apiReceipt']);
     Route::post('/pos/sales/{id}/mark-kitchen-printed', [PosController::class, 'apiMarkKitchenPrinted']);

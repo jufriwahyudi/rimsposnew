@@ -2056,6 +2056,13 @@ class PosController extends Controller
                         'qty' => (int)$group->sum('qty'),
                         'discount_amount' => (float)$group->sum('discount_amount'),
                         'subtotal' => (float)$group->sum('subtotal'),
+                        // Satuan ikut dikirim supaya qty tidak dibaca sebagai satuan
+                        // basis saat bill dibuka ulang (restore/split). Tanpa ini,
+                        // checkout mengirim unit_multiplier=1 untuk item multi-satuan
+                        // sehingga stok justru dikembalikan (under-deduct).
+                        'unit_id' => $first->unit_id,
+                        'unit_name' => $first->unit_name,
+                        'unit_multiplier' => (int)($first->unit_multiplier ?: 1),
                         'track_stock' => (bool)($first->variant?->track_stock ?? true),
                         'image_url' => $first->variant?->image_url,
                     ];
@@ -2231,16 +2238,26 @@ class PosController extends Controller
                     }
                 }
 
-                // Recalculate target sale totals
+                // Recalculate target sale totals.
+                // `subtotal` = sum(item.subtotal) dan item.subtotal sudah NET dari
+                // diskon per-item, jadi grand_total cukup mengurangi diskon transaksi
+                // (`discount_total`, nilai rupiah resolved) — bukan dikurangi lagi
+                // dengan sum(discount_amount) (dulu double-count).
+                //
+                // Diskon transaksi bill SUMBER juga dijumlahkan ke bill TARGET
+                // (Pendekatan A) supaya grand_total tetap benar setelah merge.
                 $targetSale->load('items');
                 $subtotal = $targetSale->items->sum('subtotal');
-                $discountTotal = $targetSale->items->sum('discount_amount');
-                $grandTotal = $subtotal - $discountTotal - ($targetSale->trans_discount ?? 0);
+
+                $mergedDiscount = (float)($targetSale->discount_total ?? 0)
+                                + (float)($sourceSale->discount_total ?? 0);
+                $grandTotal     = max(0, $subtotal - $mergedDiscount);
 
                 $targetSale->update([
-                    'subtotal' => $subtotal,
-                    'discount_total' => $discountTotal,
-                    'grand_total' => $grandTotal,
+                    'subtotal'       => $subtotal,
+                    'discount_total' => $mergedDiscount,
+                    'trans_discount' => $mergedDiscount, // sync agar apiActiveBills konsisten
+                    'grand_total'    => $grandTotal,
                 ]);
 
                 // Delete source sale
@@ -2253,6 +2270,212 @@ class PosController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal menggabungkan bill: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Split a hold bill — pindahkan sebagian item (boleh sebagian qty)
+     * ke bill hold baru, supaya satu pelanggan bisa membayar item miliknya saja.
+     * POST /api/pos/sales/{id}/split
+     *
+     * Body: { store_id, customer_name?, items: [{ variant_id, qty }] }
+     * `qty` = berapa unit dari varian tersebut yang pindah ke bill baru.
+     */
+    public function apiSplitBill(Request $request, int $id)
+    {
+        $request->validate([
+            'store_id'           => 'required|integer',
+            'items'              => 'required|array|min:1',
+            'items.*.variant_id' => 'required|integer',
+            'items.*.qty'        => 'required|integer|min:1',
+        ]);
+
+        $storeId = $request->integer('store_id');
+
+        $hasAccess = auth()->user()
+            ->stores()
+            ->where('stores.id', $storeId)
+            ->exists();
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        try {
+            $newSaleId = DB::transaction(function () use ($request, $storeId, $id) {
+                $sourceSale = Sale::with('items.batches')
+                    ->where('store_id', $storeId)
+                    ->findOrFail($id);
+
+                if ($sourceSale->status !== 'hold') {
+                    throw new \Exception('Hanya pesanan berstatus hold yang dapat dipisah');
+                }
+
+                // Item aktif (belum void) dikelompokkan per varian
+                $activeItems = $sourceSale->items
+                    ->where('status', 'sold')
+                    ->groupBy('product_variant_id');
+
+                // Validasi qty yang diminta terhadap qty yang tersedia
+                $requested = [];
+                foreach ($request->input('items') as $req) {
+                    $variantId = (int) $req['variant_id'];
+                    $qty       = (int) $req['qty'];
+
+                    $group = $activeItems->get($variantId);
+                    if (!$group || $group->isEmpty()) {
+                        throw new \Exception("Item varian #{$variantId} tidak ditemukan pada bill ini");
+                    }
+
+                    $available = (int) $group->sum('qty');
+                    $requested[$variantId] = ($requested[$variantId] ?? 0) + $qty;
+
+                    if ($requested[$variantId] > $available) {
+                        throw new \Exception(
+                            "Qty yang dipisah ({$requested[$variantId]}) melebihi qty tersedia ({$available})"
+                        );
+                    }
+                }
+
+                $originalSubtotal = (float) $sourceSale->items->where('status', 'sold')->sum('subtotal');
+
+                // ── 1. Bill hold baru untuk bagian yang dipisah ───────────────
+                $newSale = Sale::create([
+                    'store_id'        => $storeId,
+                    'invoice_number'  => $this->generateInvoice(),
+                    'table_number'    => $sourceSale->table_number,
+                    'sale_date'       => now(),
+                    'sale_type'       => $sourceSale->sale_type,
+                    'customer_name'   => $request->input('customer_name') ?: ($sourceSale->customer_name ?: 'Umum'),
+                    'customer_phone'  => $sourceSale->customer_phone,
+                    'user_id'         => auth()->id(),
+                    'sales_person_id' => $sourceSale->sales_person_id,
+                    'cash_register_id' => $sourceSale->cash_register_id,
+                    'subtotal'        => 0,
+                    'discount_total'  => 0,
+                    'trans_discount'  => 0,
+                    'tax_total'       => 0,
+                    'grand_total'     => 0,
+                    'paid_amount'     => 0,
+                    'change_amount'   => 0,
+                    'status'          => 'hold',
+                    'payment_status'  => 'unpaid',
+                ]);
+
+                // ── 2. Pindahkan item (utuh atau sebagian qty) ────────────────
+                foreach ($requested as $variantId => $qtyToMove) {
+                    $remaining = $qtyToMove;
+
+                    foreach ($activeItems->get($variantId) as $srcItem) {
+                        if ($remaining <= 0) break;
+
+                        if ($srcItem->qty <= $remaining) {
+                            // Baris pindah utuh — batch tetap menunjuk item ini
+                            $remaining -= $srcItem->qty;
+                            $srcItem->update(['sale_id' => $newSale->id]);
+                            continue;
+                        }
+
+                        // Pecah qty: perkecil baris sumber, buat baris baru di bill baru
+                        $origQty         = $srcItem->qty;
+                        $pricePerUnit    = $origQty > 0 ? ($srcItem->subtotal / $origQty) : $srcItem->price;
+                        $discountPerUnit = $origQty > 0 ? ($srcItem->discount_amount / $origQty) : 0;
+                        $newQty          = $origQty - $remaining;
+
+                        $srcItem->update([
+                            'qty'             => $newQty,
+                            'subtotal'        => round($pricePerUnit * $newQty),
+                            'discount_amount' => round($discountPerUnit * $newQty),
+                        ]);
+
+                        $newItem = SaleItem::create([
+                            'sale_id'                 => $newSale->id,
+                            'product_id'              => $srcItem->product_id,
+                            'product_variant_id'      => $srcItem->product_variant_id,
+                            'sku'                     => $srcItem->sku,
+                            'product_name'            => $srcItem->product_name,
+                            'price'                   => $srcItem->price,
+                            'qty'                     => $remaining,
+                            'unit_id'                 => $srcItem->unit_id,
+                            'unit_name'               => $srcItem->unit_name,
+                            'unit_multiplier'         => $srcItem->unit_multiplier,
+                            'discount_amount'         => round($discountPerUnit * $remaining),
+                            'subtotal'                => round($pricePerUnit * $remaining),
+                            'notes'                   => $srcItem->notes,
+                            'staff_user_id'           => $srcItem->staff_user_id,
+                            'staff_commission_type'   => $srcItem->staff_commission_type,
+                            'staff_commission_rate'   => $srcItem->staff_commission_rate,
+                            'staff_commission_amount' => $srcItem->staff_commission_amount,
+                            'is_concoction'           => $srcItem->is_concoction,
+                            'concoction_name'         => $srcItem->concoction_name,
+                            'concoction_form'         => $srcItem->concoction_form,
+                            'dosage_instruction'      => $srcItem->dosage_instruction,
+                            'usage_type'              => $srcItem->usage_type,
+                            'tuslah_fee'              => $srcItem->tuslah_fee,
+                            'embalase_fee'            => $srcItem->embalase_fee,
+                        ]);
+
+                        // Pindahkan record batch stok sejumlah qty yang dipisah
+                        $this->splitBatches($srcItem, $newItem, $remaining);
+
+                        $remaining = 0;
+                    }
+                }
+
+                // ── 3. Hitung ulang kedua bill ────────────────────────────────
+                $newSale->load('items');
+                $newItems    = $newSale->items->where('status', 'sold');
+                $newSubtotal = (float) $newItems->sum('subtotal');
+
+                // Diskon transaksi dibagi proporsional terhadap porsi subtotal.
+                // Pakai `discount_total` (nilai rupiah hasil resolve), BUKAN
+                // `trans_discount` yang menyimpan input mentah (mis. "10" = 10%).
+                // Catatan: `subtotal` = sum(item.subtotal) dan item.subtotal sudah
+                // NET dari diskon per-item, jadi grand_total TIDAK boleh mengurangi
+                // diskon per-item lagi (dulu double-count).
+                $origTransDiscount = (float) $sourceSale->discount_total;
+                $newTransDiscount  = $originalSubtotal > 0
+                    ? round($origTransDiscount * ($newSubtotal / $originalSubtotal))
+                    : 0;
+
+                $newSale->update([
+                    'subtotal'       => $newSubtotal,
+                    'discount_total' => $newTransDiscount,
+                    'trans_discount' => $newTransDiscount,
+                    'grand_total'    => $newSubtotal - $newTransDiscount,
+                ]);
+
+                $sourceSale->refresh();
+                $sourceSale->load('items');
+                $srcItems    = $sourceSale->items->where('status', 'sold');
+                $srcSubtotal = (float) $srcItems->sum('subtotal');
+                $srcTransDiscount = max(0, $origTransDiscount - $newTransDiscount);
+
+                if ($srcItems->isEmpty()) {
+                    // Seluruh item pindah — bill sumber tidak diperlukan lagi
+                    $sourceSale->delete();
+                } else {
+                    $sourceSale->update([
+                        'subtotal'       => $srcSubtotal,
+                        'discount_total' => $srcTransDiscount,
+                        'trans_discount' => $srcTransDiscount,
+                        'grand_total'    => $srcSubtotal - $srcTransDiscount,
+                    ]);
+                }
+
+                return $newSale->id;
+            });
+
+            return response()->json([
+                'message' => 'Bill berhasil dipisah',
+                'data'    => [
+                    'new_sale_id' => $newSaleId,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal memisah bill: ' . $e->getMessage()
             ], 500);
         }
     }

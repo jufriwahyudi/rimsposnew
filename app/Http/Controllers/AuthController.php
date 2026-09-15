@@ -38,16 +38,23 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $selectedRole = session('selected_role');
-        $userId = Auth::user()->id;
+        if (Auth::check()) {
+            $selectedRole = session('selected_role');
+            $userId = Auth::id();
 
-        // Hapus cache saat logout
-        Cache::forget('menu_role_' . $selectedRole);
-        Cache::forget('role_access_' . $selectedRole);
-        Cache::forget('role_list_' . $userId);
-        session()->forget('store_id');
+            // Hapus cache saat logout
+            if ($selectedRole) {
+                Cache::forget('menu_role_' . $selectedRole);
+                Cache::forget('role_access_' . $selectedRole);
+            }
+            if ($userId) {
+                Cache::forget('role_list_' . $userId);
+            }
+            session()->forget('store_id');
 
-        Auth::logout();
+            Auth::logout();
+        }
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect('/login');
