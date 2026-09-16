@@ -654,17 +654,23 @@ class ProdukController extends Controller
             ->with('success', 'Produk berhasil diperbarui');
     }
 
-    public function destroy(Product $product)
+    public function destroy(Request $request, $id)
     {
-        // Pastikan produk milik store aktif
-        if ($product->store_id && $product->store_id != session('store_id')) {
+        $product = Product::withoutGlobalScopes()->findOrFail($id);
+
+        // Pastikan produk milik store aktif jika session/store_id tersedia
+        $currentStoreId = session('store_id') ?: $request->input('store_id');
+        if ($product->store_id && $currentStoreId && $product->store_id != $currentStoreId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda tidak memiliki akses untuk menghapus produk ini.',
             ], 403);
         }
 
-        $variantIds = $product->variants()->pluck('id')->toArray();
+        $variantIds = ProductVariant::withoutGlobalScopes()
+            ->where('product_id', $product->id)
+            ->pluck('id')
+            ->toArray();
 
         $hasTransactions = false;
         if (!empty($variantIds)) {
@@ -688,16 +694,22 @@ class ProdukController extends Controller
         try {
             if ($hasTransactions) {
                 // SOFT DELETE: Ada riwayat transaksi, non-aktifkan varian & unit, lalu soft delete produk
-                DB::transaction(function () use ($product) {
-                    $product->variants()->update(['is_active' => 'N']);
+                DB::transaction(function () use ($product, $variantIds) {
+                    if (!empty($variantIds)) {
+                        ProductVariant::withoutGlobalScopes()
+                            ->whereIn('id', $variantIds)
+                            ->update(['is_active' => 'N']);
+                    }
                     $product->units()->update(['is_active' => false]);
                     $product->delete();
                 });
 
+                Log::info("Produk ID {$id} berhasil di-soft-delete.", ['store_id' => $currentStoreId]);
+
                 return response()->json([
                     'success' => true,
                     'type'    => 'soft_delete',
-                    'message' => 'Produk memiliki riwayat transaksi, sehingga produk diarsipkan (soft delete). Produk tidak akan muncul di POS maupun transaksi baru.',
+                    'message' => 'Produk memiliki riwayat transaksi, sehingga produk diarsipkan (soft delete). deleted_at telah terisi dan produk tidak akan muncul lagi di POS.',
                 ], 200);
             } else {
                 // HARD DELETE: Belum ada transaksi sama sekali, hapus bersih permanen
@@ -707,8 +719,8 @@ class ProdukController extends Controller
                         \App\Models\ProductVariantBarcode::whereIn('product_variant_id', $variantIds)->delete();
                         \App\Models\DiscountItem::whereIn('product_variant_id', $variantIds)->delete();
                         \App\Models\StockBatch::whereIn('product_variant_id', $variantIds)->delete();
+                        ProductVariant::withoutGlobalScopes()->whereIn('id', $variantIds)->delete();
                     }
-                    $product->variants()->delete();
                     $product->units()->delete();
                     \App\Models\ProductRecipe::where('product_id', $product->id)->delete();
 
@@ -719,6 +731,8 @@ class ProdukController extends Controller
                     $product->forceDelete();
                 });
 
+                Log::info("Produk ID {$id} berhasil di-hard-delete.", ['store_id' => $currentStoreId]);
+
                 return response()->json([
                     'success' => true,
                     'type'    => 'hard_delete',
@@ -726,7 +740,7 @@ class ProdukController extends Controller
                 ], 200);
             }
         } catch (\Exception $e) {
-            Log::error('Error saat menghapus produk: ' . $e->getMessage(), ['product_id' => $product->id]);
+            Log::error('Error saat menghapus produk: ' . $e->getMessage(), ['product_id' => $id]);
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat menghapus produk: ' . $e->getMessage(),
