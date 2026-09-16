@@ -371,6 +371,61 @@
                 },
             });
 
+            // Handle Hapus Produk
+            $('#tbl-produk').on('click', '.btn-delete-produk', function() {
+                const id = $(this).data('id');
+                const nama = $(this).data('nama') || 'produk ini';
+                const url = $(this).data('url');
+
+                Swal.fire({
+                    title: 'Hapus Produk?',
+                    html: `Apakah Anda yakin ingin menghapus produk <strong>"${nama}"</strong>?<br><small class="text-muted">Jika belum ada transaksi, produk akan dihapus permanen. Jika sudah ada transaksi, produk akan diarsipkan (soft delete) sehingga tidak muncul lagi di POS.</small>`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="bi bi-trash"></i> Ya, Hapus',
+                    cancelButtonText: 'Batal',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        Swal.fire({
+                            title: 'Memproses...',
+                            text: 'Sedang menghapus produk...',
+                            allowOutsideClick: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+
+                        $.ajax({
+                            url: url,
+                            type: 'POST',
+                            data: {
+                                _method: 'DELETE',
+                                _token: '{{ csrf_token() }}'
+                            },
+                            success: function(res) {
+                                if (res.success) {
+                                    Swal.fire({
+                                        title: 'Berhasil!',
+                                        text: res.message,
+                                        icon: 'success'
+                                    });
+                                    $('#tbl-produk').DataTable().ajax.reload(null, false);
+                                } else {
+                                    Swal.fire('Gagal', res.message || 'Gagal menghapus produk.', 'error');
+                                }
+                            },
+                            error: function(xhr) {
+                                const err = xhr.responseJSON;
+                                Swal.fire('Gagal', (err && err.message) ? err.message : 'Terjadi kesalahan sistem.', 'error');
+                            }
+                        });
+                    }
+                });
+            });
+
             // Handle Import Form Submission
             $('#form-import').on('submit', function(e) {
                 e.preventDefault();

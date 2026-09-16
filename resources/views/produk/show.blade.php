@@ -337,6 +337,9 @@
                     <a href="{{ route('produk.edit', $product->id) }}" class="btn btn-primary btn-sm rounded-3 px-3">
                         <i class="bi bi-pencil me-1"></i> Edit Produk
                     </a>
+                    <button type="button" class="btn btn-danger btn-sm rounded-3 px-3" id="btn-delete-current-product">
+                        <i class="bi bi-trash me-1"></i> Hapus Produk
+                    </button>
                     <a href="{{ route('produk.index') }}" class="btn btn-outline-secondary btn-sm rounded-3 px-3">
                         <i class="bi bi-arrow-left me-1"></i> Kembali
                     </a>
@@ -1153,6 +1156,61 @@
                         Swal.fire('Error', 'Terjadi kesalahan saat generate barcode baru', 'error');
                     });
             });
+
+            // === Hapus Produk Current ===
+            const btnDeleteCurrentProduct = document.getElementById('btn-delete-current-product');
+            if (btnDeleteCurrentProduct) {
+                btnDeleteCurrentProduct.addEventListener('click', function() {
+                    Swal.fire({
+                        title: 'Hapus Produk?',
+                        html: `Apakah Anda yakin ingin menghapus produk <strong>"{{ addslashes($product->nama_produk) }}"</strong>?<br><small class="text-muted">Jika belum ada transaksi, produk akan dihapus permanen. Jika sudah ada transaksi, produk akan diarsipkan (soft delete) sehingga tidak muncul lagi di POS.</small>`,
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#dc3545',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: '<i class="bi bi-trash"></i> Ya, Hapus',
+                        cancelButtonText: 'Batal',
+                        reverseButtons: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            Swal.fire({
+                                title: 'Memproses...',
+                                text: 'Sedang menghapus produk...',
+                                allowOutsideClick: false,
+                                didOpen: () => {
+                                    Swal.showLoading();
+                                }
+                            });
+
+                            fetch('{{ route('produk.destroy', $product->id) }}', {
+                                method: 'DELETE',
+                                headers: {
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json'
+                                }
+                            })
+                            .then(r => r.json())
+                            .then(res => {
+                                if (res.success) {
+                                    Swal.fire({
+                                        title: 'Berhasil!',
+                                        text: res.message,
+                                        icon: 'success'
+                                    }).then(() => {
+                                        window.location.href = '{{ route('produk.index') }}';
+                                    });
+                                } else {
+                                    Swal.fire('Gagal', res.message || 'Gagal menghapus produk.', 'error');
+                                }
+                            })
+                            .catch(err => {
+                                Swal.fire('Gagal', 'Terjadi kesalahan sistem: ' + err.message, 'error');
+                            });
+                        }
+                    });
+                });
+            }
         });
     </script>
 @endpush

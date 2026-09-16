@@ -629,6 +629,7 @@ class PosController extends Controller
 
         // 1. Cek SKU / barcode aktif pada variant
         $variant = ProductVariant::with(['product.tenant', 'product.category', 'product.units', 'variantAttributes.value', 'barcodeActive'])
+            ->whereHas('product')
             ->where(function ($q2) use ($q) {
                 $q2->where('sku', $q)
                     ->orWhereHas('barcodes', function ($q3) use ($q) {
@@ -648,6 +649,7 @@ class PosController extends Controller
         // 1.1 Cek barcode pada satuan kemasan bertingkat (product_units.barcode)
         if ($hasMultiUnit) {
             $unitMatch = \App\Models\ProductUnit::with(['product.tenant', 'product.category', 'product.units', 'product.variants.variantAttributes.value', 'variant'])
+                ->whereHas('product')
                 ->where('barcode', $q)
                 ->where('is_active', true)
                 ->first();
@@ -673,6 +675,7 @@ class PosController extends Controller
 
         // 2. Search nama produk
         $variants = ProductVariant::with(['product.tenant', 'product.category', 'product.units', 'variantAttributes.value'])
+            ->whereHas('product')
             ->where(function ($q2) use ($q) {
                 $q2->where('variant_name', 'like', "%{$q}%")
                     ->orWhereHas('product', function ($q3) use ($q) {
@@ -739,6 +742,7 @@ class PosController extends Controller
 
         // Search database using token-based matching (every word in search query must match some product/variant attribute)
         $variants = ProductVariant::with(['product.tenant', 'product.category', 'variantAttributes.value'])
+            ->whereHas('product')
             ->where('is_active', 'Y')
             ->where(function ($query) use ($searchTerm) {
                 $words = array_filter(explode(' ', $searchTerm));
@@ -844,7 +848,7 @@ class PosController extends Controller
         $barcode = strtoupper(trim($request->input('barcode')));
 
         // Find the variant within the store
-        $variant = ProductVariant::where('store_id', $storeId)->find($variantId);
+        $variant = ProductVariant::where('store_id', $storeId)->whereHas('product')->find($variantId);
         if (!$variant) {
             return response()->json(['message' => 'Varian produk tidak ditemukan di toko Anda'], 404);
         }

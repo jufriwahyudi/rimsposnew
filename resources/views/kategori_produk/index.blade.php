@@ -91,19 +91,30 @@
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        <button class="btn btn-sm btn-warning btn-edit-kat" 
-                                            data-id="{{ $cat->id }}"
-                                            data-name="{{ $cat->name }}" 
-                                            data-printer-id="{{ $cat->printer_id ?? ($printers->firstWhere('code', $cat->station)?->id ?? '') }}"
-                                            data-sort="{{ $cat->sort_order }}"
-                                            data-active="{{ $cat->is_active ? '1' : '0' }}">
-                                            <i class="material-icons-outlined" style="font-size:15px">edit</i>
-                                        </button>
-                                        <button class="btn btn-sm btn-danger btn-delete-kat" 
-                                            data-id="{{ $cat->id }}"
-                                            data-name="{{ $cat->name }}">
-                                            <i class="material-icons-outlined" style="font-size:15px">delete</i>
-                                        </button>
+                                        <div class="d-inline-flex gap-1">
+                                            <button class="btn btn-sm btn-info text-white btn-move-kat" 
+                                                data-id="{{ $cat->id }}"
+                                                data-name="{{ $cat->name }}"
+                                                data-count="{{ $cat->products_count }}"
+                                                title="Pindahkan Produk ke Kategori Lain">
+                                                <i class="material-icons-outlined" style="font-size:15px">swap_horiz</i>
+                                            </button>
+                                            <button class="btn btn-sm btn-warning btn-edit-kat" 
+                                                data-id="{{ $cat->id }}"
+                                                data-name="{{ $cat->name }}" 
+                                                data-printer-id="{{ $cat->printer_id ?? ($printers->firstWhere('code', $cat->station)?->id ?? '') }}"
+                                                data-sort="{{ $cat->sort_order }}"
+                                                data-active="{{ $cat->is_active ? '1' : '0' }}"
+                                                title="Edit Kategori">
+                                                <i class="material-icons-outlined" style="font-size:15px">edit</i>
+                                            </button>
+                                            <button class="btn btn-sm btn-danger btn-delete-kat" 
+                                                data-id="{{ $cat->id }}"
+                                                data-name="{{ $cat->name }}"
+                                                title="Hapus Kategori">
+                                                <i class="material-icons-outlined" style="font-size:15px">delete</i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -160,6 +171,104 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                         <button type="submit" class="btn btn-primary" id="btnSimpanKat">Simpan</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Modal Pindah Produk Antar Kategori --}}
+    <div class="modal fade" id="modalPindahProduk" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+            <form id="formPindahProduk">
+                @csrf
+                <input type="hidden" id="pindah_from_category_id" value="">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="material-icons-outlined text-info align-middle me-1">swap_horiz</i> Pindahkan Produk ke Kategori Lain</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info border-0 bg-info-subtle p-3 rounded-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="small text-muted">Kategori Asal:</div>
+                                    <h6 class="fw-bold mb-0 text-dark" id="pindah_from_category_name">-</h6>
+                                </div>
+                                <span class="badge bg-primary px-3 py-2" id="pindah_source_count_badge">0 Produk</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Pilih Kategori Tujuan <span class="text-danger">*</span></label>
+                            <select class="form-select" id="pindah_target_category_id" required>
+                                <option value="">-- Pilih Kategori Tujuan --</option>
+                                @foreach($categories as $c)
+                                    <option value="{{ $c->id }}" data-name="{{ $c->name }}">{{ $c->name }} ({{ $c->products_count }} produk)</option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Produk akan dipindahkan ke kategori yang dipilih di atas.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Opsi Pemindahan:</label>
+                            <div class="d-flex gap-3 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="move_option" id="opt_move_all" value="all" checked>
+                                    <label class="form-check-label fw-semibold" for="opt_move_all">
+                                        Pindahkan Semua Produk dalam Kategori ini
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="move_option" id="opt_move_selected" value="selected">
+                                    <label class="form-check-label fw-semibold" for="opt_move_selected">
+                                        Pilih Produk Tertentu
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Loading & List of Products -->
+                        <div id="pindah-loading" class="text-center py-4 d-none">
+                            <div class="spinner-border spinner-border-sm text-primary"></div> Memuat daftar produk...
+                        </div>
+
+                        <div id="pindah-empty-products" class="alert alert-warning border-0 p-3 rounded-3 d-none">
+                            Kategori ini belum memiliki produk untuk dipindahkan.
+                        </div>
+
+                        <div id="pindah-product-list-container" class="d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small fw-semibold text-muted">Daftar Produk yang akan dipindahkan:</span>
+                                <div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btn-select-all-move">Pilih Semua</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btn-deselect-all-move">Batal Semua</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive border rounded-3" style="max-height: 250px; overflow-y: auto;">
+                                <table class="table table-sm table-hover align-middle mb-0" id="tbl-pindah-products">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th width="40" class="text-center">
+                                                <input type="checkbox" class="form-check-input" id="check-all-products" checked>
+                                            </th>
+                                            <th width="140">Kode</th>
+                                            <th>Nama Produk</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Rendered via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary btn-sm" id="btnSubmitPindah">
+                            <i class="material-icons-outlined align-middle" style="font-size:16px">swap_horiz</i> Pindahkan Produk
+                        </button>
                     </div>
                 </div>
             </form>
@@ -252,6 +361,167 @@
                         }
                     })
                     .catch(err => alert('Terjadi kesalahan: ' + err.message));
+            });
+        });
+
+        // Pindahkan Produk Antar Kategori
+        const modalPindah = new bootstrap.Modal(document.getElementById('modalPindahProduk'));
+        let currentProductsList = [];
+
+        document.querySelectorAll('.btn-move-kat').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.dataset.id;
+                const name = this.dataset.name;
+                const count = parseInt(this.dataset.count) || 0;
+
+                document.getElementById('pindah_from_category_id').value = id;
+                document.getElementById('pindah_from_category_name').textContent = name;
+                document.getElementById('pindah_source_count_badge').textContent = `${count} Produk`;
+
+                // Reset dropdown target
+                const selectTarget = document.getElementById('pindah_target_category_id');
+                selectTarget.value = '';
+                Array.from(selectTarget.options).forEach(opt => {
+                    if (opt.value === id) {
+                        opt.style.display = 'none';
+                        opt.disabled = true;
+                    } else {
+                        opt.style.display = '';
+                        opt.disabled = false;
+                    }
+                });
+
+                // Reset radio option
+                document.getElementById('opt_move_all').checked = true;
+                document.getElementById('pindah-product-list-container').classList.add('d-none');
+                document.getElementById('pindah-empty-products').classList.add('d-none');
+                document.getElementById('pindah-loading').classList.remove('d-none');
+                document.getElementById('check-all-products').checked = true;
+
+                modalPindah.show();
+
+                // Fetch produk dalam kategori asal
+                fetch(`{{ url('kategori-produk') }}/${id}/products`, {
+                    headers: { 'Accept': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(res => {
+                    document.getElementById('pindah-loading').classList.add('d-none');
+                    currentProductsList = res.products || [];
+
+                    const tbody = document.querySelector('#tbl-pindah-products tbody');
+                    tbody.innerHTML = '';
+
+                    if (currentProductsList.length === 0) {
+                        document.getElementById('pindah-empty-products').classList.remove('d-none');
+                        document.getElementById('btnSubmitPindah').disabled = true;
+                    } else {
+                        document.getElementById('btnSubmitPindah').disabled = false;
+                        currentProductsList.forEach(p => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td class="text-center">
+                                    <input type="checkbox" class="form-check-input product-check-item" value="${p.id}" checked>
+                                </td>
+                                <td><span class="badge bg-light text-dark border">${p.kode_produk || '-'}</span></td>
+                                <td class="fw-semibold">${p.nama_produk}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('pindah-loading').classList.add('d-none');
+                    alert('Gagal memuat produk: ' + err.message);
+                });
+            });
+        });
+
+        // Toggle radio opsi pemindahan
+        document.querySelectorAll('input[name="move_option"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const container = document.getElementById('pindah-product-list-container');
+                if (this.value === 'selected' && currentProductsList.length > 0) {
+                    container.classList.remove('d-none');
+                } else {
+                    container.classList.add('d-none');
+                }
+            });
+        });
+
+        // Check/Uncheck all
+        document.getElementById('check-all-products')?.addEventListener('change', function() {
+            const isChecked = this.checked;
+            document.querySelectorAll('.product-check-item').forEach(c => c.checked = isChecked);
+        });
+
+        document.getElementById('btn-select-all-move')?.addEventListener('click', function() {
+            document.getElementById('check-all-products').checked = true;
+            document.querySelectorAll('.product-check-item').forEach(c => c.checked = true);
+        });
+
+        document.getElementById('btn-deselect-all-move')?.addEventListener('click', function() {
+            document.getElementById('check-all-products').checked = false;
+            document.querySelectorAll('.product-check-item').forEach(c => c.checked = false);
+        });
+
+        // Submit form pindah produk
+        document.getElementById('formPindahProduk').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fromId = document.getElementById('pindah_from_category_id').value;
+            const targetId = document.getElementById('pindah_target_category_id').value;
+            const moveAll = document.getElementById('opt_move_all').checked;
+
+            if (!targetId) {
+                alert('Silakan pilih kategori tujuan terlebih dahulu.');
+                return;
+            }
+
+            let productIds = [];
+            if (!moveAll) {
+                document.querySelectorAll('.product-check-item:checked').forEach(c => {
+                    productIds.push(parseInt(c.value));
+                });
+                if (productIds.length === 0) {
+                    alert('Silakan pilih minimal satu produk untuk dipindahkan.');
+                    return;
+                }
+            }
+
+            const btnSubmit = document.getElementById('btnSubmitPindah');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Memproses...';
+
+            fetch(`{{ url('kategori-produk') }}/${fromId}/move-products`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    target_category_id: targetId,
+                    move_all: moveAll,
+                    product_ids: productIds
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="material-icons-outlined align-middle" style="font-size:16px">swap_horiz</i> Pindahkan Produk';
+
+                if (data.success) {
+                    modalPindah.hide();
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert(data.message || 'Gagal memindahkan produk.');
+                }
+            })
+            .catch(err => {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="material-icons-outlined align-middle" style="font-size:16px">swap_horiz</i> Pindahkan Produk';
+                alert('Terjadi kesalahan: ' + err.message);
             });
         });
     </script>

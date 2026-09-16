@@ -137,11 +137,13 @@ class ProdukController extends Controller
         return DataTables::of($query)
             ->addColumn('kategori', fn($p) => $p->category?->name ?? '-')
             ->addColumn('aksi', function ($p) {
-                $edit   = route('produk.edit', $p);
-                $detail = route('produk.show', $p);
+                $edit    = route('produk.edit', $p);
+                $detail  = route('produk.show', $p);
+                $destroy = route('produk.destroy', $p);
                 return '<div class="d-inline-flex justify-content-center gap-1 text-nowrap">'
                     . '<a href="' . $edit . '" class="btn btn-sm btn-warning"><i class="bi bi-pencil-square"></i> Edit</a>'
                     . '<a href="' . $detail . '" class="btn btn-sm btn-info text-white"><i class="bi bi-eye"></i> Detail</a>'
+                    . '<button type="button" class="btn btn-sm btn-danger btn-delete-produk" data-id="' . $p->id . '" data-nama="' . e($p->nama_produk) . '" data-url="' . $destroy . '"><i class="bi bi-trash"></i> Hapus</button>'
                     . '</div>';
             })
             ->filterColumn('nama_produk', function ($q, $keyword) {
@@ -651,6 +653,87 @@ class ProdukController extends Controller
             ->route('produk.edit', $product->id)
             ->with('success', 'Produk berhasil diperbarui');
     }
+
+    public function destroy(Product $product)
+    {
+        // Pastikan produk milik store aktif
+        if ($product->store_id && $product->store_id != session('store_id')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses untuk menghapus produk ini.',
+            ], 403);
+        }
+
+        $variantIds = $product->variants()->pluck('id')->toArray();
+
+        $hasTransactions = false;
+        if (!empty($variantIds)) {
+            $hasSales = \App\Models\SaleItem::whereIn('product_variant_id', $variantIds)->exists();
+            $hasPurchases = \App\Models\PurchaseOrderItem::whereIn('product_variant_id', $variantIds)->exists();
+            $hasMovements = \App\Models\StockMovement::whereIn('product_variant_id', $variantIds)->exists();
+            $hasTransfers = \App\Models\StockTransferItem::whereIn('product_variant_id', $variantIds)->exists();
+            $hasAdjustments = \App\Models\StockAdjustmentItem::whereIn('product_variant_id', $variantIds)->exists();
+            $hasOpnames = \App\Models\StockOpnameItem::whereIn('product_variant_id', $variantIds)->exists();
+            $hasBatches = \App\Models\StockBatch::whereIn('product_variant_id', $variantIds)
+                ->where(function ($q) {
+                    $q->where('qty_masuk', '>', 0)
+                        ->orWhere('qty_sisa', '>', 0)
+                        ->orWhereHas('movements');
+                })->exists();
+            $hasServiceOrders = \App\Models\ServiceOrderItem::whereIn('product_variant_id', $variantIds)->exists();
+
+            $hasTransactions = $hasSales || $hasPurchases || $hasMovements || $hasTransfers || $hasAdjustments || $hasOpnames || $hasBatches || $hasServiceOrders;
+        }
+
+        try {
+            if ($hasTransactions) {
+                // SOFT DELETE: Ada riwayat transaksi, non-aktifkan varian & unit, lalu soft delete produk
+                DB::transaction(function () use ($product) {
+                    $product->variants()->update(['is_active' => 'N']);
+                    $product->units()->update(['is_active' => false]);
+                    $product->delete();
+                });
+
+                return response()->json([
+                    'success' => true,
+                    'type'    => 'soft_delete',
+                    'message' => 'Produk memiliki riwayat transaksi, sehingga produk diarsipkan (soft delete). Produk tidak akan muncul di POS maupun transaksi baru.',
+                ], 200);
+            } else {
+                // HARD DELETE: Belum ada transaksi sama sekali, hapus bersih permanen
+                DB::transaction(function () use ($product, $variantIds) {
+                    if (!empty($variantIds)) {
+                        \App\Models\VariantAttribute::whereIn('product_variant_id', $variantIds)->delete();
+                        \App\Models\ProductVariantBarcode::whereIn('product_variant_id', $variantIds)->delete();
+                        \App\Models\DiscountItem::whereIn('product_variant_id', $variantIds)->delete();
+                        \App\Models\StockBatch::whereIn('product_variant_id', $variantIds)->delete();
+                    }
+                    $product->variants()->delete();
+                    $product->units()->delete();
+                    \App\Models\ProductRecipe::where('product_id', $product->id)->delete();
+
+                    if ($product->image && \Illuminate\Support\Facades\Storage::disk('public')->exists($product->image)) {
+                        \Illuminate\Support\Facades\Storage::disk('public')->delete($product->image);
+                    }
+
+                    $product->forceDelete();
+                });
+
+                return response()->json([
+                    'success' => true,
+                    'type'    => 'hard_delete',
+                    'message' => 'Produk belum memiliki riwayat transaksi dan berhasil dihapus permanen dari sistem.',
+                ], 200);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error saat menghapus produk: ' . $e->getMessage(), ['product_id' => $product->id]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menghapus produk: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function storeVariant(Request $request)
     {
         $store = Store::find(session('store_id'));

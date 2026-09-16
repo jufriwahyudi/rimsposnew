@@ -91,6 +91,68 @@ class ProductCategoryController extends Controller
         ]);
     }
 
+    public function getProducts($id)
+    {
+        $category = ProductCategory::where('store_id', session('store_id'))->findOrFail($id);
+
+        $products = $category->products()
+            ->select('id', 'nama_produk', 'kode_produk')
+            ->orderBy('nama_produk')
+            ->get();
+
+        return response()->json([
+            'success'  => true,
+            'category' => [
+                'id'   => $category->id,
+                'name' => $category->name,
+            ],
+            'products' => $products,
+        ]);
+    }
+
+    public function moveProducts(Request $request, $id)
+    {
+        $sourceCategory = ProductCategory::where('store_id', session('store_id'))->findOrFail($id);
+
+        $request->validate([
+            'target_category_id' => [
+                'required',
+                'integer',
+                function ($attribute, $value, $fail) use ($sourceCategory) {
+                    if ($value == $sourceCategory->id) {
+                        $fail('Kategori tujuan tidak boleh sama dengan kategori asal.');
+                    }
+                    $exists = ProductCategory::where('store_id', session('store_id'))
+                        ->where('id', $value)
+                        ->exists();
+                    if (!$exists) {
+                        $fail('Kategori tujuan tidak ditemukan di toko ini.');
+                    }
+                },
+            ],
+            'product_ids'   => 'nullable|array',
+            'product_ids.*' => 'integer|exists:products,id',
+            'move_all'      => 'nullable|boolean',
+        ]);
+
+        $targetCategory = ProductCategory::findOrFail($request->target_category_id);
+
+        $query = \App\Models\Product::where('store_id', session('store_id'))
+            ->where('category_id', $sourceCategory->id);
+
+        if (!$request->boolean('move_all') && !empty($request->product_ids)) {
+            $query->whereIn('id', $request->product_ids);
+        }
+
+        $count = $query->update(['category_id' => $targetCategory->id]);
+
+        return response()->json([
+            'success'     => true,
+            'message'     => "Berhasil memindahkan {$count} produk ke kategori \"{$targetCategory->name}\".",
+            'moved_count' => $count,
+        ]);
+    }
+
     public function destroy($id)
     {
         $productCategory = ProductCategory::findOrFail($id);
@@ -98,7 +160,7 @@ class ProductCategoryController extends Controller
         if ($productCategory->products()->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Kategori tidak dapat dihapus karena masih terhubung dengan ' . $productCategory->products()->count() . ' produk.',
+                'message' => 'Kategori tidak dapat dihapus karena masih terhubung dengan ' . $productCategory->products()->count() . ' produk. Silakan gunakan tombol "Pindah Produk" untuk memindahkan produk ke kategori lain terlebih dahulu.',
             ], 422);
         }
 

@@ -183,6 +183,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::post('/produk/import/proses-stok', [ProdukController::class, 'importStockProses'])->name('produk.import.proses-stok');
     Route::resource('produk', ProdukController::class);
     Route::resource('kategori-produk', ProductCategoryController::class);
+    Route::get('/kategori-produk/{category}/products', [ProductCategoryController::class, 'getProducts'])->name('kategori-produk.products');
+    Route::post('/kategori-produk/{category}/move-products', [ProductCategoryController::class, 'moveProducts'])->name('kategori-produk.move-products');
 
     // Biaya Operasional
     Route::get('/expenses/datatables', [ExpenseController::class, 'datatables'])->name('expenses.datatables');
