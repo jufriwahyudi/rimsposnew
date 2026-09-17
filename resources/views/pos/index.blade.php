@@ -576,6 +576,26 @@
     .pos-premium-bar label {
         color: #5b21b6;
     }
+
+    /*
+     * Bootstrap's .modal-dialog-scrollable expects .modal-body to be a direct
+     * flex child of .modal-content (see .modal-dialog-scrollable .modal-body
+     * { overflow-y: auto } + .modal-content { max-height:100%; overflow:hidden }).
+     *
+     * Modal "Tutup Kasir" wraps .modal-body + .modal-footer in a <form>, which
+     * breaks that chain: the form is a plain block, so .modal-body's
+     * `flex: 1 1 auto` is inert and its `overflow-y: auto` has no height to
+     * scroll against. The form then outgrows .modal-content and its bottom —
+     * including the submit button — gets clipped with no way to reach it.
+     *
+     * Making the form itself a flex column restores the height chain.
+     */
+    .modal-dialog-scrollable .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
 </style>
 @endpush
 
