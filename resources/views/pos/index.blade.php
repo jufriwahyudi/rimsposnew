@@ -583,28 +583,11 @@
 <script>
     window.AKUN_BANK = @json($akunkas);
     window.AKUN_KASIR = '{{ $akunkasir }}';
-    window.PRINTER_TYPE = '{{ $store->printer_type ?? '
-    80 mm ' }}';
-    window.ENABLE_CASH_REGISTER = {
-        {
-            $store - > enable_cash_register ? 'true' : 'false'
-        }
-    };
-    window.ACTIVE_REGISTER_ID = {
-        {
-            $activeRegister ? $activeRegister - > id : 'null'
-        }
-    };
-    window.IS_STALE_SHIFT = {
-        {
-            (!empty($registerFreshness) && $registerFreshness['is_stale']) ? 'true' : 'false'
-        }
-    };
-    window.MUST_CLOSE_SHIFT = {
-        {
-            (!empty($registerFreshness) && $registerFreshness['must_close']) ? 'true' : 'false'
-        }
-    };
+    window.PRINTER_TYPE = '{{ $store->printer_type ?? '80mm' }}';
+    window.ENABLE_CASH_REGISTER = {{ $store->enable_cash_register ? 'true' : 'false' }};
+    window.ACTIVE_REGISTER_ID = {{ $activeRegister ? $activeRegister->id : 'null' }};
+    window.IS_STALE_SHIFT = {{ (!empty($registerFreshness) && $registerFreshness['is_stale']) ? 'true' : 'false' }};
+    window.MUST_CLOSE_SHIFT = {{ (!empty($registerFreshness) && $registerFreshness['must_close']) ? 'true' : 'false' }};
 </script>
 @endpush
 

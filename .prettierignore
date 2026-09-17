@@ -1,0 +1,4 @@
+# Blade templates: Prettier parses these as plain HTML/JS and destroys Blade syntax
+# ({{ }} gets split into { { , -> gets spaced into - >), which breaks rendered pages.
+# Never let a formatter touch these files.
+resources/views/**/*.blade.php
