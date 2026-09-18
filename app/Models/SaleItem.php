@@ -83,11 +83,10 @@ class SaleItem extends Model
 
     public function setKdsStatusAttribute($value)
     {
+        $this->fnbDetailData['kds_status'] = $value;
         if ($this->exists) {
             $this->fnbDetail()->updateOrCreate([], ['kds_status' => $value]);
             $this->unsetRelation('fnbDetail');
-        } else {
-            $this->fnbDetailData['kds_status'] = $value;
         }
     }
 
@@ -98,11 +97,10 @@ class SaleItem extends Model
 
     public function setKitchenPrintedQtyAttribute($value)
     {
+        $this->fnbDetailData['kitchen_printed_qty'] = $value;
         if ($this->exists) {
             $this->fnbDetail()->updateOrCreate([], ['kitchen_printed_qty' => $value]);
             $this->unsetRelation('fnbDetail');
-        } else {
-            $this->fnbDetailData['kitchen_printed_qty'] = $value;
         }
     }
 
@@ -113,11 +111,10 @@ class SaleItem extends Model
 
     public function setCommissionTypeAttribute($value)
     {
+        $this->fnbDetailData['commission_type'] = $value;
         if ($this->exists) {
             $this->fnbDetail()->updateOrCreate([], ['commission_type' => $value]);
             $this->unsetRelation('fnbDetail');
-        } else {
-            $this->fnbDetailData['commission_type'] = $value;
         }
     }
 
@@ -128,11 +125,10 @@ class SaleItem extends Model
 
     public function setCommissionRateAttribute($value)
     {
+        $this->fnbDetailData['commission_rate'] = $value;
         if ($this->exists) {
             $this->fnbDetail()->updateOrCreate([], ['commission_rate' => $value]);
             $this->unsetRelation('fnbDetail');
-        } else {
-            $this->fnbDetailData['commission_rate'] = $value;
         }
     }
 
@@ -143,11 +139,10 @@ class SaleItem extends Model
 
     public function setCommissionAmountAttribute($value)
     {
+        $this->fnbDetailData['commission_amount'] = $value;
         if ($this->exists) {
             $this->fnbDetail()->updateOrCreate([], ['commission_amount' => $value]);
             $this->unsetRelation('fnbDetail');
-        } else {
-            $this->fnbDetailData['commission_amount'] = $value;
         }
     }
 
@@ -158,11 +153,10 @@ class SaleItem extends Model
 
     public function setCostPriceAttribute($value)
     {
+        $this->fnbDetailData['cost_price'] = $value;
         if ($this->exists) {
             $this->fnbDetail()->updateOrCreate([], ['cost_price' => $value]);
             $this->unsetRelation('fnbDetail');
-        } else {
-            $this->fnbDetailData['cost_price'] = $value;
         }
     }
 

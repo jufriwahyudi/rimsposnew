@@ -79,7 +79,8 @@ class TenantOrderApiController extends Controller
         $data = $sales->map(function ($sale) use ($tenantId) {
             // Filter only items belonging to this tenant
             $filteredItems = $sale->items->filter(function ($item) use ($tenantId) {
-                return $item->variant?->product?->tenant_id == $tenantId;
+                $itemTenant = $item->variant?->product?->tenant_id ?? $item->product?->tenant_id;
+                return $itemTenant == $tenantId;
             });
 
             if ($filteredItems->isEmpty()) {
@@ -89,16 +90,17 @@ class TenantOrderApiController extends Controller
             // Check overall tenant status for this sale
             $statuses = $filteredItems->map(fn($item) => $item->kds_status)->values();
             $allReady = $statuses->every(fn($s) => in_array($s, ['ready', 'served']));
-            $anyCooking = $statuses->contains('cooking');
             $anyPending = $statuses->contains('pending');
+            $anyCooking = $statuses->contains('cooking');
 
-            $orderStatus = 'pending';
             if ($allReady) {
                 $orderStatus = 'ready';
-            } elseif ($anyCooking) {
-                $orderStatus = 'cooking';
             } elseif ($anyPending) {
                 $orderStatus = 'pending';
+            } elseif ($anyCooking) {
+                $orderStatus = 'cooking';
+            } else {
+                $orderStatus = 'ready';
             }
 
             return [
@@ -151,8 +153,12 @@ class TenantOrderApiController extends Controller
         $sale = Sale::findOrFail($saleId);
 
         $items = SaleItem::where('sale_id', $sale->id)
-            ->whereHas('variant.product', function ($q) use ($tenantId) {
-                $q->where('tenant_id', $tenantId);
+            ->where(function ($q) use ($tenantId) {
+                $q->whereHas('variant.product', function ($q2) use ($tenantId) {
+                    $q2->where('tenant_id', $tenantId);
+                })->orWhereHas('product', function ($q2) use ($tenantId) {
+                    $q2->where('tenant_id', $tenantId);
+                });
             })
             ->get();
 
@@ -160,6 +166,10 @@ class TenantOrderApiController extends Controller
             if ($item->kds_status === 'pending') {
                 $item->kds_status = 'cooking';
                 $item->save();
+                \App\Models\SaleItemFnBDetail::updateOrCreate(
+                    ['sale_item_id' => $item->id],
+                    ['kds_status' => 'cooking']
+                );
             }
         }
 
@@ -188,14 +198,22 @@ class TenantOrderApiController extends Controller
         $sale = Sale::findOrFail($saleId);
 
         $items = SaleItem::where('sale_id', $sale->id)
-            ->whereHas('variant.product', function ($q) use ($tenantId) {
-                $q->where('tenant_id', $tenantId);
+            ->where(function ($q) use ($tenantId) {
+                $q->whereHas('variant.product', function ($q2) use ($tenantId) {
+                    $q2->where('tenant_id', $tenantId);
+                })->orWhereHas('product', function ($q2) use ($tenantId) {
+                    $q2->where('tenant_id', $tenantId);
+                });
             })
             ->get();
 
         foreach ($items as $item) {
             $item->kds_status = 'ready';
             $item->save();
+            \App\Models\SaleItemFnBDetail::updateOrCreate(
+                ['sale_item_id' => $item->id],
+                ['kds_status' => 'ready']
+            );
         }
 
         $this->trySyncFirestore($sale);
@@ -220,14 +238,19 @@ class TenantOrderApiController extends Controller
             'status' => 'required|in:pending,cooking,ready,served',
         ]);
 
-        $item = SaleItem::with('variant.product', 'sale')->findOrFail($itemId);
+        $item = SaleItem::with(['variant.product', 'product', 'sale'])->findOrFail($itemId);
 
-        if ($item->variant?->product?->tenant_id != $tenantId) {
+        $itemTenant = $item->variant?->product?->tenant_id ?? $item->product?->tenant_id;
+        if ($itemTenant != $tenantId) {
             return response()->json(['message' => 'Item ini bukan milik tenant Anda.'], 403);
         }
 
         $item->kds_status = $request->status;
         $item->save();
+        \App\Models\SaleItemFnBDetail::updateOrCreate(
+            ['sale_item_id' => $item->id],
+            ['kds_status' => $request->status]
+        );
 
         if ($item->sale) {
             $this->trySyncFirestore($item->sale);
