@@ -1297,6 +1297,13 @@ class PosController extends Controller
                 return $sale;
             });
 
+            // Kirim push notifikasi ke perangkat tenant jika ada pesanan miliknya
+            try {
+                app(\App\Services\TenantNotificationService::class)->notifyTenantsForSale($sale);
+            } catch (\Throwable $e) {
+                \Log::error('Tenant notification error on web checkout: ' . $e->getMessage());
+            }
+
             return response()->json([
                 'message' => 'Transaksi berhasil',
                 'invoice' => $sale->invoice_number,
@@ -1983,6 +1990,13 @@ class PosController extends Controller
 
                 return $sale;
             });
+
+            // Kirim push notifikasi ke perangkat tenant jika ada pesanan miliknya
+            try {
+                app(\App\Services\TenantNotificationService::class)->notifyTenantsForSale($sale);
+            } catch (\Throwable $e) {
+                \Log::error('Tenant notification error on mobile checkout: ' . $e->getMessage());
+            }
 
             return response()->json([
                 'message' => 'Transaksi berhasil',

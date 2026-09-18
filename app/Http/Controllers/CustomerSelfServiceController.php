@@ -267,6 +267,13 @@ class CustomerSelfServiceController extends Controller
             // Sync to Cloud Firestore
             app(FirestoreService::class)->syncOrder($sale);
 
+            // Kirim push notifikasi ke perangkat tenant jika ada pesanan miliknya
+            try {
+                app(\App\Services\TenantNotificationService::class)->notifyTenantsForSale($sale);
+            } catch (\Throwable $e) {
+                \Log::error('Tenant notification error on self-service order: ' . $e->getMessage());
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pesanan berhasil dikirim ke kasir.',
