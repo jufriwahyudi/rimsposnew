@@ -17,7 +17,8 @@ const Cart = {
 
     addItem(cart, product) {
         const existing = cart.items.find(
-            i => i.product_id === product.id
+            i => (i.variant_id && product.id && i.variant_id === product.id) ||
+                 (!i.variant_id && i.product_id === (product.product_id || product.id))
         );
 
         if (existing) {
@@ -51,18 +52,29 @@ const Cart = {
         this.recalculate(cart);
     },
 
-    setItemDiscount(cart, productId, value) {
-        const item = cart.items.find(i => i.product_id == productId);
+    setItemDiscount(cart, target, value) {
+        let item = null;
+        if (typeof target === 'number' && cart.items[target]) {
+            item = cart.items[target];
+        } else if (!isNaN(target) && cart.items[parseInt(target, 10)]) {
+            item = cart.items[parseInt(target, 10)];
+        } else {
+            item = cart.items.find(i => i.key === target || i.variant_id == target || i.product_id == target);
+        }
         if (!item) return;
 
-        if (value <= 100) {
+        if (value <= 0) {
+            item.discount_type = null;
+            item.discount_value = 0;
+            item.discount_amount = 0;
+        } else if (value <= 100) {
             item.discount_type = 'percent';
             item.discount_value = value;
             item.discount_amount = item.price * item.qty * (value / 100);
         } else {
             item.discount_type = 'nominal';
             item.discount_value = value;
-            item.discount_amount = value;
+            item.discount_amount = Math.min(value, item.price * item.qty);
         }
 
         this.recalculate(cart);
@@ -126,6 +138,14 @@ const Cart = {
         let subtotal = 0;
 
         cart.items.forEach(item => {
+            if (item.discount_type === 'percent') {
+                item.discount_amount = (item.price * item.qty) * (item.discount_value / 100);
+            } else if (item.discount_type === 'nominal') {
+                item.discount_amount = Math.min(item.discount_value || 0, item.price * item.qty);
+            } else {
+                item.discount_amount = 0;
+            }
+
             item.subtotal = this.calculateItemSubtotal(item);
             subtotal += item.subtotal;
         });
@@ -133,8 +153,7 @@ const Cart = {
         cart.subtotal = subtotal;
         cart.transaction_discount = this.calculateTransactionDiscount(cart);
         cart.discount_total = cart.items.reduce((sum, item) => sum + item.discount_amount, 0) + cart.transaction_discount;
-        cart.total = subtotal - cart.transaction_discount;
-
+        cart.total = Math.max(0, subtotal - cart.transaction_discount);
     }
 };
 

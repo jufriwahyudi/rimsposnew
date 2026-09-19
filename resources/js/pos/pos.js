@@ -291,6 +291,8 @@ const POS = {
                     <div class="input-group input-group-sm">
                         <input type="number"
                             class="form-control form-control-sm discount-input"
+                            data-index="${index}"
+                            data-key="${item.key || ''}"
                             data-product-id="${item.product_id}"
                             placeholder="% / Rp"
                             value="${item.discount_value}">
@@ -805,10 +807,10 @@ const POS = {
     },
 
     applyItemDiscount(input) {
-        const productId = input.dataset.productId;
+        const target = input.dataset.index !== undefined ? parseInt(input.dataset.index, 10) : (input.dataset.key || input.dataset.productId);
         const value = parseFloat(input.value) || 0;
 
-        Cart.setItemDiscount(this.cart, productId, value);
+        Cart.setItemDiscount(this.cart, target, value);
         Cart.recalculate(this.cart);
 
         this.persist();
