@@ -101,6 +101,7 @@ class AuthController extends Controller
                 'addon_multi_unit'    => (bool)$store->addon_multi_unit,
                 'addon_fefo'          => (bool)$store->addon_fefo,
                 'addon_concoction'    => (bool)$store->addon_concoction,
+                'qris_image_url'      => $store->qris_image_url,
                 'subscription_info'   => $subscriptionInfo,
             ];
         })->values();
@@ -251,6 +252,7 @@ class AuthController extends Controller
                 'addon_multi_unit'    => (bool)$store->addon_multi_unit,
                 'addon_fefo'          => (bool)$store->addon_fefo,
                 'addon_concoction'    => (bool)$store->addon_concoction,
+                'qris_image_url'      => $store->qris_image_url,
                 'subscription_info'   => $subscriptionInfo,
             ];
         })->values();

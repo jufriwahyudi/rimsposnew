@@ -46,6 +46,7 @@ class StoreController extends Controller
             'printer_type'         => 'required|in:58mm,80mm,pdf',
             'is_active'            => 'nullable|boolean',
             'logo_data'            => 'nullable|string',
+            'qris_image_data'      => 'nullable|string',
             'bussiness_type'       => 'required|in:retail,fnb,pharmacy',
             'fnb_layout_template'  => 'nullable|in:grid,compact_list',
             'addon_self_service'   => 'nullable|boolean',
@@ -97,6 +98,7 @@ class StoreController extends Controller
             }
 
             $logoPath = $this->saveLogo($request->logo_data);
+            $qrisPath = $this->saveQrisImage($request->qris_image_data);
 
             $store = Store::create([
                 'business_id'          => $businessId,
@@ -108,6 +110,7 @@ class StoreController extends Controller
                 'printer_type'         => $request->printer_type,
                 'is_active'            => $request->boolean('is_active', true),
                 'logo'                 => $logoPath,
+                'qris_image'           => $qrisPath,
                 'business_type'        => $request->bussiness_type,
                 'fnb_layout_template'  => $request->fnb_layout_template ?? 'grid',
                 'addon_self_service'   => $request->boolean('addon_self_service', false),
@@ -218,6 +221,7 @@ class StoreController extends Controller
         return response()->json([
             ...$store->toArray(),
             'logo_url' => $store->logo ? Storage::url($store->logo) : null,
+            'qris_image_url' => $store->qris_image_url,
         ]);
     }
 
@@ -235,6 +239,7 @@ class StoreController extends Controller
             'printer_type'         => 'required|in:58mm,80mm,pdf',
             'is_active'            => 'nullable|boolean',
             'logo_data'            => 'nullable|string',
+            'qris_image_data'      => 'nullable|string',
             'bussiness_type'       => 'required|in:retail,fnb,pharmacy',
             'fnb_layout_template'  => 'nullable|in:grid,compact_list',
             'addon_self_service'   => 'nullable|boolean',
@@ -290,6 +295,20 @@ class StoreController extends Controller
                 Storage::delete($store->logo);
             }
             $data['logo'] = $this->saveLogo($request->logo_data);
+        }
+
+        if ($request->has('qris_image_data')) {
+            if ($request->input('qris_image_data') === 'REMOVE' || ($request->input('qris_image_data') === '' && $request->boolean('qris_removed'))) {
+                if ($store->qris_image) {
+                    Storage::disk('public')->delete($store->qris_image);
+                }
+                $data['qris_image'] = null;
+            } elseif ($request->filled('qris_image_data')) {
+                if ($store->qris_image) {
+                    Storage::disk('public')->delete($store->qris_image);
+                }
+                $data['qris_image'] = $this->saveQrisImage($request->qris_image_data);
+            }
         }
 
         $store->update($data);
@@ -486,6 +505,27 @@ class StoreController extends Controller
         }
 
         $filename = 'stores/' . Str::uuid() . '.png';
+        Storage::disk('public')->put($filename, $decoded);
+
+        return $filename;
+    }
+
+    private function saveQrisImage(?string $base64): ?string
+    {
+        if (!$base64) return null;
+
+        if (str_contains($base64, ',')) {
+            [, $base64] = explode(',', $base64, 2);
+        }
+
+        $decoded = base64_decode($base64);
+        if (!$decoded) return null;
+
+        if (!Storage::disk('public')->exists('stores/qris')) {
+            Storage::disk('public')->makeDirectory('stores/qris');
+        }
+
+        $filename = 'stores/qris/' . Str::uuid() . '.png';
         Storage::disk('public')->put($filename, $decoded);
 
         return $filename;

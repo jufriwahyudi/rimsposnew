@@ -164,6 +164,11 @@
                                                 <span class="badge bg-light text-dark border text-start">
                                                     <i class="bi bi-credit-card text-success me-1"></i> {{ $store->rekenings->count() }} Rek. Kas
                                                 </span>
+                                                @if($store->qris_image)
+                                                <span class="badge bg-light text-primary border text-start">
+                                                    <i class="bi bi-qr-code text-info me-1"></i> QRIS Aktif
+                                                </span>
+                                                @endif
                                             </div>
                                         </td>
                                         <td>
@@ -307,30 +312,53 @@
                 @csrf
                 <input type="hidden" id="storeId">
                 <input type="hidden" id="logo_data">
+                <input type="hidden" id="qris_image_data">
                 <div class="modal-body">
                     <div class="row g-3">
 
-                        {{-- Logo upload --}}
-                        <div class="col-12">
+                        {{-- Logo & QRIS upload --}}
+                        <div class="col-md-6">
                             <label class="form-label fw-semibold">Logo Toko</label>
                             <div class="d-flex align-items-center gap-3">
                                 <div class="logo-preview-wrap" style="width:110px;"
                                     onclick="document.getElementById('logoFile').click()">
                                     <img id="logoPreview" src="" alt="Preview" style="display:none;">
                                     <span id="logoPlaceholder" class="text-muted" style="font-size:12px;">
-                                        <i class="bi bi-image fs-4 d-block mb-1"></i>Klik untuk pilih
+                                        <i class="bi bi-image fs-4 d-block mb-1"></i>Pilih Logo
                                     </span>
                                 </div>
                                 <div class="text-muted small">
                                     Format: JPG / PNG<br>
-                                    Gambar akan di-crop menjadi <strong>1:1 (square)</strong>.<br>
+                                    Crop: <strong>1:1</strong>.<br>
                                     <button type="button" class="btn btn-link btn-sm p-0 mt-1 text-danger"
                                         id="btnRemoveLogo" onclick="removeLogo()" style="display:none;">
-                                        <i class="bi bi-x-circle"></i> Hapus logo
+                                        <i class="bi bi-x-circle"></i> Hapus
                                     </button>
                                 </div>
                             </div>
                             <input type="file" id="logoFile" accept="image/*" style="display:none;">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">QR Code QRIS <small class="text-muted">(Opsional)</small></label>
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="logo-preview-wrap" style="width:110px; border-color: #38bdf8;"
+                                    onclick="document.getElementById('qrisFile').click()">
+                                    <img id="qrisPreview" src="" alt="Preview QRIS" style="display:none; max-width:100px; max-height:100px; object-fit:contain;">
+                                    <span id="qrisPlaceholder" class="text-muted" style="font-size:12px;">
+                                        <i class="bi bi-qr-code fs-4 d-block mb-1 text-info"></i>Pilih QRIS
+                                    </span>
+                                </div>
+                                <div class="text-muted small">
+                                    Format: JPG / PNG<br>
+                                    Muncul di Transfer POS.<br>
+                                    <button type="button" class="btn btn-link btn-sm p-0 mt-1 text-danger"
+                                        id="btnRemoveQris" onclick="removeQris()" style="display:none;">
+                                        <i class="bi bi-x-circle"></i> Hapus QRIS
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="file" id="qrisFile" accept="image/*" style="display:none;">
                         </div>
                         <div class="col-md-12">
                             <label class="form-label fw-semibold">Pilih Bisnis Induk <span class="text-danger">*</span></label>
@@ -973,6 +1001,40 @@
         setLogoPreview(null);
     }
 
+    // ── QRIS helpers ────────────────────────────────────────────────────────
+    function setQrisPreview(src) {
+        const img = document.getElementById('qrisPreview');
+        const ph = document.getElementById('qrisPlaceholder');
+        const btn = document.getElementById('btnRemoveQris');
+        if (src) {
+            img.src = src;
+            img.style.display = 'block';
+            ph.style.display = 'none';
+            btn.style.display = 'inline-block';
+        } else {
+            img.src = '';
+            img.style.display = 'none';
+            ph.style.display = 'block';
+            btn.style.display = 'none';
+        }
+    }
+
+    function removeQris() {
+        document.getElementById('qris_image_data').value = 'REMOVE';
+        document.getElementById('qrisFile').value = '';
+        setQrisPreview(null);
+    }
+
+    document.getElementById('qrisFile').addEventListener('change', function() {
+        if (!this.files || !this.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('qris_image_data').value = e.target.result;
+            setQrisPreview(e.target.result);
+        };
+        reader.readAsDataURL(this.files[0]);
+    });
+
     // ── Cropper.js ───────────────────────────────────────────────────────────
     let cropper = null;
 
@@ -1032,6 +1094,8 @@
         document.getElementById('storeForm').reset();
         document.getElementById('storeId').value = '';
         document.getElementById('logo_data').value = '';
+        document.getElementById('qris_image_data').value = '';
+        setQrisPreview(null);
         document.getElementById('is_active').checked = true;
         document.getElementById('enable_cash_register').checked = false;
         document.getElementById('business_id').selectedIndex = 0;
@@ -1080,6 +1144,7 @@
                 document.getElementById('is_active').checked = data.is_active == 1;
                 document.getElementById('enable_cash_register').checked = data.enable_cash_register == 1;
                 document.getElementById('logo_data').value = '';
+                document.getElementById('qris_image_data').value = '';
                 document.getElementById('business_id').value = data.business_id ?? '';
                 document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
                 document.getElementById('fnb_layout_template').value = data.fnb_layout_template ?? 'grid';
@@ -1100,6 +1165,7 @@
                 document.getElementById('onboardingSection').style.display = 'none';
 
                 setLogoPreview(data.logo_url ?? null);
+                setQrisPreview(data.qris_image_url ?? null);
                 document.getElementById('modalStoreLabel').textContent = 'Edit Toko';
                 clearErrors();
                 new bootstrap.Modal(document.getElementById('modalStore')).show();
@@ -1133,6 +1199,7 @@
             is_active: document.getElementById('is_active').checked ? 1 : 0,
             enable_cash_register: document.getElementById('enable_cash_register').checked ? 1 : 0,
             logo_data: document.getElementById('logo_data').value || null,
+            qris_image_data: document.getElementById('qris_image_data').value || null,
             bussiness_type: document.getElementById('bussiness_type').value,
             fnb_layout_template: document.getElementById('fnb_layout_template').value,
             addon_self_service: document.getElementById('addon_self_service').checked ? 1 : 0,

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Store extends Model
 {
@@ -20,6 +21,7 @@ class Store extends Model
         'is_active',
         'printer_type',
         'logo',
+        'qris_image',
         'business_type',
         'fnb_layout_template',
         'addon_self_service',
@@ -42,6 +44,10 @@ class Store extends Model
         'addon_fefo' => 'boolean',
         'addon_concoction' => 'boolean',
         'enable_cash_register' => 'boolean',
+    ];
+
+    protected $appends = [
+        'qris_image_url',
     ];
 
     protected static function booted()
@@ -99,5 +105,10 @@ class Store extends Model
     public function printers()
     {
         return $this->hasMany(StorePrinter::class);
+    }
+
+    public function getQrisImageUrlAttribute(): ?string
+    {
+        return $this->qris_image ? Storage::url($this->qris_image) : null;
     }
 }

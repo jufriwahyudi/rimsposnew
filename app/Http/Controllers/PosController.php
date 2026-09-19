@@ -343,11 +343,12 @@ class PosController extends Controller
             return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
-        $rekening = Rekening::where('store_id', $storeId)
-            ->orderBy('bank_rek')
-            ->get(['id', 'no_rek', 'nama_rek', 'bank_rek']);
+        $store = Store::find($storeId);
 
-        return response()->json(['data' => $rekening]);
+        return response()->json([
+            'data'           => $rekening,
+            'qris_image_url' => $store?->qris_image_url,
+        ]);
     }
 
     public function index()
