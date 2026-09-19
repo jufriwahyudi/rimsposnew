@@ -344,8 +344,21 @@
                             </div>
                             {{-- Addons Khusus F&B --}}
                             <div class="col-md-12" id="addonFields" style="display: none;">
-                                <label class="form-label fw-semibold text-primary">Fitur Add-on (Khusus F&B)</label>
-                                <div class="row g-2 p-2 border rounded-3 bg-light">
+                                <label class="form-label fw-semibold text-primary">Fitur & Template (Khusus F&B)</label>
+                                <div class="p-3 border rounded-3 bg-light mb-2">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold text-dark mb-1" for="fnb_layout_template" style="font-size: 13px;">
+                                            <i class="bi bi-layout-wtf text-primary me-1"></i> Template Tampilan Kasir (FnB)
+                                        </label>
+                                        <select class="form-select" id="fnb_layout_template" name="fnb_layout_template">
+                                            <option value="grid">Grid Foto Produk (Default - Cafe Modern, Restoran, Bakery)</option>
+                                            <option value="compact_list">List Ringkas 3-Kolom (Quick Service - Warung Kopi, Angkringan, Depot Cepat)</option>
+                                        </select>
+                                        <div class="text-muted small mt-1" style="font-size: 11px;">
+                                            Pilih format tampilan layar POS kasir yang paling optimal sesuai ritme operasional usaha Anda.
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 pt-2 border-top">
                                     <div class="col-md-4">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" id="addon_self_service">
@@ -997,6 +1010,7 @@
             document.getElementById('enable_cash_register').checked = false;
             document.getElementById('business_id').selectedIndex = 0;
             document.getElementById('bussiness_type').value = 'retail';
+            document.getElementById('fnb_layout_template').value = 'grid';
             document.getElementById('addon_self_service').checked = false;
             document.getElementById('addon_kds').checked = false;
             document.getElementById('addon_multi_printer').checked = false;
@@ -1042,6 +1056,7 @@
                     document.getElementById('logo_data').value    = '';
                     document.getElementById('business_id').value  = data.business_id ?? '';
                     document.getElementById('bussiness_type').value = data.business_type ?? 'retail';
+                    document.getElementById('fnb_layout_template').value = data.fnb_layout_template ?? 'grid';
                     document.getElementById('addon_self_service').checked = data.addon_self_service == 1;
                     document.getElementById('addon_kds').checked = data.addon_kds == 1;
                     document.getElementById('addon_multi_printer').checked = data.addon_multi_printer == 1;
@@ -1093,6 +1108,7 @@
                 enable_cash_register: document.getElementById('enable_cash_register').checked ? 1 : 0,
                 logo_data:            document.getElementById('logo_data').value || null,
                 bussiness_type:       document.getElementById('bussiness_type').value,
+                fnb_layout_template:  document.getElementById('fnb_layout_template').value,
                 addon_self_service:   document.getElementById('addon_self_service').checked ? 1 : 0,
                 addon_kds:            document.getElementById('addon_kds').checked ? 1 : 0,
                 addon_multi_printer:  document.getElementById('addon_multi_printer').checked ? 1 : 0,

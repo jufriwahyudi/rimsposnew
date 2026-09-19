@@ -21,6 +21,7 @@ class Store extends Model
         'printer_type',
         'logo',
         'business_type',
+        'fnb_layout_template',
         'addon_self_service',
         'addon_kds',
         'addon_multi_printer',
