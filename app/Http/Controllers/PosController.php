@@ -1463,7 +1463,19 @@ class PosController extends Controller
 
                 $existingSaleId = $cart['existing_sale_id'] ?? null;
                 if ($existingSaleId) {
-                    $sale = Sale::with(['items.batches', 'items.fnbDetail'])->where('store_id', $storeId)->findOrFail($existingSaleId);
+                    $sale = Sale::with(['items.batches', 'items.fnbDetail'])->where('store_id', $storeId)->find($existingSaleId);
+
+                    // Fail-safe: Jika sale tidak ditemukan (misal ID meja sumber yang baru saja digabung ke meja lain)
+                    if (!$sale) {
+                        $mergedTargetId = \Illuminate\Support\Facades\Cache::get("merged_sale_{$storeId}_{$existingSaleId}");
+                        if ($mergedTargetId) {
+                            $sale = Sale::with(['items.batches', 'items.fnbDetail'])->where('store_id', $storeId)->find($mergedTargetId);
+                        }
+                    }
+
+                    if (!$sale) {
+                        throw new \Exception("Tagihan pesanan (ID: {$existingSaleId}) sudah tidak aktif atau telah digabungkan ke meja lain. Silakan buka menu Meja untuk memilih tagihan yang aktif.");
+                    }
 
                     // ── Smart-merge items (preserve kds_status & 1-to-1 additions) ─────────────
                     $incomingItems  = collect($cart['items'] ?? []);
@@ -2076,6 +2088,30 @@ class PosController extends Controller
             ->get();
 
         $data = $sales->map(function ($sale) {
+            // Urutkan item berdasarkan created_at/id untuk menghitung putaran pesanan (rounds)
+            $itemsSorted = $sale->items->sortBy(function ($item) {
+                return $item->created_at ? $item->created_at->timestamp : $item->id;
+            })->values();
+
+            // Kelompokkan item ke dalam round berdasarkan klaster created_at (selisih <= 10 detik = round yang sama)
+            $rounds = [];
+            foreach ($itemsSorted as $it) {
+                $t = $it->created_at ? $it->created_at->timestamp : 0;
+                $foundRound = null;
+                foreach ($rounds as $rIdx => $rTime) {
+                    if (abs($t - $rTime) <= 10) {
+                        $foundRound = $rIdx + 1;
+                        break;
+                    }
+                }
+                if (!$foundRound) {
+                    $rounds[] = $t;
+                    $foundRound = count($rounds);
+                }
+                $it->round_number = $foundRound;
+                $it->is_addition  = ($foundRound > 1);
+            }
+
             return [
                 'id' => $sale->id,
                 'invoice_number' => $sale->invoice_number,
@@ -2088,7 +2124,7 @@ class PosController extends Controller
                 'trans_discount' => (float)$sale->trans_discount,
                 'grand_total' => (float)$sale->grand_total,
                 'status' => $sale->status,
-                'items' => $sale->items->map(function ($item) {
+                'items' => $itemsSorted->map(function ($item) {
                     return [
                         'id'                  => $item->id,
                         'sale_item_id'        => $item->id,
@@ -2114,6 +2150,8 @@ class PosController extends Controller
                         'track_stock'         => (bool)($item->variant?->track_stock ?? true),
                         'image_url'           => $item->variant?->image_url,
                         'created_at'          => $item->created_at ? $item->created_at->format('H:i') : null,
+                        'is_addition'         => (bool)($item->is_addition ?? false),
+                        'round_number'        => (int)($item->round_number ?? 1),
                     ];
                 })->values()->toArray(),
             ];
@@ -2311,10 +2349,82 @@ class PosController extends Controller
 
                 // Delete source sale
                 $sourceSale->delete();
+
+                // Cache relasi merge agar jika klien/kasir masih mengirim ID bill sumber,
+                // server otomatis mengarahkan ke targetSaleId tanpa error ModelNotFound
+                \Illuminate\Support\Facades\Cache::put("merged_sale_{$storeId}_{$sourceSaleId}", $targetSaleId, now()->addHours(24));
             });
 
+            $targetSale = Sale::with(['items.variant.product', 'items.fnbDetail'])->find($targetSaleId);
+            $targetData = null;
+            if ($targetSale) {
+                $targetItemsSorted = $targetSale->items->sortBy(function ($item) {
+                    return $item->created_at ? $item->created_at->timestamp : $item->id;
+                })->values();
+
+                $targetRounds = [];
+                foreach ($targetItemsSorted as $it) {
+                    $t = $it->created_at ? $it->created_at->timestamp : 0;
+                    $foundRound = null;
+                    foreach ($targetRounds as $rIdx => $rTime) {
+                        if (abs($t - $rTime) <= 10) {
+                            $foundRound = $rIdx + 1;
+                            break;
+                        }
+                    }
+                    if (!$foundRound) {
+                        $targetRounds[] = $t;
+                        $foundRound = count($targetRounds);
+                    }
+                    $it->round_number = $foundRound;
+                    $it->is_addition  = ($foundRound > 1);
+                }
+
+                $targetData = [
+                    'id'                  => $targetSale->id,
+                    'invoice_number'      => $targetSale->invoice_number,
+                    'table_number'        => $targetSale->table_number,
+                    'sale_date'           => $targetSale->sale_date ? $targetSale->sale_date->format('Y-m-d H:i:s') : null,
+                    'customer_name'       => $targetSale->customer_name,
+                    'customer_phone'      => $targetSale->customer_phone,
+                    'subtotal'            => (float)$targetSale->subtotal,
+                    'discount_total'      => (float)$targetSale->discount_total,
+                    'trans_discount'      => (float)$targetSale->trans_discount,
+                    'grand_total'         => (float)$targetSale->grand_total,
+                    'status'              => $targetSale->status,
+                    'items'               => $targetItemsSorted->map(function ($item) {
+                        return [
+                            'id'                  => $item->id,
+                            'sale_item_id'        => $item->id,
+                            'product_id'          => $item->product_id,
+                            'variant_id'          => $item->product_variant_id,
+                            'sku'                 => $item->sku,
+                            'name'                => $item->product_name,
+                            'price'               => (float)$item->price,
+                            'qty'                 => (int)$item->qty,
+                            'initial_qty'         => (int)$item->qty,
+                            'kitchen_printed_qty' => (int)($item->kitchen_printed_qty ?? 0),
+                            'kds_status'          => $item->kds_status ?? 'pending',
+                            'notes'               => $item->notes ?? '',
+                            'discount_amount'     => (float)$item->discount_amount,
+                            'subtotal'            => (float)$item->subtotal,
+                            'unit_id'             => $item->unit_id,
+                            'unit_name'           => $item->unit_name,
+                            'unit_multiplier'     => (int)($item->unit_multiplier ?: 1),
+                            'track_stock'         => (bool)($item->variant?->track_stock ?? true),
+                            'image_url'           => $item->variant?->image_url,
+                            'created_at'          => $item->created_at ? $item->created_at->format('H:i') : null,
+                            'is_addition'         => (bool)($item->is_addition ?? false),
+                            'round_number'        => (int)($item->round_number ?? 1),
+                        ];
+                    })->values()->toArray(),
+                ];
+            }
+
             return response()->json([
-                'message' => 'Bill berhasil digabungkan',
+                'message'        => 'Bill berhasil digabungkan',
+                'target_sale_id' => $targetSaleId,
+                'data'           => $targetData,
             ]);
         } catch (\Exception $e) {
             return response()->json([
