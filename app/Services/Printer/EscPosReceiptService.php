@@ -223,7 +223,7 @@ class EscPosReceiptService
                 }
 
                 if ($notes !== '') {
-                    $this->writeLine(str_repeat(' ', 8) . '* Catatan: ' . $notes);
+                    $this->writeLine(str_repeat(' ', 8) . '* ' . $notes);
                 }
             } else {
                 // 58mm
@@ -235,7 +235,7 @@ class EscPosReceiptService
                 }
 
                 if ($notes !== '') {
-                    $this->writeLine('    * Catatan: ' . $notes);
+                    $this->writeLine('    * ' . $notes);
                 }
             }
         }
@@ -380,7 +380,7 @@ class EscPosReceiptService
             $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
 
             if ($notes !== '') {
-                $this->writeLine('    * Catatan: ' . $notes);
+                $this->writeLine('    * ' . $notes);
             }
         }
     }

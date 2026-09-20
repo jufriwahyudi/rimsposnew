@@ -2866,7 +2866,9 @@ class PosController extends Controller
             $items = $sale->items
                 ->filter(fn($i) => !in_array($i->status, ['voided', 'exchanged_out']))
                 ->groupBy(function ($item) {
-                    return $item->product_variant_id ?? ('null_' . $item->id);
+                    $variantKey = $item->product_variant_id ?? ('null_' . $item->id);
+                    $notesKey   = trim((string) $item->notes);
+                    return $variantKey . '||' . $notesKey;
                 })
                 ->map(function ($group) {
                     $first = $group->first();
