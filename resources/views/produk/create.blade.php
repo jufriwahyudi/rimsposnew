@@ -162,8 +162,8 @@
                                                             <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
                                                             <div class="row g-2">
                                                                 <div class="col-md-6">
-                                                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
-                                                                    <input name="variants[{{ $i }}][nama]" class="form-control form-control-sm" value="{{ $v['nama'] ?? '' }}" placeholder="Nama varian" required>
+                                                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian <small class="text-muted fw-normal">(opsional)</small></label>
+                                                                    <input name="variants[{{ $i }}][nama]" class="form-control form-control-sm" value="{{ $v['nama'] ?? '' }}" placeholder="Opsional jika tanpa varian">
                                                                 </div>
                                                                 <div class="col-md-6">
                                                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></label>
@@ -342,8 +342,8 @@
                             <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
                             <div class="row g-2">
                                 <div class="col-md-6">
-                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
-                                    <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Nama varian" required>
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian <small class="text-muted fw-normal">(opsional)</small></label>
+                                    <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Opsional jika tanpa varian">
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Barcode <small class="text-muted fw-normal">(kosongkan = auto)</small></label>

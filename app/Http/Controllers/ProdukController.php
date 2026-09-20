@@ -756,7 +756,7 @@ class ProdukController extends Controller
         $rules = [
             'product_id'            => 'required|exists:products,id',
             'variants'              => 'required|array|min:1',
-            'variants.*.nama'       => 'required|string|max:150',
+            'variants.*.nama'       => 'nullable|string|max:150',
             'variants.*.sku'        => 'nullable|string|max:100',
             'variants.*.barcode'    => 'nullable|string|max:100',
             'variants.*.harga_jual' => 'nullable|numeric|min:0',
@@ -805,7 +805,7 @@ class ProdukController extends Controller
                     $variantData = [
                         'store_id'     => session('store_id'),
                         'product_id'   => $product->id,
-                        'variant_name' => $v['nama'],
+                        'variant_name' => $v['nama'] ?? '',
                         'sku'          => $sku,
                         'barcode'      => $barcode,
                         'harga_jual'   => $v['harga_jual'] ?? 0,
@@ -918,7 +918,7 @@ class ProdukController extends Controller
 
         $rules = [
             'variant_id'    => 'required|exists:product_variants,id',
-            'variant_name'  => 'required|string|max:150',
+            'variant_name'  => 'nullable|string|max:150',
             'harga_jual'    => 'required|numeric|min:0',
             'reward_points' => 'nullable|integer|min:0',
             'image'         => 'nullable|image|max:2048',
@@ -938,7 +938,7 @@ class ProdukController extends Controller
             $variant = ProductVariant::with('product')->findOrFail($request->variant_id);
             
             $variantData = [
-                'variant_name' => $request->variant_name,
+                'variant_name' => $request->variant_name ?? '',
                 'harga_jual'   => $request->harga_jual,
                 'reward_points' => $request->reward_points ?? 0,
             ];

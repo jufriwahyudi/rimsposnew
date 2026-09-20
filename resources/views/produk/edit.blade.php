@@ -435,10 +435,10 @@
                      @method('PUT')
                      <input type="hidden" name="variant_id" id="edit_variant_id">
                      <div class="modal-body">
-                         <div class="mb-3">
-                             <label class="form-label">Nama Varian</label>
-                             <input type="text" name="variant_name" id="edit_variant_name" class="form-control" required>
-                         </div>
+                          <div class="mb-3">
+                              <label class="form-label">Nama Varian <small class="text-muted">(opsional jika tanpa varian)</small></label>
+                              <input type="text" name="variant_name" id="edit_variant_name" class="form-control" placeholder="Kosongkan jika produk tanpa varian">
+                          </div>
                          <div class="mb-3">
                              <label class="form-label">Harga Jual</label>
                              <input type="number" name="harga_jual" id="edit_variant_harga" class="form-control" min="0" required>
@@ -615,8 +615,8 @@
                             <h6 class="fw-semibold text-primary mb-3" style="font-size: 0.85rem;"><i class="bi bi-info-circle me-1"></i> Informasi Dasar & Harga</h6>
                             <div class="row g-2">
                                 <div class="col-md-6 mb-2">
-                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian</label>
-                                    <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Nama varian" required>
+                                    <label class="form-label fw-semibold" style="font-size: 0.8rem;">Nama Varian <small class="text-muted fw-normal">(opsional)</small></label>
+                                    <input name="variants[${i}][nama]" class="form-control form-control-sm" placeholder="Opsional jika tanpa varian">
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label class="form-label fw-semibold" style="font-size: 0.8rem;">Harga Jual</label>

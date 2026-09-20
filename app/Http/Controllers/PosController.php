@@ -1465,15 +1465,28 @@ class PosController extends Controller
                 if ($existingSaleId) {
                     $sale = Sale::with(['items.batches', 'items.fnbDetail'])->where('store_id', $storeId)->findOrFail($existingSaleId);
 
-                    // ── Smart-merge items (preserve kds_status) ─────────────
+                    // ── Smart-merge items (preserve kds_status & 1-to-1 additions) ─────────────
                     $incomingItems  = collect($cart['items'] ?? []);
-                    $existingItems  = $sale->items->keyBy('product_variant_id');
 
-                    // Build a map of incoming items keyed by variant_id
-                    $incomingByVariant = $incomingItems->keyBy(fn($i) => $i['variant_id'] ?? 0);
+                    // Check if incoming items specify item IDs / sale_item_ids
+                    $hasItemIds = $incomingItems->contains(function ($item) use ($sale) {
+                        $id = $item['sale_item_id'] ?? $item['id'] ?? null;
+                        return $id && $sale->items->contains('id', $id);
+                    });
 
-                    // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
-                    $removedItems = $existingItems->filter(fn($ei) => !$incomingByVariant->has($ei->product_variant_id));
+                    if ($hasItemIds) {
+                        // 1-to-1 item model: key existing items by item ID
+                        $existingItems = $sale->items->keyBy('id');
+                        $incomingItemIds = $incomingItems->map(fn($i) => $i['sale_item_id'] ?? $i['id'] ?? null)->filter()->values()->all();
+                        // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
+                        $removedItems = $sale->items->filter(fn($ei) => !in_array($ei->id, $incomingItemIds));
+                    } else {
+                        // Legacy fallback: key existing items by variant_id
+                        $existingItems  = $sale->items->keyBy('product_variant_id');
+                        $incomingByVariant = $incomingItems->keyBy(fn($i) => $i['variant_id'] ?? 0);
+                        // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
+                        $removedItems = $existingItems->filter(fn($ei) => !$incomingByVariant->has($ei->product_variant_id));
+                    }
 
                     // 2. Revert stock & delete ONLY removed items
                     foreach ($removedItems as $removedItem) {
@@ -1518,9 +1531,18 @@ class PosController extends Controller
                     foreach ($incomingItems as $item) {
                         $variantId = $item['variant_id'] ?? null;
                         $newQty    = $item['qty'] ?? 0;
-                        $existing  = $variantId ? $existingItems->get($variantId) : null;
                         $multiplier = max(1, (int) ($item['unit_multiplier'] ?? 1));
                         $staffUserId = $item['staff_user_id'] ?? null;
+
+                        $existing = null;
+                        if ($hasItemIds) {
+                            $itemId = $item['sale_item_id'] ?? $item['id'] ?? null;
+                            if ($itemId) {
+                                $existing = $existingItems->get($itemId);
+                            }
+                        } else {
+                            $existing = $variantId ? $existingItems->get($variantId) : null;
+                        }
 
                         if ($existing) {
                             $oldMultiplier = max(1, (int) ($existing->unit_multiplier ?: 1));
@@ -1651,6 +1673,7 @@ class PosController extends Controller
                                 'discount_amount'    => $item['discount_amount'] ?? 0,
                                 'subtotal'           => $item['subtotal'] ?? 0,
                                 'notes'              => $item['notes'] ?? null,
+                                'staff_user_id'      => $staffUserId,
                             ]);
 
                             $product = \App\Models\Product::find($item['product_id'] ?? null);
@@ -2065,29 +2088,32 @@ class PosController extends Controller
                 'trans_discount' => (float)$sale->trans_discount,
                 'grand_total' => (float)$sale->grand_total,
                 'status' => $sale->status,
-                'items' => $sale->items->groupBy(function ($item) {
-                    return $item->product_variant_id ?? ('null_' . $item->id);
-                })->map(function ($group) {
-                    $first = $group->first();
+                'items' => $sale->items->map(function ($item) {
                     return [
-                        'id' => $first->id,
-                        'product_id' => $first->product_id,
-                        'variant_id' => $first->product_variant_id,
-                        'sku' => $first->sku,
-                        'name' => $first->product_name,
-                        'price' => (float)$first->price,
-                        'qty' => (int)$group->sum('qty'),
-                        'discount_amount' => (float)$group->sum('discount_amount'),
-                        'subtotal' => (float)$group->sum('subtotal'),
+                        'id'                  => $item->id,
+                        'sale_item_id'        => $item->id,
+                        'product_id'          => $item->product_id,
+                        'variant_id'          => $item->product_variant_id,
+                        'sku'                 => $item->sku,
+                        'name'                => $item->product_name,
+                        'price'               => (float)$item->price,
+                        'qty'                 => (int)$item->qty,
+                        'initial_qty'         => (int)$item->qty,
+                        'kitchen_printed_qty' => (int)($item->kitchen_printed_qty ?? 0),
+                        'kds_status'          => $item->kds_status ?? 'pending',
+                        'notes'               => $item->notes ?? '',
+                        'discount_amount'     => (float)$item->discount_amount,
+                        'subtotal'            => (float)$item->subtotal,
                         // Satuan ikut dikirim supaya qty tidak dibaca sebagai satuan
                         // basis saat bill dibuka ulang (restore/split). Tanpa ini,
                         // checkout mengirim unit_multiplier=1 untuk item multi-satuan
                         // sehingga stok justru dikembalikan (under-deduct).
-                        'unit_id' => $first->unit_id,
-                        'unit_name' => $first->unit_name,
-                        'unit_multiplier' => (int)($first->unit_multiplier ?: 1),
-                        'track_stock' => (bool)($first->variant?->track_stock ?? true),
-                        'image_url' => $first->variant?->image_url,
+                        'unit_id'             => $item->unit_id,
+                        'unit_name'           => $item->unit_name,
+                        'unit_multiplier'     => (int)($item->unit_multiplier ?: 1),
+                        'track_stock'         => (bool)($item->variant?->track_stock ?? true),
+                        'image_url'           => $item->variant?->image_url,
+                        'created_at'          => $item->created_at ? $item->created_at->format('H:i') : null,
                     ];
                 })->values()->toArray(),
             ];
