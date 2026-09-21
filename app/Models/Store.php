@@ -107,6 +107,11 @@ class Store extends Model
         return $this->hasMany(StorePrinter::class);
     }
 
+    public function apiKeys()
+    {
+        return $this->hasMany(StoreApiKey::class);
+    }
+
     public function getQrisImageUrlAttribute(): ?string
     {
         return $this->qris_image ? Storage::url($this->qris_image) : null;

@@ -76,6 +76,10 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::post('/stores/{store}/quick-user', [StoreController::class, 'quickUser'])->name('stores.quick-user');
         Route::post('/stores/{store}/quick-role', [StoreController::class, 'quickRole'])->name('stores.quick-role');
         Route::post('/stores/{id}/restore', [StoreController::class, 'restore'])->name('stores.restore');
+        Route::get('/stores/{store}/api-keys', [\App\Http\Controllers\StoreApiKeyController::class, 'index'])->name('stores.api-keys.index');
+        Route::post('/stores/{store}/api-keys', [\App\Http\Controllers\StoreApiKeyController::class, 'store'])->name('stores.api-keys.store');
+        Route::post('/stores/api-keys/{id}/toggle', [\App\Http\Controllers\StoreApiKeyController::class, 'toggle'])->name('stores.api-keys.toggle');
+        Route::delete('/stores/api-keys/{id}', [\App\Http\Controllers\StoreApiKeyController::class, 'destroy'])->name('stores.api-keys.destroy');
         Route::resource('stores', StoreController::class)->except(['create', 'show']);
     });
 

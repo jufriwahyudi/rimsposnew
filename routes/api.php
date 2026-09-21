@@ -94,3 +94,14 @@ Route::get('/order/status/{id}', [\App\Http\Controllers\CustomerSelfServiceContr
 
 // ── App Update Check (public) ────────────────────────────────────────────────
 Route::get('/app-version/latest', [\App\Http\Controllers\AppVersionController::class, 'latestApi']);
+
+// ── External Platform Integration API (Protected by X-API-KEY) ───────────────
+Route::prefix('v1/external')->middleware('api.key')->group(function () {
+    Route::get('/store',         [\App\Http\Controllers\Api\ExternalApiController::class, 'storeInfo']);
+    Route::get('/categories',    [\App\Http\Controllers\Api\ExternalApiController::class, 'categories']);
+    Route::get('/products',      [\App\Http\Controllers\Api\ExternalApiController::class, 'products']);
+    Route::get('/products/{id}', [\App\Http\Controllers\Api\ExternalApiController::class, 'productDetail']);
+    Route::get('/stock',         [\App\Http\Controllers\Api\ExternalApiController::class, 'stock']);
+    Route::get('/sales',         [\App\Http\Controllers\Api\ExternalApiController::class, 'sales']);
+    Route::get('/sales/{id}',    [\App\Http\Controllers\Api\ExternalApiController::class, 'saleDetail']);
+});

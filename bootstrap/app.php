@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'store.selected'   => EnsureStoreSelected::class,
             'check.subscription' => CheckStoreSubscription::class,
             'addon'            => \App\Http\Middleware\EnsureAddonEnabled::class,
+            'api.key'          => \App\Http\Middleware\ValidateStoreApiKey::class,
         ]);
 
         // Tambahkan recover ke group web (SETELAH StartSession dkk)

@@ -348,6 +348,7 @@ class StoreController extends Controller
 
         $rekenings = Rekening::where('store_id', $store->id)->get();
         $tenants = Tenant::where('store_id', $store->id)->get();
+        $apiKeys = $store->apiKeys()->with('user:id,name')->latest()->get();
 
         return response()->json([
             'store'     => $store,
@@ -355,6 +356,7 @@ class StoreController extends Controller
             'roles'     => $roles,
             'rekenings' => $rekenings,
             'tenants'   => $tenants,
+            'api_keys'  => $apiKeys,
         ]);
     }
 

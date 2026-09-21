@@ -657,28 +657,34 @@
             </div>
             <div class="modal-body p-4">
                 <div class="row g-3 mb-4">
-                    <div class="col-md-3 col-6">
+                    <div class="col-md col-6">
                         <div class="p-3 border rounded-3 bg-light text-center">
                             <div class="text-muted small">Total Pengguna</div>
                             <h3 class="fw-bold mb-0 text-primary" id="sumCountUsers">0</h3>
                         </div>
                     </div>
-                    <div class="col-md-3 col-6">
+                    <div class="col-md col-6">
                         <div class="p-3 border rounded-3 bg-light text-center">
                             <div class="text-muted small">Role Toko</div>
                             <h3 class="fw-bold mb-0 text-info" id="sumCountRoles">0</h3>
                         </div>
                     </div>
-                    <div class="col-md-3 col-6">
+                    <div class="col-md col-6">
                         <div class="p-3 border rounded-3 bg-light text-center">
-                            <div class="text-muted small">Rekening Kas/Bank</div>
+                            <div class="text-muted small">Rekening Kas</div>
                             <h3 class="fw-bold mb-0 text-success" id="sumCountRekenings">0</h3>
                         </div>
                     </div>
-                    <div class="col-md-3 col-6">
+                    <div class="col-md col-6">
                         <div class="p-3 border rounded-3 bg-light text-center">
                             <div class="text-muted small">Tenant / Stelling</div>
                             <h3 class="fw-bold mb-0 text-warning" id="sumCountTenants">0</h3>
+                        </div>
+                    </div>
+                    <div class="col-md col-6">
+                        <div class="p-3 border rounded-3 bg-light text-center">
+                            <div class="text-muted small">API Keys</div>
+                            <h3 class="fw-bold mb-0 text-purple" style="color: #7c3aed;" id="sumCountApiKeys">0</h3>
                         </div>
                     </div>
                 </div>
@@ -703,6 +709,11 @@
                     <li class="nav-item">
                         <button class="nav-link" data-bs-toggle="pill" data-bs-target="#hubTabTenants">
                             <i class="bi bi-shop me-1"></i> Tenant FnB
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#hubTabApiKeys">
+                            <i class="bi bi-key me-1"></i> Integrasi API Key
                         </button>
                     </li>
                 </ul>
@@ -787,10 +798,138 @@
                             </table>
                         </div>
                     </div>
+
+                    {{-- Tab API Keys --}}
+                    <div class="tab-pane fade" id="hubTabApiKeys">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h6 class="fw-bold mb-1">API Key Integrasi Platform Eksternal</h6>
+                                <p class="text-muted small mb-0">Kelola kunci API untuk integrasi sistem pihak ketiga (e-commerce, ERP, analitik luar). Sertakan header <code>X-API-KEY</code>.</p>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="openAddApiKeyModal()">
+                                <i class="bi bi-key-fill me-1"></i> Buat API Key Baru
+                            </button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Nama Integrasi</th>
+                                        <th>Key Prefix</th>
+                                        <th>Hak Akses</th>
+                                        <th>IP Whitelist</th>
+                                        <th>Terakhir Dipakai</th>
+                                        <th class="text-center">Status</th>
+                                        <th class="text-center" width="14%">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableHubApiKeys"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer border-top">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ========== MODAL ADD API KEY ========== --}}
+<div class="modal fade" id="modalAddApiKey" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold"><i class="bi bi-key text-primary me-2"></i>Buat API Key Baru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addApiKeyForm" onsubmit="submitNewApiKey(event)">
+                @csrf
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Nama Integrasi / Aplikasi <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" id="ak_name" placeholder="Contoh: Website Toko Online, ERP Luar" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small d-block mb-1">Hak Akses (Abilities)</label>
+                        <div class="d-flex flex-column gap-1 p-2 border rounded bg-light">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ak_p_read" value="products:read" checked>
+                                <label class="form-check-label small" for="ak_p_read"><strong>products:read</strong> - Baca katalog & harga produk</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ak_c_read" value="categories:read" checked>
+                                <label class="form-check-label small" for="ak_c_read"><strong>categories:read</strong> - Baca kategori produk</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ak_st_read" value="stock:read" checked>
+                                <label class="form-check-label small" for="ak_st_read"><strong>stock:read</strong> - Baca sisa stok real-time toko</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="ak_s_read" value="sales:read" checked>
+                                <label class="form-check-label small" for="ak_s_read"><strong>sales:read</strong> - Baca riwayat transaksi penjualan</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">IP Whitelist (Opsional)</label>
+                        <input type="text" class="form-control form-control-sm" id="ak_ip_whitelist" placeholder="Contoh: 192.168.1.100, 103.45.12.3">
+                        <small class="text-muted" style="font-size: 11px;">Pisahkan dengan koma jika lebih dari satu. Biarkan kosong jika dapat diakses dari IP mana saja.</small>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Rate Limit (Req/Menit)</label>
+                            <input type="number" class="form-control form-control-sm" id="ak_rate_limit" value="60" min="10" max="1000">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold small">Masa Aktif (Hari)</label>
+                            <input type="number" class="form-control form-control-sm" id="ak_expires_days" placeholder="Kosong = Selamanya" min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-sm btn-primary" id="btnSubmitApiKey">
+                        <i class="bi bi-shield-check me-1"></i> Generate Kunci API
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ========== MODAL SHOW GENERATED API KEY ========== --}}
+<div class="modal fade" id="modalShowGeneratedKey" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4 border-success">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i>API Key Berhasil Dibuat!</h5>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-warning small mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    <strong>PENTING:</strong> Salin dan simpan API Key Anda sekarang. Kunci ini <strong>hanya ditampilkan satu kali</strong> demi keamanan dan tidak dapat dilihat kembali setelah dialog ini ditutup!
+                </div>
+
+                <label class="form-label fw-semibold small">Kunci API Anda:</label>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control font-monospace fw-bold text-dark bg-light" id="generatedFullKey" readonly>
+                    <button class="btn btn-primary" type="button" onclick="copyGeneratedApiKey()">
+                        <i class="bi bi-clipboard me-1" id="copyKeyIcon"></i> <span id="copyKeyText">Salin</span>
+                    </button>
+                </div>
+
+                <div class="border rounded p-2 bg-light small">
+                    <div class="text-muted fw-semibold mb-1">Contoh Penggunaan Header HTTP:</div>
+                    <code>X-API-KEY: <span id="previewKeyHeader">rims_live_...</span></code>
+                </div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal">Saya Sudah Menyimpan Kunci Ini</button>
             </div>
         </div>
     </div>
@@ -950,6 +1089,9 @@
         summary: (id) => `/stores/${id}/summary`,
         quickUser: (id) => `/stores/${id}/quick-user`,
         quickRole: (id) => `/stores/${id}/quick-role`,
+        apiKeys: (id) => `/stores/${id}/api-keys`,
+        apiKeyToggle: (id) => `/stores/api-keys/${id}/toggle`,
+        apiKeyDestroy: (id) => `/stores/api-keys/${id}`,
     };
 
     // ── toast ────────────────────────────────────────────────────────────────
@@ -1361,6 +1503,9 @@
                 document.getElementById('sumCountRoles').textContent = data.roles.length;
                 document.getElementById('sumCountRekenings').textContent = data.rekenings.length;
                 document.getElementById('sumCountTenants').textContent = data.tenants.length;
+                const apiKeys = data.api_keys || [];
+                document.getElementById('sumCountApiKeys').textContent = apiKeys.length;
+                renderApiKeysTable(apiKeys);
 
                 // Populate Users Table
                 const tUsers = document.getElementById('tableHubUsers');
@@ -1550,5 +1695,183 @@
                 showToast('Terjadi kesalahan jaringan.', false);
             });
     });
+
+    // ─── API KEY MANAGEMENT ──────────────────────────────────────────────────
+    function renderApiKeysTable(apiKeys) {
+        const tbody = document.getElementById('tableHubApiKeys');
+        tbody.innerHTML = '';
+
+        if (!apiKeys || apiKeys.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Belum ada API Key untuk toko ini. Klik <strong>"Buat API Key Baru"</strong> untuk mengintegrasikan platform lain.</td></tr>';
+            return;
+        }
+
+        apiKeys.forEach(k => {
+            const creator = k.user ? `<small class="text-muted d-block">Oleh: ${k.user.name}</small>` : '';
+            const abilities = (k.abilities || []).map(a => `<span class="badge bg-light text-dark border me-1" style="font-size:10px;">${a}</span>`).join('');
+            const ipBadge = k.ip_whitelist 
+                ? `<span class="badge bg-info text-dark" style="font-size:10px;" title="${k.ip_whitelist}"><i class="bi bi-shield-check"></i> ${k.ip_whitelist.split(',').length} IP</span>`
+                : '<span class="badge bg-light text-muted border" style="font-size:10px;">Semua IP</span>';
+            const lastUsed = k.last_used_at 
+                ? new Date(k.last_used_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
+                : '<span class="text-muted">Belum pernah</span>';
+            const statusBadge = k.is_active 
+                ? '<span class="badge bg-success">Aktif</span>' 
+                : '<span class="badge bg-secondary">Non-aktif</span>';
+            const toggleIcon = k.is_active ? 'bi-pause-circle text-warning' : 'bi-play-circle text-success';
+            const toggleTitle = k.is_active ? 'Nonaktifkan' : 'Aktifkan';
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>
+                        <div class="fw-bold">${k.name}</div>
+                        ${creator}
+                    </td>
+                    <td><code class="fw-bold text-primary">${k.key_prefix}...</code></td>
+                    <td>${abilities}</td>
+                    <td>${ipBadge}</td>
+                    <td><small>${lastUsed}</small></td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="toggleApiKey(${k.id})" title="${toggleTitle}">
+                                <i class="bi ${toggleIcon}"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="deleteApiKey(${k.id}, '${k.name.replace(/'/g, "\\'")}')" title="Revoke/Hapus">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function openAddApiKeyModal() {
+        document.getElementById('addApiKeyForm').reset();
+        document.getElementById('ak_rate_limit').value = 60;
+        document.getElementById('ak_p_read').checked = true;
+        document.getElementById('ak_c_read').checked = true;
+        document.getElementById('ak_st_read').checked = true;
+        document.getElementById('ak_s_read').checked = true;
+        new bootstrap.Modal(document.getElementById('modalAddApiKey')).show();
+    }
+
+    function submitNewApiKey(e) {
+        e.preventDefault();
+        if (!currentActiveStoreId) return;
+
+        const btn = document.getElementById('btnSubmitApiKey');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menggenerate...';
+
+        const abilities = [];
+        if (document.getElementById('ak_p_read').checked) abilities.push('products:read');
+        if (document.getElementById('ak_c_read').checked) abilities.push('categories:read');
+        if (document.getElementById('ak_st_read').checked) abilities.push('stock:read');
+        if (document.getElementById('ak_s_read').checked) abilities.push('sales:read');
+
+        const payload = {
+            name: document.getElementById('ak_name').value.trim(),
+            abilities: abilities,
+            ip_whitelist: document.getElementById('ak_ip_whitelist').value.trim() || null,
+            rate_limit_per_minute: parseInt(document.getElementById('ak_rate_limit').value) || 60,
+            expires_days: document.getElementById('ak_expires_days').value ? parseInt(document.getElementById('ak_expires_days').value) : null,
+        };
+
+        fetch(routes.apiKeys(currentActiveStoreId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(async r => {
+            const data = await r.json();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-shield-check me-1"></i> Generate Kunci API';
+
+            if (!r.ok) {
+                showToast(data.message || 'Gagal membuat API Key.', false);
+                return;
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('modalAddApiKey')).hide();
+
+            // Tampilkan modal kunci yang digenerate
+            document.getElementById('generatedFullKey').value = data.plain_key;
+            document.getElementById('previewKeyHeader').textContent = data.plain_key;
+            new bootstrap.Modal(document.getElementById('modalShowGeneratedKey')).show();
+
+            // Refresh ringkasan toko
+            openStoreSummary(currentActiveStoreId);
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-shield-check me-1"></i> Generate Kunci API';
+            showToast('Terjadi kesalahan jaringan.', false);
+        });
+    }
+
+    function copyGeneratedApiKey() {
+        const input = document.getElementById('generatedFullKey');
+        input.select();
+        input.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(input.value).then(() => {
+            const icon = document.getElementById('copyKeyIcon');
+            const text = document.getElementById('copyKeyText');
+            icon.className = 'bi bi-check-lg me-1';
+            text.textContent = 'Tersalin!';
+            setTimeout(() => {
+                icon.className = 'bi bi-clipboard me-1';
+                text.textContent = 'Salin';
+            }, 2500);
+        });
+    }
+
+    function toggleApiKey(id) {
+        fetch(routes.apiKeyToggle(id), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        })
+        .then(async r => {
+            const data = await r.json();
+            if (r.ok) {
+                showToast(data.message);
+                openStoreSummary(currentActiveStoreId);
+            } else {
+                showToast(data.message || 'Gagal mengubah status API Key.', false);
+            }
+        })
+        .catch(() => showToast('Terjadi kesalahan jaringan.', false));
+    }
+
+    function deleteApiKey(id, name) {
+        if (!confirm(`Apakah Anda yakin ingin menghapus/merevoke API Key "${name}"?\nPlatform yang menggunakan kunci ini tidak akan bisa mengakses API lagi.`)) {
+            return;
+        }
+
+        fetch(routes.apiKeyDestroy(id), {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        })
+        .then(async r => {
+            const data = await r.json();
+            if (r.ok) {
+                showToast(data.message);
+                openStoreSummary(currentActiveStoreId);
+            } else {
+                showToast(data.message || 'Gagal menghapus API Key.', false);
+            }
+        })
+        .catch(() => showToast('Terjadi kesalahan jaringan.', false));
+    }
 </script>
 @endpush
