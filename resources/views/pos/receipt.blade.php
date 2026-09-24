@@ -439,6 +439,19 @@
                 @endif
             </table>
 
+            @if (strtoupper($transaction['status'] ?? '') === 'HOLD' && !empty($store['qris_image']))
+                <div class="divider"></div>
+                <div style="margin: 12px auto; width: 140px; border: 2.5px solid #000; border-radius: 14px; background: #fff; overflow: hidden; text-align: center; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div style="padding: 10px 10px 6px 10px; background: #fff;">
+                        <img src="{{ $store['qris_image'] }}" style="width: 100%; height: auto; display: block;" alt="QRIS" />
+                    </div>
+                    <div style="position: relative; background: #000; color: #fff; padding: 7px 0; font-family: 'Arial Black', Impact, sans-serif; font-size: 13px; font-weight: 900; letter-spacing: 1px;">
+                        <div style="position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 6px solid #000;"></div>
+                        SCAN ME
+                    </div>
+                </div>
+            @endif
+
             <div class="divider-solid"></div>
 
             {{-- FOOTER --}}

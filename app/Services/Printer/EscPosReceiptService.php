@@ -3,6 +3,7 @@
 namespace App\Services\Printer;
 
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\DummyPrintConnector;
@@ -129,6 +130,9 @@ class EscPosReceiptService
             $this->printTransaction($data['transaction'] ?? []);
             $this->printItems($data['items']             ?? []);
             $this->printSummary($data['summary']         ?? [], $status);
+            if ($status === 'HOLD' && !empty($data['store']['qris_image'])) {
+                $this->printPrebillQris($data['store']['qris_image']);
+            }
             $this->printFooter($openDrawer, $status);
         }
     }
@@ -330,6 +334,218 @@ class EscPosReceiptService
         }
 
         return null;
+    }
+
+    /**
+     * Cetak kartu QRIS Model 1 (SCAN ME) untuk struk pre-bill (HOLD).
+     */
+    public function printPrebillQris(?string $qris): void
+    {
+        if (!$qris) {
+            return;
+        }
+
+        $qrisPath = $this->resolveQrisPath($qris);
+        if (!$qrisPath || !file_exists($qrisPath)) {
+            return;
+        }
+
+        $tempCardFile = null;
+        try {
+            $raw = @file_get_contents($qrisPath);
+            if (!$raw) {
+                return;
+            }
+
+            $srcImg = @imagecreatefromstring($raw);
+            if (!$srcImg) {
+                return;
+            }
+
+            // Lebar kartu: 280px utk 58mm, 360px utk 80mm
+            $cardWidth = ($this->width === 32) ? 280 : 360;
+            $cardImg = $this->generateScanMeCard($srcImg, $cardWidth);
+            imagedestroy($srcImg);
+
+            if (!$cardImg) {
+                return;
+            }
+
+            $tempCardFile = sys_get_temp_dir() . '/prebill_qris_' . uniqid() . '.png';
+            imagepng($cardImg, $tempCardFile);
+            imagedestroy($cardImg);
+
+            $img = EscposImage::load($tempCardFile, false);
+            $this->separator();
+            $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+            $this->printer->bitImage($img);
+            $this->printer->setJustification(Printer::JUSTIFY_LEFT);
+        } catch (\Throwable $e) {
+            \Log::warning('[EscPosReceiptService] Failed to render Pre-bill QRIS card: ' . $e->getMessage());
+        } finally {
+            if ($tempCardFile && file_exists($tempCardFile)) {
+                @unlink($tempCardFile);
+            }
+        }
+    }
+
+    protected function resolveQrisPath(?string $qris): ?string
+    {
+        if (!$qris) {
+            return null;
+        }
+
+        $qris = trim($qris);
+        if ($qris === '') {
+            return null;
+        }
+
+        if (file_exists($qris)) {
+            return $qris;
+        }
+
+        $urlPath = parse_url($qris, PHP_URL_PATH) ?: $qris;
+        $publicPath = public_path(ltrim($urlPath, '/\\'));
+        if (file_exists($publicPath)) {
+            return $publicPath;
+        }
+
+        $storagePath = ltrim($urlPath, '/\\');
+        if (str_starts_with($storagePath, 'storage/')) {
+            $storagePath = substr($storagePath, strlen('storage/'));
+        }
+
+        if (Storage::disk('public')->exists($storagePath)) {
+            return Storage::disk('public')->path($storagePath);
+        }
+
+        if (Storage::exists($storagePath)) {
+            return Storage::path($storagePath);
+        }
+
+        // Cache remote URL download
+        if (str_starts_with($qris, 'http://') || str_starts_with($qris, 'https://')) {
+            $tempCache = sys_get_temp_dir() . '/qris_cache_' . md5($qris) . '.png';
+            if (file_exists($tempCache) && (time() - filemtime($tempCache) < 86400)) {
+                return $tempCache;
+            }
+            try {
+                $content = @file_get_contents($qris);
+                if ($content) {
+                    file_put_contents($tempCache, $content);
+                    return $tempCache;
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('[EscPosReceiptService] Failed to download remote QRIS: ' . $e->getMessage());
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Generate Model 1 "SCAN ME" QRIS card for thermal printing.
+     */
+    protected function generateScanMeCard($srcImg, int $width = 360): ?\GdImage
+    {
+        if (!extension_loaded('gd') || !$srcImg) {
+            return null;
+        }
+
+        $height = (int) round($width * 1.25);
+        $radius = (int) round($width * 0.08);
+        $borderWidth = 3;
+        $badgeHeight = (int) round($height * 0.22);
+        $notchW = (int) round($width * 0.10);
+        $notchH = (int) round($notchW * 0.55);
+
+        $im = imagecreatetruecolor($width, $height);
+        $white = imagecolorallocate($im, 255, 255, 255);
+        $black = imagecolorallocate($im, 0, 0, 0);
+
+        // Fill background white
+        imagefilledrectangle($im, 0, 0, $width, $height, $white);
+
+        // Draw outer rounded border
+        imagesetthickness($im, $borderWidth);
+        imageline($im, $radius, 0, $width - $radius, 0, $black);
+        imageline($im, 0, $radius, 0, $height - $radius, $black);
+        imageline($im, $width - 1, $radius, $width - 1, $height - $radius, $black);
+        imageline($im, $radius, $height - 1, $width - $radius, $height - 1, $black);
+        imagearc($im, $radius, $radius, $radius * 2, $radius * 2, 180, 270, $black);
+        imagearc($im, $width - $radius - 1, $radius, $radius * 2, $radius * 2, 270, 360, $black);
+        imagearc($im, $radius, $height - $radius - 1, $radius * 2, $radius * 2, 90, 180, $black);
+        imagearc($im, $width - $radius - 1, $height - $radius - 1, $radius * 2, $radius * 2, 0, 90, $black);
+
+        // Solid black bottom badge
+        $badgeTop = $height - $badgeHeight;
+        imagefilledrectangle($im, 0, $badgeTop, $width - 1, $height - $radius, $black);
+        imagefilledarc($im, $radius, $height - $radius - 1, $radius * 2, $radius * 2, 90, 180, $black, IMG_ARC_PIE);
+        imagefilledarc($im, $width - $radius - 1, $height - $radius - 1, $radius * 2, $radius * 2, 0, 90, $black, IMG_ARC_PIE);
+        imagefilledrectangle($im, $radius, $height - $radius, $width - $radius - 1, $height - 1, $black);
+
+        // Speech-bubble triangle notch pointing UP from badge top into QR area
+        $centerX = (int) ($width / 2);
+        $notchPoints = [
+            $centerX - (int)($notchW / 2), $badgeTop,
+            $centerX, $badgeTop - $notchH,
+            $centerX + (int)($notchW / 2), $badgeTop,
+        ];
+        imagefilledpolygon($im, $notchPoints, $black);
+
+        // QR Code area
+        $availW = $width - 24;
+        $availH = $badgeTop - $notchH - 16;
+        $qrSize = (int) min($availW, $availH);
+        $qrX = (int) (($width - $qrSize) / 2);
+        $qrY = (int) (($badgeTop - $notchH - $qrSize) / 2) + 6;
+
+        $srcW = imagesx($srcImg);
+        $srcH = imagesy($srcImg);
+        imagecopyresampled($im, $srcImg, $qrX, $qrY, 0, 0, $qrSize, $qrSize, $srcW, $srcH);
+
+        // Render "SCAN ME" text inside black badge
+        $text = "SCAN ME";
+        $candidateFonts = [
+            'C:/Windows/Fonts/ariblk.ttf',
+            'C:/Windows/Fonts/arialbd.ttf',
+            'C:/Windows/Fonts/arial.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+            '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+            '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+        ];
+
+        $fontFile = null;
+        foreach ($candidateFonts as $f) {
+            if (file_exists($f)) {
+                $fontFile = $f;
+                break;
+            }
+        }
+
+        if ($fontFile && function_exists('imagettftext')) {
+            $fontSize = (int) round($badgeHeight * 0.28);
+            $bbox = imagettfbbox($fontSize, 0, $fontFile, $text);
+            $textW = abs($bbox[4] - $bbox[0]);
+            $textH = abs($bbox[5] - $bbox[1]);
+            $tx = (int) (($width - $textW) / 2);
+            $ty = (int) ($badgeTop + ($badgeHeight + $textH) / 2) - 2;
+            imagettftext($im, $fontSize, 0, $tx, $ty, $white, $fontFile, $text);
+        } else {
+            // Built-in GD font fallback
+            $font = 5;
+            $fw = imagefontwidth($font);
+            $fh = imagefontheight($font);
+            $tw = $fw * strlen($text);
+            $tx = (int) (($width - $tw) / 2);
+            $ty = (int) ($badgeTop + ($badgeHeight - $fh) / 2);
+            imagestring($im, $font, $tx, $ty, $text, $white);
+            imagestring($im, $font, $tx + 1, $ty, $text, $white);
+        }
+
+        return $im;
     }
 
     protected function printTransaction(array $trx): void

@@ -2896,11 +2896,12 @@ class PosController extends Controller
             'trigger_buzzer'  => $triggerBuzzer,
             'open_drawer'     => $openDrawer,
             'store' => [
-                'name'    => $store->name ?? 'RimsPos',
-                'address' => $store->address,
-                'city'    => $store->city,
-                'phone'   => $store->phone,
-                'logo'    => null,
+                'name'       => $store->name ?? 'RimsPos',
+                'address'    => $store->address,
+                'city'       => $store->city,
+                'phone'      => $store->phone,
+                'logo'       => $store->logo,
+                'qris_image' => $store->qris_image,
             ],
             'transaction' => [
                 'invoice'  => $sale->invoice_number,
@@ -4533,11 +4534,12 @@ class PosController extends Controller
 
         return response()->json([
             'store' => [
-                'name'    => $store->name ?? 'RimsPos',
-                'address' => $store->address,
-                'city'    => $store->city,
-                'phone'   => $store->phone,
-                'logo'    => $store->logo ? Storage::url($store->logo) : null,
+                'name'       => $store->name ?? 'RimsPos',
+                'address'    => $store->address,
+                'city'       => $store->city,
+                'phone'      => $store->phone,
+                'logo'       => $store->logo ? Storage::url($store->logo) : null,
+                'qris_image' => $store->qris_image ? Storage::url($store->qris_image) : null,
             ],
             'transaction' => [
                 'invoice' => $sale->invoice_number,

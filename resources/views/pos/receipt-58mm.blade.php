@@ -391,8 +391,20 @@
                     <td>{{ number_format($summary['remaining_debt'], 0, ',', '.') }}</td>
                 </tr>
                 @endif
-                @endif
             </table>
+
+            @if (strtoupper($transaction['status'] ?? '') === 'HOLD' && !empty($store['qris_image']))
+                <div class="divider"></div>
+                <div style="margin: 10px auto; width: 120px; border: 2px solid #000; border-radius: 12px; background: #fff; overflow: hidden; text-align: center; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div style="padding: 8px 8px 4px 8px; background: #fff;">
+                        <img src="{{ $store['qris_image'] }}" style="width: 100%; height: auto; display: block;" alt="QRIS" />
+                    </div>
+                    <div style="position: relative; background: #000; color: #fff; padding: 5px 0; font-family: 'Arial Black', Impact, sans-serif; font-size: 11px; font-weight: 900; letter-spacing: 0.8px;">
+                        <div style="position: absolute; top: -5px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 5px solid #000;"></div>
+                        SCAN ME
+                    </div>
+                </div>
+            @endif
 
             <div class="divider-solid"></div>
 
