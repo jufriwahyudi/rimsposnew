@@ -2900,7 +2900,7 @@ class PosController extends Controller
                 'address'    => $store->address,
                 'city'       => $store->city,
                 'phone'      => $store->phone,
-                'logo'       => $store->logo,
+                'logo'       => null,
                 'qris_image' => $store->qris_image,
             ],
             'transaction' => [

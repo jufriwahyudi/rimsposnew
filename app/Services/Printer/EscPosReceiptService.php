@@ -452,12 +452,71 @@ class EscPosReceiptService
             return null;
         }
 
-        $height = (int) round($width * 1.25);
-        $radius = (int) round($width * 0.08);
+        $radius = (int) round($width * 0.07);
         $borderWidth = 3;
-        $badgeHeight = (int) round($height * 0.22);
-        $notchW = (int) round($width * 0.10);
+
+        // Margin dan ukuran QR Code
+        $margin = (int) round($width * 0.05); // ~18px
+        $qrSize = $width - ($margin * 2);     // e.g. 360 - 36 = 324px
+
+        // Teks "SCAN ME" panjangnya mengikuti lebar QR
+        $targetTextWidth = (int) round($qrSize * 0.95);
+        $text = "SCAN ME";
+
+        $candidateFonts = array_filter([
+            function_exists('public_path') ? public_path('assets/fonts/DejaVuSans-Bold.ttf') : null,
+            function_exists('base_path') ? base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf') : null,
+            dirname(__DIR__, 3) . '/public/assets/fonts/DejaVuSans-Bold.ttf',
+            dirname(__DIR__, 3) . '/vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf',
+            'C:/Windows/Fonts/ariblk.ttf',
+            'C:/Windows/Fonts/arialbd.ttf',
+            'C:/Windows/Fonts/arial.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+            '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+        ]);
+
+        $fontFile = null;
+        foreach ($candidateFonts as $f) {
+            if ($f && file_exists($f)) {
+                $fontFile = $f;
+                break;
+            }
+        }
+
+        $hasTtf = ($fontFile && function_exists('imagettftext') && function_exists('imagettfbbox'));
+
+        if ($hasTtf) {
+            // Hitung ukuran font secara presisi agar panjang teks sesuai lebar QR
+            $testSize = 30;
+            $bbox = imagettfbbox($testSize, 0, $fontFile, $text);
+            $testW = abs($bbox[4] - $bbox[0]);
+            $fontSize = (int) round($testSize * ($targetTextWidth / max(1, $testW)));
+
+            $bbox = imagettfbbox($fontSize, 0, $fontFile, $text);
+            $textW = abs($bbox[4] - $bbox[0]);
+            while ($textW > $targetTextWidth && $fontSize > 10) {
+                $fontSize--;
+                $bbox = imagettfbbox($fontSize, 0, $fontFile, $text);
+                $textW = abs($bbox[4] - $bbox[0]);
+            }
+            $textH = abs($bbox[5] - $bbox[1]);
+            $badgeHeight = $textH + (int) round($fontSize * 0.8);
+        } else {
+            // Fallback jika FreeType tidak terpasang di hosting
+            $badgeHeight = (int) round($width * 0.22);
+            $fontSize = 5;
+            $textW = imagefontwidth(5) * strlen($text);
+            $textH = imagefontheight(5);
+        }
+
+        $notchW = (int) round($width * 0.12);
         $notchH = (int) round($notchW * 0.55);
+
+        $qrTop = $margin;
+        $badgeTop = $qrTop + $qrSize + $margin + $notchH;
+        $height = $badgeTop + $badgeHeight;
 
         $im = imagecreatetruecolor($width, $height);
         $white = imagecolorallocate($im, 255, 255, 255);
@@ -478,7 +537,6 @@ class EscPosReceiptService
         imagearc($im, $width - $radius - 1, $height - $radius - 1, $radius * 2, $radius * 2, 0, 90, $black);
 
         // Solid black bottom badge
-        $badgeTop = $height - $badgeHeight;
         imagefilledrectangle($im, 0, $badgeTop, $width - 1, $height - $radius, $black);
         imagefilledarc($im, $radius, $height - $radius - 1, $radius * 2, $radius * 2, 90, 180, $black, IMG_ARC_PIE);
         imagefilledarc($im, $width - $radius - 1, $height - $radius - 1, $radius * 2, $radius * 2, 0, 90, $black, IMG_ARC_PIE);
@@ -493,56 +551,30 @@ class EscPosReceiptService
         ];
         imagefilledpolygon($im, $notchPoints, $black);
 
-        // QR Code area
-        $availW = $width - 24;
-        $availH = $badgeTop - $notchH - 16;
-        $qrSize = (int) min($availW, $availH);
-        $qrX = (int) (($width - $qrSize) / 2);
-        $qrY = (int) (($badgeTop - $notchH - $qrSize) / 2) + 6;
-
+        // Resample QR code
         $srcW = imagesx($srcImg);
         $srcH = imagesy($srcImg);
-        imagecopyresampled($im, $srcImg, $qrX, $qrY, 0, 0, $qrSize, $qrSize, $srcW, $srcH);
+        $qrX = (int) (($width - $qrSize) / 2);
+        imagecopyresampled($im, $srcImg, $qrX, $qrTop, 0, 0, $qrSize, $qrSize, $srcW, $srcH);
 
         // Render "SCAN ME" text inside black badge
-        $text = "SCAN ME";
-        $candidateFonts = [
-            'C:/Windows/Fonts/ariblk.ttf',
-            'C:/Windows/Fonts/arialbd.ttf',
-            'C:/Windows/Fonts/arial.ttf',
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-            '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
-            '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
-            '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
-            '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
-        ];
-
-        $fontFile = null;
-        foreach ($candidateFonts as $f) {
-            if (file_exists($f)) {
-                $fontFile = $f;
-                break;
-            }
-        }
-
-        if ($fontFile && function_exists('imagettftext')) {
-            $fontSize = (int) round($badgeHeight * 0.28);
-            $bbox = imagettfbbox($fontSize, 0, $fontFile, $text);
-            $textW = abs($bbox[4] - $bbox[0]);
-            $textH = abs($bbox[5] - $bbox[1]);
+        if ($hasTtf) {
             $tx = (int) (($width - $textW) / 2);
             $ty = (int) ($badgeTop + ($badgeHeight + $textH) / 2) - 2;
             imagettftext($im, $fontSize, 0, $tx, $ty, $white, $fontFile, $text);
         } else {
-            // Built-in GD font fallback
-            $font = 5;
-            $fw = imagefontwidth($font);
-            $fh = imagefontheight($font);
-            $tw = $fw * strlen($text);
-            $tx = (int) (($width - $tw) / 2);
-            $ty = (int) ($badgeTop + ($badgeHeight - $fh) / 2);
-            imagestring($im, $font, $tx, $ty, $text, $white);
-            imagestring($im, $font, $tx + 1, $ty, $text, $white);
+            // Upscale bitmap font to span width if TTF missing
+            $fontImg = imagecreatetruecolor($textW, $textH);
+            $bg = imagecolorallocate($fontImg, 0, 0, 0);
+            $fg = imagecolorallocate($fontImg, 255, 255, 255);
+            imagefill($fontImg, 0, 0, $bg);
+            imagestring($fontImg, 5, 0, 0, $text, $fg);
+            $scaledH = (int) round($badgeHeight * 0.6);
+            $scaledW = $targetTextWidth;
+            $scaledX = (int) (($width - $scaledW) / 2);
+            $scaledY = (int) ($badgeTop + ($badgeHeight - $scaledH) / 2);
+            imagecopyresampled($im, $fontImg, $scaledX, $scaledY, 0, 0, $scaledW, $scaledH, $textW, $textH);
+            imagedestroy($fontImg);
         }
 
         return $im;
