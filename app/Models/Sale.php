@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\HasStore;
+use App\Services\FirestoreService;
 use Illuminate\Database\Eloquent\Model;
 
 class Sale extends Model
@@ -10,7 +11,9 @@ class Sale extends Model
     use HasStore;
 
     protected $connection = 'mysql';
+
     protected $table = 'sales';
+
     protected $fillable = [
         'store_id',
         'ref_sale_id',
@@ -65,11 +68,12 @@ class Sale extends Model
     ];
 
     protected $casts = [
-        'sale_date'            => 'datetime',
-        'prescription_date'    => 'date',
-        'kitchen_printed_at'   => 'datetime',
-        'bar_printed_at'       => 'datetime',
+        'sale_date' => 'datetime',
+        'prescription_date' => 'date',
+        'kitchen_printed_at' => 'datetime',
+        'bar_printed_at' => 'datetime',
         'printed_stations_log' => 'array',
+        'change_amount' => 'float',
     ];
 
     public function member()
@@ -87,16 +91,16 @@ class Sale extends Model
         static::saved(function ($sale) {
             try {
                 // Only sync self-service orders (invoice starts with 'QR-')
-                if (!str_starts_with($sale->invoice_number, 'QR-')) {
+                if (! str_starts_with($sale->invoice_number, 'QR-')) {
                     return;
                 }
 
                 $store = $sale->store;
                 if ($store && $store->business_type === 'fnb' && $store->addon_self_service) {
-                    app(\App\Services\FirestoreService::class)->syncOrder($sale);
+                    app(FirestoreService::class)->syncOrder($sale);
                 }
             } catch (\Throwable $e) {
-                \Log::error("Failed to sync sale #{$sale->id} to Firestore: " . $e->getMessage());
+                \Log::error("Failed to sync sale #{$sale->id} to Firestore: ".$e->getMessage());
             }
         });
     }
@@ -145,6 +149,7 @@ class Sale extends Model
     {
         return $this->hasMany(CashTransaction::class, 'ref_id')->where('transaction_type', 'sale')->where('direction', 'in');
     }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id');

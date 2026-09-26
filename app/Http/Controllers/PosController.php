@@ -2124,9 +2124,9 @@ class PosController extends Controller
             return response()->json([
                 'message' => ($isAppendOnly ?? false) ? "Pesanan tambahan berhasil digabungkan ke Meja {$sale->table_number}" : 'Transaksi berhasil',
                 'invoice' => $sale->invoice_number,
-                'sale_id' => $sale->id,
-                'change' => $sale->change_amount,
-                'is_appended' => $isAppendOnly ?? false,
+                'sale_id' => (int) $sale->id,
+                'change' => (float) ($sale->change_amount ?? 0),
+                'is_appended' => (bool) ($isAppendOnly ?? false),
             ]);
         } catch (\Exception $e) {
             // Clean up uploaded file if transaction failed
