@@ -139,6 +139,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
         Route::resource('sales-persons', SalesPersonController::class);
+        Route::post('discounts/quick-presets', [DiscountController::class, 'updateQuickPresets'])->name('discounts.quick-presets');
         Route::resource('discounts', DiscountController::class);
         // Customer Custom Fields Management
         Route::get('/customers/custom-fields', [CustomerController::class, 'customFieldsIndex'])->name('customers.custom-fields.index');

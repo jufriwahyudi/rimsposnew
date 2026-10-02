@@ -32,6 +32,7 @@ class Store extends Model
         'addon_fefo',
         'addon_concoction',
         'enable_cash_register',
+        'quick_discounts',
     ];
 
     protected $casts = [

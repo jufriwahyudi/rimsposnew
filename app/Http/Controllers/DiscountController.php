@@ -196,6 +196,15 @@ class DiscountController extends Controller
             return response()->json(['success' => false, 'message' => 'store_id diperlukan.'], 422);
         }
 
+        $store = Store::find($storeId);
+        $quickPresets = ['5%', '10%', '15%', '20%'];
+        if ($store && !empty($store->quick_discounts)) {
+            $parsed = array_filter(array_map('trim', explode(',', $store->quick_discounts)));
+            if (!empty($parsed)) {
+                $quickPresets = array_values($parsed);
+            }
+        }
+
         $discounts = Discount::where('store_id', $storeId)
             ->active()
             ->with('variants:id,product_id,variant_name')
@@ -208,8 +217,42 @@ class DiscountController extends Controller
             });
 
         return response()->json([
-            'success' => true,
-            'data'    => $discounts,
+            'success'       => true,
+            'quick_presets' => $quickPresets,
+            'data'          => $discounts,
+        ]);
+    }
+
+    /**
+     * Update quick discount presets for a store.
+     */
+    public function updateQuickPresets(Request $request)
+    {
+        $storeId = $request->input('store_id') ?: session('store_id');
+        if (!$storeId) {
+            return response()->json(['success' => false, 'message' => 'Pilih toko terlebih dahulu.'], 422);
+        }
+
+        $request->validate([
+            'quick_discounts' => 'required|string|max:255',
+        ]);
+
+        $store = Store::find($storeId);
+        if (!$store) {
+            return response()->json(['success' => false, 'message' => 'Toko tidak ditemukan.'], 404);
+        }
+
+        $store->update([
+            'quick_discounts' => $request->input('quick_discounts'),
+        ]);
+
+        $presets = array_values(array_filter(array_map('trim', explode(',', $store->quick_discounts))));
+
+        return response()->json([
+            'success'       => true,
+            'message'       => 'Preset shortcut diskon cepat berhasil disimpan.',
+            'quick_presets' => $presets,
         ]);
     }
 }
+

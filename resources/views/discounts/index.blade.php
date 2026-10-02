@@ -33,6 +33,33 @@
                         <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah Promo / Diskon
                     </button>
                 </div>
+
+                <!-- Shortcut Diskon Cepat Kasir Card -->
+                <div class="card rounded-4 p-3 mb-3 border-0 shadow-sm mx-3" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0284c7 !important;">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <h6 class="fw-bold mb-1 text-primary d-flex align-items-center">
+                                <i class="material-icons-outlined me-1 fs-5">bolt</i> Shortcut Tombol Diskon Cepat Kasir (Mobile & Tablet POS)
+                            </h6>
+                            <p class="text-muted small mb-0">
+                                Atur tombol pintasan preset diskon di kasir mobile/tablet tanpa update APK. Pisahkan dengan koma (contoh: <code>5%, 10%, 15%, 20%</code>).
+                            </p>
+                        </div>
+                        <form id="form-quick-presets" class="d-flex align-items-center gap-2 mt-2 mt-md-0" onsubmit="saveQuickPresets(event)">
+                            @csrf
+                            <div class="input-group input-group-sm" style="max-width: 320px;">
+                                <span class="input-group-text bg-white"><i class="material-icons-outlined fs-6">tune</i></span>
+                                <input type="text" name="quick_discounts" id="quick_discounts_input" class="form-control" 
+                                    placeholder="5%, 10%, 15%, 20%" 
+                                    value="{{ $store->quick_discounts ?? '5%, 10%, 15%, 20%' }}" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm px-3" id="btn-save-presets">
+                                <i class="material-icons-outlined fs-6 align-middle">save</i> Simpan Preset
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover align-middle" id="tbl-discounts">
@@ -459,6 +486,36 @@
                         Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal menghapus data promo.', 'error');
                     }
                 });
+            }
+        });
+    }
+
+    function saveQuickPresets(e) {
+        e.preventDefault();
+        const btn = $('#btn-save-presets');
+        const inputVal = $('#quick_discounts_input').val();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+        $.ajax({
+            url: "{{ route('discounts.quick-presets') }}",
+            type: "POST",
+            data: {
+                _token: "{{ csrf_token() }}",
+                quick_discounts: inputVal
+            },
+            success: function(res) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: res.message || 'Preset diskon cepat kasir berhasil disimpan.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            },
+            error: function(xhr) {
+                Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal menyimpan preset.', 'error');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="material-icons-outlined fs-6 align-middle">save</i> Simpan Preset');
             }
         });
     }
