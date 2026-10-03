@@ -57,6 +57,8 @@ class StoreController extends Controller
             'addon_fefo'           => 'nullable|boolean',
             'addon_concoction'     => 'nullable|boolean',
             'enable_cash_register' => 'nullable|boolean',
+            'receipt_header'       => 'nullable|string|max:500',
+            'receipt_footer'       => 'nullable|string|max:500',
 
             // Onboarding options
             'create_rekening'       => 'nullable|boolean',
@@ -121,6 +123,8 @@ class StoreController extends Controller
                 'addon_fefo'           => $request->boolean('addon_fefo', false),
                 'addon_concoction'     => $request->boolean('addon_concoction', false),
                 'enable_cash_register' => $request->boolean('enable_cash_register', false),
+                'receipt_header'       => $request->receipt_header,
+                'receipt_footer'       => $request->receipt_footer,
             ]);
 
             // 1. Auto-create Supplier Default
@@ -250,6 +254,8 @@ class StoreController extends Controller
             'addon_fefo'           => 'nullable|boolean',
             'addon_concoction'     => 'nullable|boolean',
             'enable_cash_register' => 'nullable|boolean',
+            'receipt_header'       => 'nullable|string|max:500',
+            'receipt_footer'       => 'nullable|string|max:500',
         ];
 
         if (!$isNewBusiness) {
@@ -288,6 +294,8 @@ class StoreController extends Controller
             'addon_fefo'           => $request->boolean('addon_fefo', false),
             'addon_concoction'     => $request->boolean('addon_concoction', false),
             'enable_cash_register' => $request->boolean('enable_cash_register', false),
+            'receipt_header'       => $request->receipt_header,
+            'receipt_footer'       => $request->receipt_footer,
         ];
 
         if ($request->filled('logo_data')) {

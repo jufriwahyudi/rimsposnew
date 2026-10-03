@@ -255,14 +255,18 @@
                 @endif
                 <h1 class="store-name">{{ $store['name'] }}</h1>
                 <div class="store-info">
-                    @if (!empty($store['address']))
-                        {{ $store['address'] }}<br>
-                    @endif
-                    @if (!empty($store['city']))
-                        {{ $store['city'] }}<br>
-                    @endif
-                    @if (!empty($store['phone']))
-                        Telp: {{ $store['phone'] }}
+                    @if (!empty($store['receipt_header']))
+                        {!! nl2br(e($store['receipt_header'])) !!}
+                    @else
+                        @if (!empty($store['address']))
+                            {{ $store['address'] }}<br>
+                        @endif
+                        @if (!empty($store['city']))
+                            {{ $store['city'] }}<br>
+                        @endif
+                        @if (!empty($store['phone']))
+                            Telp: {{ $store['phone'] }}
+                        @endif
                     @endif
                 </div>
             </td>
@@ -402,6 +406,10 @@
         @if (strtoupper($transaction['status'] ?? '') === 'HOLD')
             <p style="font-weight: bold;">TAGIHAN SEMENTARA (PRE-BILL)</p>
             <p style="font-size: 10px; margin-top: 5px;">Silakan lakukan pembayaran di kasir</p>
+        @elseif (!empty($store['receipt_footer']))
+            <div style="font-size: 11px; line-height: 1.4;">
+                {!! nl2br(e($store['receipt_footer'])) !!}
+            </div>
         @else
             <p>Terima kasih atas kunjungan Anda</p>
             <p style="font-size: 10px; margin-top: 5px;">Barang yang sudah dibeli tidak dapat ditukar atau dikembalikan</p>

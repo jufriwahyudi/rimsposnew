@@ -506,6 +506,41 @@
                             </div>
                         </div>
 
+                        {{-- ========== SECTION KUSTOMISASI STRUK KASIR ========== --}}
+                        <div class="col-12 mt-2">
+                            <div class="card border border-light-subtle shadow-none bg-light p-3 rounded-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-receipt-cutoff text-primary fs-5 me-2"></i>
+                                    <div>
+                                        <h6 class="fw-bold mb-0 text-dark">Kustomisasi Teks Struk Printer</h6>
+                                        <small class="text-muted">Atur teks khusus di bawah nama toko dan catatan kaki struk (opsional)</small>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-1">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="receipt_header">
+                                            Header Struk (Kustom di Bawah Nama Toko)
+                                        </label>
+                                        <textarea class="form-control" id="receipt_header" rows="3"
+                                            placeholder="Kosongkan untuk otomatis memakai Alamat, Kabupaten, & No. Telepon di atas..."></textarea>
+                                        <div class="form-text text-muted" style="font-size: 11px;">
+                                            Nama toko selalu otomatis di baris teratas. Isi field ini jika ingin susunan alamat/slogan kustom.
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="receipt_footer">
+                                            Footer Struk (Catatan Kaki Paling Bawah)
+                                        </label>
+                                        <textarea class="form-control" id="receipt_footer" rows="3"
+                                            placeholder="Kosongkan untuk memakai teks standar: Terima Kasih! / Barang yg sudah dibeli tidak dapat dikembalikan..."></textarea>
+                                        <div class="form-text text-muted" style="font-size: 11px;">
+                                            Cocok untuk pesan promo, password WiFi, info Instagram/WhatsApp, atau kebijakan retur toko.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {{-- ========== SECTION ONBOARDING TOKO BARU (Hanya saat Tambah Toko) ========== --}}
                         <div class="col-12" id="onboardingSection">
                             <div class="onboarding-card p-3 mt-2">
@@ -1237,6 +1272,8 @@
         document.getElementById('storeId').value = '';
         document.getElementById('logo_data').value = '';
         document.getElementById('qris_image_data').value = '';
+        document.getElementById('receipt_header').value = '';
+        document.getElementById('receipt_footer').value = '';
         setQrisPreview(null);
         document.getElementById('is_active').checked = true;
         document.getElementById('enable_cash_register').checked = false;
@@ -1285,6 +1322,8 @@
                 document.getElementById('printer_type').value = data.printer_type ?? '80mm';
                 document.getElementById('is_active').checked = data.is_active == 1;
                 document.getElementById('enable_cash_register').checked = data.enable_cash_register == 1;
+                document.getElementById('receipt_header').value = data.receipt_header ?? '';
+                document.getElementById('receipt_footer').value = data.receipt_footer ?? '';
                 document.getElementById('logo_data').value = '';
                 document.getElementById('qris_image_data').value = '';
                 document.getElementById('business_id').value = data.business_id ?? '';
@@ -1340,6 +1379,8 @@
             printer_type: document.getElementById('printer_type').value,
             is_active: document.getElementById('is_active').checked ? 1 : 0,
             enable_cash_register: document.getElementById('enable_cash_register').checked ? 1 : 0,
+            receipt_header: document.getElementById('receipt_header').value.trim() || null,
+            receipt_footer: document.getElementById('receipt_footer').value.trim() || null,
             logo_data: document.getElementById('logo_data').value || null,
             qris_image_data: document.getElementById('qris_image_data').value || null,
             bussiness_type: document.getElementById('bussiness_type').value,

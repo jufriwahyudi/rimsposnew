@@ -33,6 +33,8 @@ class Store extends Model
         'addon_concoction',
         'enable_cash_register',
         'quick_discounts',
+        'receipt_header',
+        'receipt_footer',
     ];
 
     protected $casts = [

@@ -133,7 +133,7 @@ class EscPosReceiptService
             if ($status === 'HOLD' && !empty($data['store']['qris_image'])) {
                 $this->printPrebillQris($data['store']['qris_image']);
             }
-            $this->printFooter($openDrawer, $status);
+            $this->printFooter($openDrawer, $status, $data['store'] ?? []);
         }
     }
 
@@ -286,14 +286,26 @@ class EscPosReceiptService
         $this->printer->setTextSize(1, 1);
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
 
-        if (!empty($store['address'])) {
-            $this->writeCentered($store['address']);
-        }
-        if (!empty($store['city'])) {
-            $this->writeCentered($store['city']);
-        }
-        if (!empty($store['phone'])) {
-            $this->writeCentered('Telp: ' . $store['phone']);
+        // Kustomisasi Header (exclude nama toko) atau Fallback ke Default
+        $customHeader = trim($store['receipt_header'] ?? '');
+        if ($customHeader !== '') {
+            $lines = preg_split('/\r\n|\r|\n/', $customHeader);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line !== '') {
+                    $this->writeCentered($line);
+                }
+            }
+        } else {
+            if (!empty($store['address'])) {
+                $this->writeCentered($store['address']);
+            }
+            if (!empty($store['city'])) {
+                $this->writeCentered($store['city']);
+            }
+            if (!empty($store['phone'])) {
+                $this->writeCentered('Telp: ' . $store['phone']);
+            }
         }
 
         $this->separator();
@@ -680,16 +692,27 @@ class EscPosReceiptService
         }
     }
 
-    protected function printFooter(bool $openDrawer = true, string $status = 'PAID'): void
+    protected function printFooter(bool $openDrawer = true, string $status = 'PAID', array $store = []): void
     {
         $this->separator();
         if ($status === 'HOLD') {
             $this->writeCentered('TAGIHAN SEMENTARA (PRE-BILL)');
             $this->writeCentered('Silakan lakukan pembayaran di kasir');
         } else {
-            $this->writeCentered('Terima Kasih!');
-            $this->writeCentered('Barang yg sudah dibeli');
-            $this->writeCentered('tidak dapat dikembalikan');
+            $customFooter = trim($store['receipt_footer'] ?? '');
+            if ($customFooter !== '') {
+                $lines = preg_split('/\r\n|\r|\n/', $customFooter);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if ($line !== '') {
+                        $this->writeCentered($line);
+                    }
+                }
+            } else {
+                $this->writeCentered('Terima Kasih!');
+                $this->writeCentered('Barang yg sudah dibeli');
+                $this->writeCentered('tidak dapat dikembalikan');
+            }
         }
 
         if ($openDrawer && $status !== 'HOLD') {
