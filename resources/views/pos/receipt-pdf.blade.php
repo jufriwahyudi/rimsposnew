@@ -243,10 +243,17 @@
                 @php
                     $logoBase64 = null;
                     if (!empty($store['logo'])) {
-                        $cleanedPath = str_replace('/storage/', '', $store['logo']);
+                        $cleanedPath = ltrim(str_replace(['/storage/', 'storage/'], '', $store['logo']), '/\\');
                         $fullPath = public_path('storage/' . $cleanedPath);
+                        if (!file_exists($fullPath)) {
+                            $fullPath = storage_path('app/public/' . $cleanedPath);
+                        }
+                        if (!file_exists($fullPath) && file_exists(public_path($cleanedPath))) {
+                            $fullPath = public_path($cleanedPath);
+                        }
                         if (file_exists($fullPath)) {
-                            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($fullPath));
+                            $mime = function_exists('mime_content_type') ? (mime_content_type($fullPath) ?: 'image/png') : 'image/png';
+                            $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($fullPath));
                         }
                     }
                 @endphp

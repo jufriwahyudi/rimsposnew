@@ -323,15 +323,25 @@
         <div class="receipt">
             {{-- HEADER --}}
             <div class="header">
-                @if (!empty($store['logo']))
+                {{-- Logo toko di-disable untuk cetakan thermal, ganti false ke true jika ingin mengaktifkan --}}
+                @if (false && !empty($store['logo']))
                     <img src="{{ $store['logo'] }}" alt="Logo" style="max-width: 50px; margin-bottom: 4px;">
                 @endif
                 <h2>{{ $store['name'] }}</h2>
-                @if (!empty($store['address']))
-                    <p>{{ $store['address'] }}</p>
-                @endif
-                @if (!empty($store['phone']))
-                    <p>Telp: {{ $store['phone'] }}</p>
+                @if (!empty($store['receipt_header']))
+                    <div style="font-size: 11px; color: #555; line-height: 1.4;">
+                        {!! nl2br(e($store['receipt_header'])) !!}
+                    </div>
+                @else
+                    @if (!empty($store['address']))
+                        <p>{{ $store['address'] }}</p>
+                    @endif
+                    @if (!empty($store['city']))
+                        <p>{{ $store['city'] }}</p>
+                    @endif
+                    @if (!empty($store['phone']))
+                        <p>Telp: {{ $store['phone'] }}</p>
+                    @endif
                 @endif
             </div>
 
@@ -459,6 +469,10 @@
                 @if (strtoupper($transaction['status'] ?? '') === 'HOLD')
                     <p style="font-weight: bold;">TAGIHAN SEMENTARA (PRE-BILL)</p>
                     <p>Silakan lakukan pembayaran di kasir</p>
+                @elseif (!empty($store['receipt_footer']))
+                    <div style="font-size: 11px; color: #555; line-height: 1.4;">
+                        {!! nl2br(e($store['receipt_footer'])) !!}
+                    </div>
                 @else
                     <p>Terima kasih atas kunjungan Anda</p>
                     <p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan</p>

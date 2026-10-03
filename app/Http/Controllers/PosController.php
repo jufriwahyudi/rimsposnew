@@ -2993,7 +2993,7 @@ class PosController extends Controller
                 'phone' => $store->phone,
                 'receipt_header' => $store->receipt_header,
                 'receipt_footer' => $store->receipt_footer,
-                'logo' => null,
+                'logo' => $store->logo,
                 'qris_image' => $store->qris_image,
             ],
             'transaction' => [
@@ -4627,10 +4627,11 @@ class PosController extends Controller
 
     public function printReceipt($id)
     {
-        $store = Store::findOrFail(session('store_id'));
         $sale = Sale::with(['items' => function ($query) {
             $query->whereIn('status', ['sold', 'exchanged_in'])->with(['product', 'variant.product']);
-        }, 'cashier', 'refunds'])->findOrFail($id);
+        }, 'cashier', 'refunds', 'store'])->findOrFail($id);
+
+        $store = $sale->store ?? (session('store_id') ? Store::find(session('store_id')) : Store::first());
 
         return response()->json([
             'store' => [
@@ -4640,8 +4641,8 @@ class PosController extends Controller
                 'phone' => $store->phone,
                 'receipt_header' => $store->receipt_header,
                 'receipt_footer' => $store->receipt_footer,
-                'logo' => null,
-                'qris_image' => $store->qris_image ? Storage::url($store->qris_image) : null,
+                'logo' => $store?->logo ? Storage::url($store->logo) : null,
+                'qris_image' => $store?->qris_image ? Storage::url($store->qris_image) : null,
             ],
             'transaction' => [
                 'invoice' => $sale->invoice_number,
@@ -4763,10 +4764,11 @@ class PosController extends Controller
      */
     public function showReceipt($id)
     {
-        $store = Store::findOrFail(session('store_id'));
+        $sale = Sale::with('store')->findOrFail($id);
+        $store = $sale->store ?? (session('store_id') ? Store::find(session('store_id')) : Store::first());
         $data = $this->printReceipt($id)->getData(true);
 
-        if ($store->printer_type === 'pdf') {
+        if ($store && $store->printer_type === 'pdf') {
             $pdf = \PDF::loadView('pos.receipt-pdf', [
                 'store' => $data['store'],
                 'transaction' => $data['transaction'],
@@ -4777,7 +4779,7 @@ class PosController extends Controller
             return $pdf->stream('Invoice-'.$data['transaction']['invoice'].'.pdf');
         }
 
-        $view = ($store->printer_type === '58mm') ? 'pos.receipt-58mm' : 'pos.receipt';
+        $view = ($store && $store->printer_type === '58mm') ? 'pos.receipt-58mm' : 'pos.receipt';
 
         return view($view, [
             'store' => $data['store'],
