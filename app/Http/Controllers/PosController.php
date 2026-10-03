@@ -2993,7 +2993,7 @@ class PosController extends Controller
                 'phone' => $store->phone,
                 'receipt_header' => $store->receipt_header,
                 'receipt_footer' => $store->receipt_footer,
-                'logo' => $store->logo,
+                'logo' => null,
                 'qris_image' => $store->qris_image,
             ],
             'transaction' => [
@@ -4640,7 +4640,7 @@ class PosController extends Controller
                 'phone' => $store->phone,
                 'receipt_header' => $store->receipt_header,
                 'receipt_footer' => $store->receipt_footer,
-                'logo' => $store->logo ? Storage::url($store->logo) : null,
+                'logo' => null,
                 'qris_image' => $store->qris_image ? Storage::url($store->qris_image) : null,
             ],
             'transaction' => [

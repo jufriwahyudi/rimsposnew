@@ -265,19 +265,22 @@ class EscPosReceiptService
         $this->printer->initialize();
         $this->printer->setFont(Printer::FONT_A);
 
-        // Logo store (jika ada)
-        $logoPath = $this->resolveLogoPath($store['logo'] ?? null);
-        \Log::debug('[EscPosReceiptService] Logo path: ' . $logoPath);
-        if ($logoPath && file_exists($logoPath)) {
+        // Logo store (di-disable sementara, uncomment blok di bawah ini jika ingin mencetak logo)
+        /*
+        $logoPath = !empty($store['logo']) && file_exists(public_path('storage/' . $store['logo']))
+            ? public_path('storage/' . $store['logo'])
+            : public_path('img/logo.png');
+
+        if (file_exists($logoPath)) {
             try {
                 $img = EscposImage::load($logoPath, false);
                 $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-                $this->printer->bitImage($img);
-                \Log::debug('[EscPosReceiptService] Logo loaded successfully');
+                $this->printer->graphics($img);
             } catch (\Exception $e) {
-                // Abaikan error logo
+                // Abaikan error gambar/logo jika printer tidak mendukung
             }
         }
+        */
 
         // Nama toko
         $this->printer->setJustification(Printer::JUSTIFY_CENTER);
