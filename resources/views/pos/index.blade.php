@@ -1286,6 +1286,140 @@
             };
         }
 
+        let currentQrisOrderId = null;
+        let qrisPollingInterval = null;
+
+        async function loadQrisInsideSection(container) {
+            const total = window.POS.cart.total;
+            const storeId = window.STORE_ID;
+
+            if (container.dataset.loadedTotal == total && container.querySelector('#qrisImgElement')) {
+                return;
+            }
+
+            container.dataset.loadedTotal = total;
+            container.innerHTML = `
+                <div class="py-3 text-center" id="qrisLoader">
+                    <div class="spinner-border text-success" role="status" style="width: 2.5rem; height: 2.5rem;"></div>
+                    <div class="small text-muted mt-2 fw-semibold">Menghubungi Midtrans & memuat QRIS...</div>
+                    <div class="text-secondary small mt-1">Total: <strong>Rp ${window.POS?.numberSeparator ? window.POS.numberSeparator(total) : total}</strong></div>
+                </div>
+            `;
+
+            try {
+                const res = await fetch('/pos/qris/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        store_id: storeId,
+                        amount: total,
+                        customer_name: window.POS.cart.customer_name || 'Pelanggan POS'
+                    })
+                });
+
+                const data = await res.json();
+                if (!data.success) {
+                    throw new Error(data.message || 'Gagal membuat QRIS.');
+                }
+
+                const qrisData = data.data;
+                currentQrisOrderId = qrisData.order_id;
+                const qrUrl = qrisData.qr_url;
+                const qrString = qrisData.qr_string;
+
+                container.innerHTML = `
+                    <div class="text-center p-1">
+                        <div class="mb-1">
+                            <span class="badge bg-success px-3 py-1">📱 QRIS Dinamis</span>
+                        </div>
+                        <div class="fs-4 fw-bold text-success mb-1">
+                            Rp ${window.POS?.numberSeparator ? window.POS.numberSeparator(total) : total}
+                        </div>
+                        <div class="text-muted small mb-2" style="font-size:11px;">Order ID: <code>${currentQrisOrderId}</code></div>
+
+                        <div class="p-2 bg-white rounded-3 border d-inline-block shadow-sm mb-2">
+                            <img id="qrisImgElement" src="${qrUrl}" alt="QRIS Midtrans" style="width: 210px; height: 210px; display: block; margin: 0 auto; object-fit: contain;">
+                        </div>
+
+                        <div id="qrisStatusBox" class="alert alert-warning py-2 mb-2 d-flex align-items-center justify-content-center gap-2 small">
+                            <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                            <span id="qrisStatusMsg">Menunggu scan & pembayaran pelanggan...</span>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 justify-content-center mb-1">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
+                                📋 Salin QR String
+                            </button>
+                            <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-outline-primary">
+                                🚀 Buka Simulator Midtrans
+                            </a>
+                        </div>
+                        <div class="text-muted" style="font-size: 11px;">
+                            (Untuk uji coba di Sandbox: Salin QR String ➔ Buka Simulator ➔ Paste & klik Pay)
+                        </div>
+                    </div>
+                `;
+
+                container.querySelector('#btnCopyQrString')?.addEventListener('click', () => {
+                    if (qrString) {
+                        navigator.clipboard.writeText(qrString).then(() => {
+                            const statusMsg = container.querySelector('#qrisStatusMsg');
+                            if (statusMsg) {
+                                const orig = statusMsg.innerText;
+                                statusMsg.innerText = '✅ QR String berhasil disalin!';
+                                setTimeout(() => statusMsg.innerText = orig, 2000);
+                            }
+                        });
+                    }
+                });
+
+                if (qrisPollingInterval) clearInterval(qrisPollingInterval);
+                qrisPollingInterval = setInterval(async () => {
+                    try {
+                        const checkRes = await fetch('/pos/qris/status/' + encodeURIComponent(currentQrisOrderId), {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        const checkData = await checkRes.json();
+
+                        if (checkData.success && checkData.data.is_paid) {
+                            clearInterval(qrisPollingInterval);
+
+                            const statusBox = container.querySelector('#qrisStatusBox');
+                            const statusMsg = container.querySelector('#qrisStatusMsg');
+                            if (statusBox && statusMsg) {
+                                statusBox.className = 'alert alert-success py-2 mb-2 d-flex align-items-center justify-content-center gap-2 small fw-bold';
+                                statusMsg.innerHTML = '🎉 Pembayaran Lunas Terverifikasi!';
+                            }
+
+                            setTimeout(() => {
+                                Swal.close();
+                                window.POS.finalizeQrisCheckout(currentQrisOrderId, total);
+                            }, 1200);
+                        }
+                    } catch (e) {
+                        console.error('Polling status QRIS error:', e);
+                    }
+                }, 3000);
+
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="alert alert-danger py-3 my-2 text-center small">
+                        <i class="bi bi-exclamation-triangle-fill fs-4 d-block mb-1"></i>
+                        <strong>Gagal Membuat QRIS:</strong><br>
+                        ${err.message || 'Terjadi kesalahan sistem.'}<br>
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-2" onclick="window.loadQrisInsideSection(this.closest('#qrisSection'))">
+                            🔄 Coba Lagi
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        window.loadQrisInsideSection = loadQrisInsideSection;
+
         const observer = new MutationObserver(() => {
             const payMethodGrid = document.querySelector('.pos-checkout .pay-method');
             if (payMethodGrid && !document.getElementById('btnQris')) {
@@ -1293,7 +1427,7 @@
                 btnQris.id = 'btnQris';
                 btnQris.className = 'pay-btn';
                 btnQris.style.cssText = 'grid-column: span 2; background: #f0fdf4; color: #15803d; border: 1.5px solid #86efac; font-weight: 600; text-align: center; cursor: pointer; padding: 10px; border-radius: 8px; margin-top: 4px;';
-                btnQris.innerHTML = '📱 QRIS Dinamis (Midtrans)';
+                btnQris.innerHTML = '📱 QRIS Dinamis';
                 payMethodGrid.appendChild(btnQris);
 
                 const parentModal = payMethodGrid.closest('.swal2-html-container');
@@ -1303,17 +1437,6 @@
                     qrisSection.id = 'qrisSection';
                     qrisSection.className = 'pos-card d-none text-center py-3';
                     qrisSection.style.cssText = 'background: #fff; border-radius: 10px; padding: 12px; border: 1px solid #e5e7eb; margin-top: 10px;';
-                    qrisSection.innerHTML = `
-                        <div class="mb-2">
-                            <span class="badge bg-success px-3 py-2 fs-6">📱 QRIS Dinamis Otomatis</span>
-                        </div>
-                        <p class="text-secondary small mb-2">
-                            Sistem akan membuat kode QR resmi Midtrans untuk nominal <strong>Rp ${window.POS?.numberSeparator ? window.POS.numberSeparator(window.POS.cart.total) : window.POS.cart.total}</strong>.
-                        </p>
-                        <div class="alert alert-light border small text-muted text-start mb-0 py-2">
-                            <i class="bi bi-info-circle text-primary me-1"></i> Pelanggan dapat scan dengan GoPay, OVO, Dana, ShopeePay, BCA, Mandiri, dll.
-                        </div>
-                    `;
                     parentModal.appendChild(qrisSection);
                 }
 
@@ -1339,7 +1462,10 @@
                     btnQris.classList.add('active');
                     btnQris.style.background = '#15803d';
                     btnQris.style.color = '#fff';
-                    if (qrisSection) qrisSection.classList.remove('d-none');
+                    if (qrisSection) {
+                        qrisSection.classList.remove('d-none');
+                        loadQrisInsideSection(qrisSection);
+                    }
                 };
 
                 [btnCash, btnTransfer, btnSplit, btnHutang].forEach(btn => {
@@ -1350,6 +1476,7 @@
                             btnQris.style.background = '#f0fdf4';
                             btnQris.style.color = '#15803d';
                             if (qrisSection) qrisSection.classList.add('d-none');
+                            if (qrisPollingInterval) clearInterval(qrisPollingInterval);
                             if (origClick) origClick.call(btn, e);
                         };
                     }
@@ -1358,12 +1485,34 @@
                 const confirmBtn = Swal.getConfirmButton();
                 if (confirmBtn) {
                     const origConfirmClick = confirmBtn.onclick;
-                    confirmBtn.onclick = (e) => {
+                    confirmBtn.onclick = async (e) => {
                         if (btnQris.classList.contains('active')) {
                             e.preventDefault();
                             e.stopPropagation();
-                            Swal.close();
-                            window.POS.startQrisPaymentFlow();
+
+                            if (currentQrisOrderId) {
+                                confirmBtn.disabled = true;
+                                confirmBtn.innerText = 'Mengecek...';
+                                try {
+                                    const checkRes = await fetch('/pos/qris/status/' + encodeURIComponent(currentQrisOrderId));
+                                    const checkData = await checkRes.json();
+                                    if (checkData.success && checkData.data.is_paid) {
+                                        Swal.close();
+                                        window.POS.finalizeQrisCheckout(currentQrisOrderId, window.POS.cart.total);
+                                        return;
+                                    } else {
+                                        Swal.showValidationMessage('Pembayaran belum diterima. Silakan selesaikan pembayaran QRIS terlebih dahulu.');
+                                        setTimeout(() => Swal.resetValidationMessage(), 3000);
+                                    }
+                                } catch (err) {
+                                    console.error(err);
+                                } finally {
+                                    confirmBtn.disabled = false;
+                                    confirmBtn.innerText = 'Bayar';
+                                }
+                            } else {
+                                if (qrisSection) loadQrisInsideSection(qrisSection);
+                            }
                             return false;
                         }
                         if (origConfirmClick) origConfirmClick.call(confirmBtn, e);

@@ -277,6 +277,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/pos/service-orders', [PosController::class, 'apiServiceOrders'])->name('pos.service-orders');
     Route::get('/pos/staff', [PosController::class, 'apiStaff'])->name('pos.staff');
     Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
+    Route::post('/pos/qris/generate', [\App\Http\Controllers\Api\MidtransApiController::class, 'generateQris'])->name('pos.qris.generate');
+    Route::get('/pos/qris/status/{orderId}', [\App\Http\Controllers\Api\MidtransApiController::class, 'checkStatus'])->name('pos.qris.status');
     Route::get('/sales', [PosController::class, 'sales'])->name('pos.sales');
     Route::get('/sales/datatables', [PosController::class, 'datatable'])->name('sales.datatables');
     Route::get('/sales/{sale}', [PosController::class, 'show'])->name('sales.show');

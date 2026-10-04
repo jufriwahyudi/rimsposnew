@@ -507,7 +507,7 @@ const POS = {
                 ${window.HAS_MIDTRANS_QRIS ? `
                 <div id="qrisSection" class="pos-card d-none text-center py-3">
                     <div class="mb-2">
-                        <span class="badge bg-success px-3 py-2 fs-6">📱 QRIS Dinamis (Midtrans)</span>
+                        <span class="badge bg-success px-3 py-2 fs-6">📱 QRIS Dinamis</span>
                     </div>
                     <p class="text-secondary small mb-2">
                         Sistem akan membuat kode QR resmi Midtrans untuk nominal <strong>Rp ${this.numberSeparator(this.cart.total)}</strong>.
@@ -578,7 +578,12 @@ const POS = {
                     btnQris.onclick = () => {
                         reset();
                         btnQris.classList.add('active');
-                        if (qrisSection) qrisSection.classList.remove('d-none');
+                        if (qrisSection) {
+                            qrisSection.classList.remove('d-none');
+                            if (window.loadQrisInsideSection) {
+                                window.loadQrisInsideSection(qrisSection);
+                            }
+                        }
                     };
                 };
 
@@ -929,7 +934,7 @@ const POS = {
         });
 
         try {
-            const res = await fetch('/api/pos/qris/generate', {
+            const res = await fetch('/pos/qris/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1007,7 +1012,7 @@ const POS = {
                     // Start Polling setiap 3 detik
                     pollingTimer = setInterval(async () => {
                         try {
-                            const checkRes = await fetch(`/api/pos/qris/status/${orderId}`, {
+                            const checkRes = await fetch(`/pos/qris/status/${orderId}`, {
                                 headers: { 'Accept': 'application/json' }
                             });
                             const checkData = await checkRes.json();

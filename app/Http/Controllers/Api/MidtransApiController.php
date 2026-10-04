@@ -36,7 +36,9 @@ class MidtransApiController extends Controller
 
         // Akses user ke store jika terotentikasi
         if (auth()->check()) {
-            $hasAccess = auth()->user()->stores()->where('stores.id', $storeId)->exists();
+            $hasAccess = (session('store_id') == $storeId)
+                || auth()->user()->stores()->where('stores.id', $storeId)->exists()
+                || (auth()->user()->is_admin ?? false);
             if (!$hasAccess) {
                 return response()->json(['message' => 'Akses ke toko ini ditolak.'], 403);
             }
