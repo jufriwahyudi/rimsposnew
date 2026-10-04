@@ -414,7 +414,7 @@ const POS = {
                         <div id="btnHutang" class="pay-btn">🤝 Hutang</div>
                         ${window.HAS_MIDTRANS_QRIS ? `
                             <div id="btnQris" class="pay-btn" style="grid-column: span 2; background: #f0fdf4; color: #15803d; border-color: #86efac;">
-                                📱 QRIS Dinamis (Midtrans)
+                                📱 QRIS Dinamis
                             </div>
                         ` : ''}
                     </div>
