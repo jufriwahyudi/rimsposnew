@@ -1162,7 +1162,7 @@
                                     <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
                                         📋 Salin QR String
                                     </button>
-                                    <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-outline-primary">
                                         🚀 Buka Simulator Midtrans
                                     </a>
                                 </div>
@@ -1357,7 +1357,7 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
                                 📄 Salin String
                             </button>
-                            <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
+                            <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
                                 🚀 Buka Simulator
                             </a>
                         </div>

@@ -335,7 +335,7 @@ https://sweetalert2.github.io/#ajax-request`),Cb(e),typeof e.title=="string"&&(e
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
                                 📄 Salin String
                             </button>
-                            <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
+                            <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
                                 🚀 Buka Simulator Midtrans
                             </a>
                         </div>
