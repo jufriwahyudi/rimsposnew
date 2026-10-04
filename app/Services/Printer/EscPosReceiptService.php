@@ -626,6 +626,7 @@ class EscPosReceiptService
             $name     = (string) ($item['name']  ?? '');
             $qty      = (int)    ($item['qty']   ?? 0);
             $price    = (int)    ($item['price'] ?? 0);
+            $discount = (int)    ($item['discount_amount'] ?? 0);
             $subtotal = $qty * $price;
             $notes    = (string) ($item['notes'] ?? '');
 
@@ -642,6 +643,14 @@ class EscPosReceiptService
             $spaces     = $this->width - mb_strlen($lineDetail) - mb_strlen($strSubtotal);
             $this->writeLine($lineDetail . str_repeat(' ', max(1, $spaces)) . $strSubtotal);
 
+            // Baris 3: Diskon item jika ada
+            if ($discount > 0) {
+                $strDiscLabel = '  (Disc. Item)';
+                $strDiscAmt   = '-' . $this->rupiah($discount);
+                $discSpaces   = $this->width - mb_strlen($strDiscLabel) - mb_strlen($strDiscAmt);
+                $this->writeLine($strDiscLabel . str_repeat(' ', max(1, $discSpaces)) . $strDiscAmt);
+            }
+
             if ($notes !== '') {
                 $this->writeLine('    * ' . $notes);
             }
@@ -650,30 +659,47 @@ class EscPosReceiptService
 
     protected function printSummary(array $summary, string $status = 'PAID'): void
     {
-        $subtotal = (int) ($summary['subtotal'] ?? 0);
-        $discount = (int) ($summary['discount'] ?? 0);
-        $total    = (int) ($summary['total']    ?? 0);
-        $paid     = (int) ($summary['paid']     ?? 0);
-        $change   = (int) ($summary['change']   ?? 0);
-        $tip      = (int) ($summary['tip']      ?? 0);
-        $pointDisc = (int) ($summary['point_discount_amount'] ?? 0);
+        $subtotal    = (int) ($summary['subtotal'] ?? 0);
+        $itemDisc    = (int) ($summary['item_discount'] ?? 0);
+        $transDisc   = (int) ($summary['trans_discount'] ?? 0);
+        $discName    = trim((string) ($summary['discount_name'] ?? ''));
+        $totalDisc   = (int) ($summary['discount'] ?? 0);
+        $total       = (int) ($summary['total']    ?? 0);
+        $paid        = (int) ($summary['paid']     ?? 0);
+        $change      = (int) ($summary['change']   ?? 0);
+        $tip         = (int) ($summary['tip']      ?? 0);
+        $pointDisc   = (int) ($summary['point_discount_amount'] ?? 0);
         $voucherDisc = (int) ($summary['voucher_discount_amount'] ?? 0);
-        $remDebt   = (int) ($summary['remaining_debt'] ?? 0);
-        $payStatus = strtolower((string) ($summary['payment_status'] ?? ''));
+        $voucherCode = trim((string) ($summary['voucher_code'] ?? ''));
+        $remDebt     = (int) ($summary['remaining_debt'] ?? 0);
+        $payStatus   = strtolower((string) ($summary['payment_status'] ?? ''));
 
         $this->separator();
         $this->writeLine($this->cols('Subtotal',  $this->rupiah($subtotal)));
 
-        if ($discount > 0) {
-            $this->writeLine($this->cols('Diskon', '-' . $this->rupiah($discount)));
+        // 1. Total Diskon Item (jika ada)
+        if ($itemDisc > 0) {
+            $this->writeLine($this->cols('Total Diskon Item', '-' . $this->rupiah($itemDisc)));
         }
 
+        // 2. Diskon Transaksi Global (jika ada)
+        if ($transDisc > 0) {
+            $label = $discName !== '' ? 'Diskon (' . $discName . ')' : 'Diskon Transaksi';
+            $this->writeLine($this->cols($label, '-' . $this->rupiah($transDisc)));
+        } elseif ($itemDisc === 0 && $totalDisc > 0) {
+            // Fallback untuk data lama
+            $this->writeLine($this->cols('Diskon', '-' . $this->rupiah($totalDisc)));
+        }
+
+        // 3. Voucher Diskon
+        if ($voucherDisc > 0) {
+            $vLabel = $voucherCode !== '' ? 'Voucher (' . $voucherCode . ')' : 'Voucher Diskon';
+            $this->writeLine($this->cols($vLabel, '-' . $this->rupiah($voucherDisc)));
+        }
+
+        // 4. Poin Diskon
         if ($pointDisc > 0) {
             $this->writeLine($this->cols('Poin Diskon', '-' . $this->rupiah($pointDisc)));
-        }
-
-        if ($voucherDisc > 0) {
-            $this->writeLine($this->cols('Voucher Diskon', '-' . $this->rupiah($voucherDisc)));
         }
 
         $this->writeLine($this->cols('TOTAL', $this->rupiah($total)));

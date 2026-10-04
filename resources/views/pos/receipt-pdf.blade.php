@@ -350,6 +350,14 @@
                     <td class="text-right">Rp {{ number_format($item['price'], 0, ',', '.') }}</td>
                     <td class="text-right">Rp {{ number_format($item['qty'] * $item['price'], 0, ',', '.') }}</td>
                 </tr>
+                @if (!empty($item['discount_amount']) && $item['discount_amount'] > 0)
+                <tr style="color: #dc2626; font-size: 11px;">
+                    <td></td>
+                    <td></td>
+                    <td colspan="3" style="font-style: italic; padding-left: 15px;">&rdquor; Potongan Diskon Item</td>
+                    <td class="text-right">- Rp {{ number_format($item['discount_amount'], 0, ',', '.') }}</td>
+                </tr>
+                @endif
             @endforeach
         </tbody>
     </table>
@@ -371,10 +379,33 @@
                         <td style="color: #64748b;">Subtotal</td>
                         <td class="text-right">Rp {{ number_format($summary['subtotal'], 0, ',', '.') }}</td>
                     </tr>
-                    @if ($summary['discount'] > 0)
+                    @if (!empty($summary['item_discount']) && $summary['item_discount'] > 0)
+                        <tr>
+                            <td style="color: #64748b;">Total Diskon Item</td>
+                            <td class="text-right text-danger">- Rp {{ number_format($summary['item_discount'], 0, ',', '.') }}</td>
+                        </tr>
+                    @endif
+                    @if (!empty($summary['trans_discount']) && $summary['trans_discount'] > 0)
+                        <tr>
+                            <td style="color: #64748b;">{{ !empty($summary['discount_name']) ? 'Diskon (' . $summary['discount_name'] . ')' : 'Diskon Transaksi' }}</td>
+                            <td class="text-right text-danger">- Rp {{ number_format($summary['trans_discount'], 0, ',', '.') }}</td>
+                        </tr>
+                    @elseif (empty($summary['item_discount']) && !empty($summary['discount']) && $summary['discount'] > 0)
                         <tr>
                             <td style="color: #64748b;">Diskon</td>
                             <td class="text-right text-danger">- Rp {{ number_format($summary['discount'], 0, ',', '.') }}</td>
+                        </tr>
+                    @endif
+                    @if (!empty($summary['voucher_discount_amount']) && $summary['voucher_discount_amount'] > 0)
+                        <tr>
+                            <td style="color: #64748b;">{{ !empty($summary['voucher_code']) ? 'Voucher (' . $summary['voucher_code'] . ')' : 'Voucher Diskon' }}</td>
+                            <td class="text-right text-danger">- Rp {{ number_format($summary['voucher_discount_amount'], 0, ',', '.') }}</td>
+                        </tr>
+                    @endif
+                    @if (!empty($summary['point_discount_amount']) && $summary['point_discount_amount'] > 0)
+                        <tr>
+                            <td style="color: #64748b;">Poin Diskon</td>
+                            <td class="text-right text-danger">- Rp {{ number_format($summary['point_discount_amount'], 0, ',', '.') }}</td>
                         </tr>
                     @endif
                     <tr class="total-row">

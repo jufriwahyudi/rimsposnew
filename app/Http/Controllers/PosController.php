@@ -3008,12 +3008,19 @@ class PosController extends Controller
                         'sku' => $first->sku,
                         'qty' => $group->sum('qty'),
                         'price' => round($first->price),
+                        'discount_amount' => round($group->sum('discount_amount')),
+                        'subtotal' => round($group->sum('subtotal')),
                         'notes' => $notes !== '' ? $notes : null,
                     ];
                 })->values()->toArray();
 
             $checklistTitle = 'ORDER KITCHEN / KDS';
             $triggerBuzzer = false;
+        }
+
+        $grossSubtotal = collect($items)->sum(fn ($i) => ($i['qty'] ?? 0) * ($i['price'] ?? 0));
+        if ($grossSubtotal <= 0) {
+            $grossSubtotal = round($sale->subtotal + ($sale->discount_total ?? 0));
         }
 
         $openDrawer = $request->has('open_drawer')
@@ -3046,8 +3053,11 @@ class PosController extends Controller
             ],
             'items' => $items,
             'summary' => [
-                'subtotal' => round($sale->subtotal),
+                'subtotal' => $grossSubtotal,
                 'discount' => round(($sale->discount_total ?? 0) + ($sale->trans_discount ?? 0)),
+                'item_discount' => round($sale->discount_total ?? 0),
+                'trans_discount' => round($sale->trans_discount ?? 0),
+                'discount_name' => $sale->discount_name,
                 'total' => round($sale->grand_total),
                 'paid' => round($sale->paid_amount),
                 'change' => round($sale->change_amount),
@@ -4729,11 +4739,18 @@ class PosController extends Controller
                     'sku' => $item->sku,
                     'qty' => $item->qty,
                     'price' => round($item->price),
+                    'discount_amount' => round($item->discount_amount ?? 0),
+                    'subtotal' => round($item->subtotal ?? ($item->qty * $item->price)),
                 ];
             })->toArray(),
             'summary' => [
-                'subtotal' => round($sale->subtotal),
-                'discount' => round($sale->discount_total),
+                'subtotal' => ($sale->items->sum(fn ($i) => $i->qty * $i->price) > 0)
+                    ? round($sale->items->sum(fn ($i) => $i->qty * $i->price))
+                    : round($sale->subtotal + ($sale->discount_total ?? 0)),
+                'discount' => round(($sale->discount_total ?? 0) + ($sale->trans_discount ?? 0)),
+                'item_discount' => round($sale->discount_total ?? 0),
+                'trans_discount' => round($sale->trans_discount ?? 0),
+                'discount_name' => $sale->discount_name,
                 'total' => round($sale->grand_total),
                 'paid' => round($sale->paid_amount),
                 'change' => round($sale->change_amount),
@@ -4741,9 +4758,9 @@ class PosController extends Controller
                 'payment_status' => $sale->payment_status,
                 'remaining_debt' => round($sale->grand_total - $sale->paid_amount),
                 'voucher_code' => $sale->voucher_code,
-                'voucher_discount_amount' => round($sale->voucher_discount_amount),
+                'voucher_discount_amount' => round($sale->voucher_discount_amount ?? 0),
                 'points_redeemed' => (int) $sale->points_redeemed,
-                'point_discount_amount' => round($sale->point_discount_amount),
+                'point_discount_amount' => round($sale->point_discount_amount ?? 0),
             ],
         ]);
     }
