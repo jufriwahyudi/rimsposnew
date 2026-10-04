@@ -6,6 +6,7 @@ use App\Models\CashTransaction;
 use App\Models\QrisTransaction;
 use App\Models\Sale;
 use App\Models\Store;
+use App\Models\StorePaymentGateway;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -153,9 +154,9 @@ class MidtransService
     public function handleNotification(array $payload): array
     {
         $orderId = $payload['order_id'] ?? null;
-        $statusCode = $payload['status_code'] ?? null;
-        $grossAmount = $payload['gross_amount'] ?? null;
-        $signatureKey = $payload['signature_key'] ?? null;
+        $statusCode = (string) ($payload['status_code'] ?? '');
+        $grossAmount = (string) ($payload['gross_amount'] ?? '');
+        $signatureKey = (string) ($payload['signature_key'] ?? '');
 
         if (!$orderId) {
             return ['success' => false, 'message' => 'order_id tidak ditemukan'];
@@ -163,16 +164,58 @@ class MidtransService
 
         $qrisTx = QrisTransaction::with(['store', 'sale'])->where('order_id', $orderId)->first();
 
-        // Cari credentials berdasarkan store
-        $store = $qrisTx?->store;
-        $creds = $this->getCredentials($store);
-        $serverKey = $creds['server_key'];
+        // 1. Cari Server Key dari transaksi terkait jika ada
+        $serverKey = null;
+        if ($qrisTx?->store) {
+            $creds = $this->getCredentials($qrisTx->store);
+            $serverKey = $creds['server_key'];
+        }
 
-        // Validasi SHA-512 Signature
+        // 2. Fallback untuk Webhook Test dari Dashboard Midtrans atau order tanpa relasi lokal
+        if (empty($serverKey)) {
+            $merchantId = $payload['merchant_id'] ?? null;
+
+            // Ekstrak merchant_id dari order_id jika merupakan test webhook Midtrans (payment_notif_test_{merchant_id}_uuid)
+            if (empty($merchantId) && preg_match('/payment_notif_test_([A-Za-z0-9]+)_/', $orderId, $matches)) {
+                $merchantId = $matches[1];
+            }
+
+            if (!empty($merchantId)) {
+                $serverKey = StorePaymentGateway::where('merchant_id', $merchantId)
+                    ->where('gateway', 'midtrans')
+                    ->where('is_active', true)
+                    ->value('server_key');
+            }
+
+            // Jika masih belum ketemu, coba bandingkan signature dengan seluruh gateway aktif
+            if (empty($serverKey)) {
+                $activeGateways = StorePaymentGateway::where('gateway', 'midtrans')
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($activeGateways as $gw) {
+                    if (!empty($gw->server_key)) {
+                        $testSig = hash('sha512', $orderId . $statusCode . $grossAmount . $gw->server_key);
+                        if ($testSig === $signatureKey) {
+                            $serverKey = $gw->server_key;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Validasi SHA-512 Signature
         $expectedSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
         if ($expectedSignature !== $signatureKey) {
             Log::warning("Midtrans Webhook: Invalid Signature for Order [{$orderId}]. Received: {$signatureKey}, Expected: {$expectedSignature}");
             return ['success' => false, 'message' => 'Signature tidak valid'];
+        }
+
+        // 4. Jika ini adalah test notification dari Dashboard Midtrans
+        if (str_starts_with($orderId, 'payment_notif_test_')) {
+            Log::info("Midtrans Webhook: Test notification verified successfully for Order [{$orderId}].");
+            return ['success' => true, 'message' => 'Test notification verified successfully'];
         }
 
         if ($qrisTx) {
