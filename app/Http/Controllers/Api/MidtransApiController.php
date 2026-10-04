@@ -55,6 +55,8 @@ class MidtransApiController extends Controller
                 ->latest()
                 ->first();
 
+            $isProduction = (bool) $store->paymentGateways()->where('gateway', 'midtrans')->value('is_production');
+
             // Jika QRIS dibuat kurang dari 15 menit yang lalu dan belum expired, gunakan yang ada
             if ($existingQris && $existingQris->created_at->diffInMinutes(now()) < 15 && $existingQris->qr_string) {
                 return response()->json([
@@ -67,10 +69,13 @@ class MidtransApiController extends Controller
                         'qr_url'         => $existingQris->qr_url,
                         'transaction_id' => $existingQris->transaction_id,
                         'status'         => $existingQris->transaction_status,
+                        'is_production'  => $isProduction,
                     ],
                 ]);
             }
         }
+
+        $isProduction = (bool) $store->paymentGateways()->where('gateway', 'midtrans')->value('is_production');
 
         // Buat Order ID unik: RIMS-{STORE_CODE}-{SALE_ID/TIME}-{RANDOM}
         $code = strtoupper($store->code ?: 'POS');
@@ -101,6 +106,7 @@ class MidtransApiController extends Controller
                     'qr_url'         => $qrisTx->qr_url,
                     'transaction_id' => $qrisTx->transaction_id,
                     'status'         => $qrisTx->transaction_status,
+                    'is_production'  => $isProduction,
                 ],
             ]);
         } catch (\Throwable $e) {

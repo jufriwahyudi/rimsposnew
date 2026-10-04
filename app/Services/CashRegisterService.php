@@ -292,11 +292,15 @@ class CashRegisterService
             ->groupBy('account_code', 'payment_method')
             ->get()
             ->map(function ($row) {
-                $bankName = $row->rekening?->bank_rek ?? $row->rekening?->bank_name ?? '';
-                $accName  = $row->rekening?->nama_rek ?? $row->rekening?->account_name ?? '';
-                $name     = trim($bankName . ' ' . $accName);
-                if (empty($name)) {
-                    $name = strtoupper($row->payment_method);
+                if ($row->payment_method === 'qris') {
+                    $name = 'QRIS Dinamis';
+                } else {
+                    $bankName = $row->rekening?->bank_rek ?? $row->rekening?->bank_name ?? '';
+                    $accName  = $row->rekening?->nama_rek ?? $row->rekening?->account_name ?? '';
+                    $name     = trim($bankName . ' ' . $accName);
+                    if (empty($name)) {
+                        $name = strtoupper($row->payment_method);
+                    }
                 }
                 return [
                     'name'   => $name,
@@ -322,7 +326,7 @@ class CashRegisterService
         $menuSales = SaleItem::whereIn('sale_id', $saleIds)
             ->where(function ($query) {
                 $query->whereNotIn('status', ['voided', 'refunded', 'exchanged_out'])
-                      ->orWhereNull('status');
+                    ->orWhereNull('status');
             })
             ->select(
                 'product_name',

@@ -312,7 +312,29 @@ https://sweetalert2.github.io/#ajax-request`),Cb(e),typeof e.title=="string"&&(e
                             </div>
                         `,icon:"success",showCancelButton:!0,confirmButtonText:"🖨 Cetak",cancelButtonText:"Tidak",customClass:{popup:"pos-checkout"},reverseButtons:!0}).then(i=>{this.cart.transaction_date=new Date().toISOString().split("T")[0],$("#transactionDate").val(this.cart.transaction_date);const a=$("#customerId");if(a.length&&a.val("").trigger("change.select2"),i.isConfirmed){const s=`/sales/${r.sale_id}/receipt`;if(window.PRINTER_TYPE==="pdf")window.open(s,"_blank");else{const c=window.open(s,"_blank");c.focus(),c.onload=function(){c.print(),c.onafterprint=function(){c.close()}}}}this.closeTab(this.cart.id),document.getElementById("skuInput").focus()})})}})},applyItemDiscount(e){const t=e.dataset.index!==void 0?parseInt(e.dataset.index,10):e.dataset.key||e.dataset.productId,n=parseFloat(e.value)||0;Tn.setItemDiscount(this.cart,t,n),Tn.recalculate(this.cart),this.persist(),this.render()},applyTransactionDiscount(e){const t=parseFloat(e.value)||0;this.cart.transaction_discount_type=t<=100?"percent":"nominal",this.cart.transaction_discount_value=t,Tn.recalculate(this.cart),this.persist(),this.render()},buildAkunBankOptions(){let e='<option value="">-- Pilih Bank --</option>';return window.AKUN_BANK.forEach(t=>{e+=`<option value="${t.id}" ${t.id===this.akun_bank_kop?"selected":""}>
                     ${t.no_rek} - ${t.nama_rek} (${t.bank_rek})
-                 </option>`}),e},numberSeparator(e){return parseFloat(e||0).toLocaleString("id-ID",{minimumFractionDigits:0,maximumFractionDigits:2})},updateTransactionDate(){const e=document.getElementById("transactionDate");e&&(this.cart.transaction_date=e.value,this.persist())},updateCustomerName(){const e=document.getElementById("customerName");e&&(this.cart.customer_name=e.value||"Umum",this.persist())},async startQrisPaymentFlow(){const e=this.cart.total,t=window.STORE_ID;Swal.fire({title:"Menghubungkan ke Midtrans...",html:'<div class="text-muted small">Sedang membuat QRIS Dinamis resmi...</div>',allowOutsideClick:!1,didOpen:()=>{Swal.showLoading()}});try{const r=await(await fetch("/pos/qris/generate",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json","X-CSRF-TOKEN":document.querySelector('meta[name="csrf-token"]').getAttribute("content")},body:JSON.stringify({store_id:t,amount:e,customer_name:this.cart.customer_name||"Pelanggan POS"})})).json();if(!r.success)throw new Error(r.message||"Gagal membuat QRIS.");const i=r.data,a=i.order_id,s=i.qr_url,c=i.qr_string;let u=null;Swal.fire({title:"Scan QRIS untuk Bayar",width:480,allowOutsideClick:!1,showConfirmButton:!1,showCancelButton:!0,cancelButtonText:"Batalkan Pembayaran",cancelButtonColor:"#d33",html:`
+                 </option>`}),e},numberSeparator(e){return parseFloat(e||0).toLocaleString("id-ID",{minimumFractionDigits:0,maximumFractionDigits:2})},updateTransactionDate(){const e=document.getElementById("transactionDate");e&&(this.cart.transaction_date=e.value,this.persist())},updateCustomerName(){const e=document.getElementById("customerName");e&&(this.cart.customer_name=e.value||"Umum",this.persist())},async startQrisPaymentFlow(){const e=this.cart.total,t=window.STORE_ID;Swal.fire({title:"Menghubungkan ke Midtrans...",html:'<div class="text-muted small">Sedang membuat QRIS Dinamis resmi...</div>',allowOutsideClick:!1,didOpen:()=>{Swal.showLoading()}});try{const r=await(await fetch("/pos/qris/generate",{method:"POST",headers:{"Content-Type":"application/json",Accept:"application/json","X-CSRF-TOKEN":document.querySelector('meta[name="csrf-token"]').getAttribute("content")},body:JSON.stringify({store_id:t,amount:e,customer_name:this.cart.customer_name||"Pelanggan POS"})})).json();if(!r.success)throw new Error(r.message||"Gagal membuat QRIS.");const i=r.data,a=i.order_id,s=i.qr_url,c=i.qr_string;let u=null;const m=!!i.is_production,p=m?`
+                <div class="text-muted small text-center mt-2" style="font-size: 11.5px;">
+                    <i class="bi bi-shield-check text-success me-1"></i> Mendukung scan semua aplikasi pembayaran: GoPay, OVO, Dana, ShopeePay, BCA, Mandiri, dll.
+                </div>
+            `:`
+                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnCopyQrUrl">
+                        📋 Salin URL Gambar QR (Simulator)
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
+                        📄 Salin String
+                    </button>
+                    <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
+                        🚀 Buka Simulator Midtrans
+                    </a>
+                </div>
+                <div class="alert alert-light border small text-muted text-start mt-2 mb-0 py-2" style="font-size: 11px;">
+                    <strong>💡 Cara Tes di Simulator Sandbox:</strong><br>
+                    1. Klik <b>Salin URL Gambar QR</b> di atas.<br>
+                    2. Klik <b>Buka Simulator</b> ➔ Paste di kolom <i>QR Code Image Url</i>.<br>
+                    3. Klik tombol <b>Scan QR</b> ➔ klik <b>Pay</b>. Sistem kasir akan mendeteksi lunas otomatis!
+                </div>
+            `;Swal.fire({title:"Scan QRIS untuk Bayar",width:480,allowOutsideClick:!1,showConfirmButton:!1,showCancelButton:!0,cancelButtonText:"Batalkan Pembayaran",cancelButtonColor:"#d33",html:`
                     <div class="text-center p-2">
                         <div class="fs-4 fw-bold text-success mb-1">
                             Rp ${this.numberSeparator(e)}
@@ -328,25 +350,9 @@ https://sweetalert2.github.io/#ajax-request`),Cb(e),typeof e.title=="string"&&(e
                             <span id="qrisStatusMsg">Menunggu scan & pembayaran pelanggan...</span>
                         </div>
 
-                        <div class="d-flex flex-wrap gap-2 justify-content-center">
-                            <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnCopyQrUrl">
-                                📋 Salin URL Gambar QR (Simulator)
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
-                                📄 Salin String
-                            </button>
-                            <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
-                                🚀 Buka Simulator Midtrans
-                            </a>
-                        </div>
-                        <div class="alert alert-light border small text-muted text-start mt-2 mb-0 py-2" style="font-size: 11px;">
-                            <strong>💡 Cara Tes di Simulator Sandbox:</strong><br>
-                            1. Klik <b>Salin URL Gambar QR</b> di atas.<br>
-                            2. Klik <b>Buka Simulator</b> ➔ Paste di kolom <i>QR Code Image Url</i>.<br>
-                            3. Klik tombol <b>Scan QR</b> ➔ klik <b>Pay</b>. Sistem kasir akan mendeteksi lunas otomatis!
-                        </div>
+                        ${p}
                     </div>
-                `,didOpen:()=>{var m,p;(m=document.getElementById("btnCopyQrUrl"))==null||m.addEventListener("click",()=>{s&&navigator.clipboard.writeText(s).then(()=>{Swal.showValidationMessage("✅ URL Gambar QR berhasil disalin! Siap dipaste ke Simulator."),setTimeout(()=>Swal.resetValidationMessage(),2500)})}),(p=document.getElementById("btnCopyQrString"))==null||p.addEventListener("click",()=>{c&&navigator.clipboard.writeText(c).then(()=>{Swal.showValidationMessage("✅ Raw String QR berhasil disalin!"),setTimeout(()=>Swal.resetValidationMessage(),2500)})}),u=setInterval(async()=>{try{const E=await(await fetch(`/pos/qris/status/${a}`,{headers:{Accept:"application/json"}})).json();if(E.success&&E.data.is_paid){clearInterval(u);const I=document.getElementById("qrisStatusBox"),y=document.getElementById("qrisStatusMsg");I&&y&&(I.className="alert alert-success py-2 mb-3 d-flex align-items-center justify-content-center gap-2 small fw-bold",y.innerHTML="🎉 Pembayaran Lunas Terverifikasi!"),setTimeout(()=>{Swal.close(),this.finalizeQrisCheckout(a,e)},1200)}}catch(w){console.error("Polling status QRIS error:",w)}},3e3)},willClose:()=>{u&&clearInterval(u)}})}catch(n){Swal.fire("Gagal Membuat QRIS",n.message||"Terjadi kesalahan sistem","error")}},finalizeQrisCheckout(e,t){Object.assign(this.cart,{payment_method:"qris",paid_amount:t,cash_amount:0,transfer_amount:0,qris_order_id:e,akun_kasir:null,akun_bank:null}),ko.checkout(this.cart).then(n=>{Swal.fire({title:"Pembayaran QRIS Berhasil",html:`
+                `,didOpen:()=>{var w,E;m||((w=document.getElementById("btnCopyQrUrl"))==null||w.addEventListener("click",()=>{s&&navigator.clipboard.writeText(s).then(()=>{Swal.showValidationMessage("✅ URL Gambar QR berhasil disalin! Siap dipaste ke Simulator."),setTimeout(()=>Swal.resetValidationMessage(),2500)})}),(E=document.getElementById("btnCopyQrString"))==null||E.addEventListener("click",()=>{c&&navigator.clipboard.writeText(c).then(()=>{Swal.showValidationMessage("✅ Raw String QR berhasil disalin!"),setTimeout(()=>Swal.resetValidationMessage(),2500)})})),u=setInterval(async()=>{try{const y=await(await fetch(`/pos/qris/status/${a}`,{headers:{Accept:"application/json"}})).json();if(y.success&&y.data.is_paid){clearInterval(u);const _=document.getElementById("qrisStatusBox"),T=document.getElementById("qrisStatusMsg");_&&T&&(_.className="alert alert-success py-2 mb-3 d-flex align-items-center justify-content-center gap-2 small fw-bold",T.innerHTML="🎉 Pembayaran Lunas Terverifikasi!"),setTimeout(()=>{Swal.close(),this.finalizeQrisCheckout(a,e)},1200)}}catch(I){console.error("Polling status QRIS error:",I)}},3e3)},willClose:()=>{u&&clearInterval(u)}})}catch(n){Swal.fire("Gagal Membuat QRIS",n.message||"Terjadi kesalahan sistem","error")}},finalizeQrisCheckout(e,t){Object.assign(this.cart,{payment_method:"qris",paid_amount:t,cash_amount:0,transfer_amount:0,qris_order_id:e,akun_kasir:null,akun_bank:null}),ko.checkout(this.cart).then(n=>{Swal.fire({title:"Pembayaran QRIS Berhasil",html:`
                         <div style="font-size:14px;color:#6b7280">
                             Invoice <b>${n.invoice}</b>
                         </div>

@@ -1331,6 +1331,32 @@
                 const qrUrl = qrisData.qr_url;
                 const qrString = qrisData.qr_string;
 
+                const isProduction = !!qrisData.is_production;
+
+                const sandboxSimulatorHtml = !isProduction ? `
+                    <div class="d-flex flex-wrap gap-2 justify-content-center mb-1">
+                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnCopyQrUrl">
+                            📋 Salin URL Gambar QR (Simulator)
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
+                            📄 Salin String
+                        </button>
+                        <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
+                            🚀 Buka Simulator
+                        </a>
+                    </div>
+                    <div class="alert alert-light border small text-muted text-start mt-2 mb-0 py-2" style="font-size: 11px;">
+                        <strong>💡 Cara Tes di Simulator Sandbox:</strong><br>
+                        1. Klik <b>Salin URL Gambar QR</b> di atas.<br>
+                        2. Klik <b>Buka Simulator</b> ➔ Paste di kotak <i>QR Code Image Url</i>.<br>
+                        3. Klik tombol <b>Scan QR</b> ➔ klik <b>Pay</b>. Sistem kasir akan mendeteksi lunas otomatis!
+                    </div>
+                ` : `
+                    <div class="text-muted small text-center mt-2" style="font-size: 11.5px;">
+                        <i class="bi bi-shield-check text-success me-1"></i> Mendukung scan semua aplikasi pembayaran: GoPay, OVO, Dana, ShopeePay, BCA, Mandiri, dll.
+                    </div>
+                `;
+
                 container.innerHTML = `
                     <div class="text-center p-1">
                         <div class="mb-1">
@@ -1350,51 +1376,37 @@
                             <span id="qrisStatusMsg">Menunggu scan & pembayaran pelanggan...</span>
                         </div>
 
-                        <div class="d-flex flex-wrap gap-2 justify-content-center mb-1">
-                            <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnCopyQrUrl">
-                                📋 Salin URL Gambar QR (Simulator)
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
-                                📄 Salin String
-                            </button>
-                            <a href="https://simulator.sandbox.midtrans.com/v2/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
-                                🚀 Buka Simulator
-                            </a>
-                        </div>
-                        <div class="alert alert-light border small text-muted text-start mt-2 mb-0 py-2" style="font-size: 11px;">
-                            <strong>💡 Cara Tes di Simulator Sandbox:</strong><br>
-                            1. Klik <b>Salin URL Gambar QR</b> di atas.<br>
-                            2. Klik <b>Buka Simulator</b> ➔ Paste di kotak <i>QR Code Image Url</i>.<br>
-                            3. Klik tombol <b>Scan QR</b> ➔ klik <b>Pay</b>. Sistem kasir akan mendeteksi lunas otomatis!
-                        </div>
+                        ${sandboxSimulatorHtml}
                     </div>
                 `;
 
-                container.querySelector('#btnCopyQrUrl')?.addEventListener('click', () => {
-                    if (qrUrl) {
-                        navigator.clipboard.writeText(qrUrl).then(() => {
-                            const statusMsg = container.querySelector('#qrisStatusMsg');
-                            if (statusMsg) {
-                                const orig = statusMsg.innerText;
-                                statusMsg.innerText = '✅ URL Gambar QR berhasil disalin! Siap dipaste ke Simulator.';
-                                setTimeout(() => statusMsg.innerText = orig, 3000);
-                            }
-                        });
-                    }
-                });
+                if (!isProduction) {
+                    container.querySelector('#btnCopyQrUrl')?.addEventListener('click', () => {
+                        if (qrUrl) {
+                            navigator.clipboard.writeText(qrUrl).then(() => {
+                                const statusMsg = container.querySelector('#qrisStatusMsg');
+                                if (statusMsg) {
+                                    const orig = statusMsg.innerText;
+                                    statusMsg.innerText = '✅ URL Gambar QR berhasil disalin! Siap dipaste ke Simulator.';
+                                    setTimeout(() => statusMsg.innerText = orig, 3000);
+                                }
+                            });
+                        }
+                    });
 
-                container.querySelector('#btnCopyQrString')?.addEventListener('click', () => {
-                    if (qrString) {
-                        navigator.clipboard.writeText(qrString).then(() => {
-                            const statusMsg = container.querySelector('#qrisStatusMsg');
-                            if (statusMsg) {
-                                const orig = statusMsg.innerText;
-                                statusMsg.innerText = '✅ Raw String QR disalin!';
-                                setTimeout(() => statusMsg.innerText = orig, 2000);
-                            }
-                        });
-                    }
-                });
+                    container.querySelector('#btnCopyQrString')?.addEventListener('click', () => {
+                        if (qrString) {
+                            navigator.clipboard.writeText(qrString).then(() => {
+                                const statusMsg = container.querySelector('#qrisStatusMsg');
+                                if (statusMsg) {
+                                    const orig = statusMsg.innerText;
+                                    statusMsg.innerText = '✅ Raw String QR disalin!';
+                                    setTimeout(() => statusMsg.innerText = orig, 2000);
+                                }
+                            });
+                        }
+                    });
+                }
 
                 if (qrisPollingInterval) clearInterval(qrisPollingInterval);
                 qrisPollingInterval = setInterval(async () => {

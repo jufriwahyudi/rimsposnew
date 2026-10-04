@@ -862,7 +862,14 @@ class EscPosReceiptService
         $this->writeLine($this->cols('Tunai', number_format($fin['cash_sales'] ?? 0, 0, ',', '.')));
 
         $nonCashTotal = (float) ($fin['non_cash_sales'] ?? 0);
-        $this->writeLine($this->cols('Transfer', number_format($nonCashTotal, 0, ',', '.')));
+        $this->writeLine($this->cols('Non-Tunai', number_format($nonCashTotal, 0, ',', '.')));
+
+        if (!empty($fin['non_cash_breakdown']) && is_array($fin['non_cash_breakdown'])) {
+            foreach ($fin['non_cash_breakdown'] as $nc) {
+                $ncName = ' - ' . mb_substr($nc['name'] ?? 'Non-Tunai', 0, 16);
+                $this->writeLine($this->cols($ncName, number_format($nc['amount'] ?? 0, 0, ',', '.')));
+            }
+        }
 
         if (!empty($fin['cash_in']) && $fin['cash_in'] > 0) {
             $this->writeLine($this->cols('Kas Masuk (Petty)', number_format($fin['cash_in'], 0, ',', '.')));
