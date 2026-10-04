@@ -15,6 +15,7 @@ use App\Models\ProductCategory;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\ProductVariantBarcode;
+use App\Models\QrisTransaction;
 use App\Models\Rekening;
 use App\Models\Sale;
 use App\Models\SaleConcoctionItem;
@@ -397,7 +398,13 @@ class PosController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('pos.index', compact('akunkas', 'akunkasir', 'customers', 'store', 'activeRegister', 'registerSummary', 'registerFreshness', 'expenseCategories'));
+        $hasMidtrans = $store->paymentGateways()
+            ->where('gateway', 'midtrans')
+            ->where('is_active', true)
+            ->whereNotNull('server_key')
+            ->exists();
+
+        return view('pos.index', compact('akunkas', 'akunkasir', 'customers', 'store', 'activeRegister', 'registerSummary', 'registerFreshness', 'expenseCategories', 'hasMidtrans'));
     }
 
     public function sales()
@@ -1282,6 +1289,32 @@ class PosController extends Controller
                         'cash_register_id' => $cashRegisterId,
                         'notes' => 'Penjualan POS (Transfer) #'.$sale->invoice_number,
                     ]);
+                }
+
+                // =========================
+                // 5️⃣.b CASH TRANSACTION (QRIS DINAMIS)
+                // =========================
+                if ($paymentMethod === 'qris') {
+                    CashTransaction::create([
+                        'store_id' => session('store_id'),
+                        'ref_type' => 'SalePos',
+                        'ref_id' => $sale->id,
+                        'transaction_type' => 'sale',
+                        'payment_method' => 'qris',
+                        'account_code' => $akunBank ?: 0,
+                        'amount' => $cart['total'],
+                        'direction' => 'in',
+                        'transaction_date' => $transactionDate,
+                        'user_id' => auth()->id(),
+                        'cash_register_id' => $cashRegisterId,
+                        'notes' => 'Penjualan POS (QRIS Dinamis Midtrans) #'.$sale->invoice_number,
+                    ]);
+
+                    if (!empty($cart['qris_order_id'])) {
+                        QrisTransaction::where('order_id', $cart['qris_order_id'])->update([
+                            'sale_id' => $sale->id,
+                        ]);
+                    }
                 }
 
                 // jika pembayaran diskon 100% (gratisan), tetap buat cash transaction dengan amount 0 agar bisa tercatat di jurnal

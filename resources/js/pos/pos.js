@@ -412,6 +412,11 @@ const POS = {
                         <div id="btnTransfer" class="pay-btn">🏦 Transfer</div>
                         <div id="btnSplit" class="pay-btn">🔀 Split</div>
                         <div id="btnHutang" class="pay-btn">🤝 Hutang</div>
+                        ${window.HAS_MIDTRANS_QRIS ? `
+                            <div id="btnQris" class="pay-btn" style="grid-column: span 2; background: #f0fdf4; color: #15803d; border-color: #86efac;">
+                                📱 QRIS Dinamis (Midtrans)
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
 
@@ -499,6 +504,20 @@ const POS = {
                     </div>
                 </div>
 
+                ${window.HAS_MIDTRANS_QRIS ? `
+                <div id="qrisSection" class="pos-card d-none text-center py-3">
+                    <div class="mb-2">
+                        <span class="badge bg-success px-3 py-2 fs-6">📱 QRIS Dinamis (Midtrans)</span>
+                    </div>
+                    <p class="text-secondary small mb-2">
+                        Sistem akan membuat kode QR resmi Midtrans untuk nominal <strong>Rp ${this.numberSeparator(this.cart.total)}</strong>.
+                    </p>
+                    <div class="alert alert-light border small text-muted text-start mb-0 py-2">
+                        <i class="bi bi-info-circle text-primary me-1"></i> Pelanggan dapat scan dengan GoPay, OVO, Dana, ShopeePay, BCA, Mandiri, dll. Kasir tidak perlu input nominal.
+                    </div>
+                </div>
+                ` : ''}
+
             `,
             showCancelButton: true,
             confirmButtonText: 'Bayar',
@@ -509,22 +528,26 @@ const POS = {
                 const btnTransfer = document.getElementById('btnTransfer');
                 const btnSplit = document.getElementById('btnSplit');
                 const btnHutang = document.getElementById('btnHutang');
+                const btnQris = document.getElementById('btnQris');
 
                 const cashSection = document.getElementById('cashSection');
                 const transferSection = document.getElementById('transferSection');
                 const splitSection = document.getElementById('splitSection');
                 const hutangSection = document.getElementById('hutangSection');
+                const qrisSection = document.getElementById('qrisSection');
 
                 const reset = () => {
                     cashSection.classList.add('d-none');
                     transferSection.classList.add('d-none');
                     splitSection.classList.add('d-none');
                     hutangSection.classList.add('d-none');
+                    if (qrisSection) qrisSection.classList.add('d-none');
 
                     btnCash.classList.remove('active');
                     btnTransfer.classList.remove('active');
                     btnSplit.classList.remove('active');
                     btnHutang.classList.remove('active');
+                    if (btnQris) btnQris.classList.remove('active');
                 };
 
                 btnCash.onclick = () => {
@@ -549,6 +572,14 @@ const POS = {
                     reset();
                     btnHutang.classList.add('active');
                     hutangSection.classList.remove('d-none');
+                };
+
+                if (btnQris) {
+                    btnQris.onclick = () => {
+                        reset();
+                        btnQris.classList.add('active');
+                        if (qrisSection) qrisSection.classList.remove('d-none');
+                    };
                 };
 
                 // Hitung kembalian untuk cash
@@ -650,6 +681,20 @@ const POS = {
                 const isTransfer = document.getElementById('btnTransfer').classList.contains('active');
                 const isSplit = document.getElementById('btnSplit').classList.contains('active');
                 const isHutang = document.getElementById('btnHutang').classList.contains('active');
+                const isQris = document.getElementById('btnQris')?.classList.contains('active');
+
+                /* ================= QRIS DINAMIS ================= */
+                if (isQris) {
+                    return {
+                        payment_method: 'qris',
+                        is_qris_flow: true,
+                        paid_amount: total,
+                        cash_amount: 0,
+                        transfer_amount: 0,
+                        akun_kasir: null,
+                        akun_bank: null
+                    };
+                }
 
                 /* ================= HUTANG ================= */
                 if (isHutang) {
@@ -750,6 +795,11 @@ const POS = {
             }
         }).then(result => {
             if (!result.isConfirmed) return;
+
+            if (result.value?.is_qris_flow) {
+                this.startQrisPaymentFlow();
+                return;
+            }
 
             Object.assign(this.cart, result.value);
 
@@ -862,6 +912,200 @@ const POS = {
             this.cart.customer_name = customerNameInput.value || 'Umum';
             this.persist();
         }
+    },
+
+    async startQrisPaymentFlow() {
+        const total = this.cart.total;
+        const storeId = window.STORE_ID;
+
+        // Tampilkan loading pembuatan QRIS
+        Swal.fire({
+            title: 'Menghubungkan ke Midtrans...',
+            html: '<div class="text-muted small">Sedang membuat QRIS Dinamis resmi...</div>',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        try {
+            const res = await fetch('/api/pos/qris/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    store_id: storeId,
+                    amount: total,
+                    customer_name: this.cart.customer_name || 'Pelanggan POS'
+                })
+            });
+
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.message || 'Gagal membuat QRIS.');
+            }
+
+            const qrisData = data.data;
+            const orderId = qrisData.order_id;
+            const qrUrl = qrisData.qr_url;
+            const qrString = qrisData.qr_string;
+
+            // Buka Modal QRIS Interaktif dengan Polling Otomatis
+            let pollingTimer = null;
+
+            Swal.fire({
+                title: 'Scan QRIS untuk Bayar',
+                width: 480,
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                showCancelButton: true,
+                cancelButtonText: 'Batalkan Pembayaran',
+                cancelButtonColor: '#d33',
+                html: `
+                    <div class="text-center p-2">
+                        <div class="fs-4 fw-bold text-success mb-1">
+                            Rp ${this.numberSeparator(total)}
+                        </div>
+                        <div class="text-muted small mb-2">Order ID: <code>${orderId}</code></div>
+
+                        <div class="p-3 bg-white rounded-3 border d-inline-block shadow-sm mb-3">
+                            <img src="${qrUrl}" alt="QRIS Midtrans" style="width: 240px; height: 240px; display: block; margin: 0 auto; object-fit: contain;">
+                        </div>
+
+                        <div id="qrisStatusBox" class="alert alert-warning py-2 mb-3 d-flex align-items-center justify-content-center gap-2 small">
+                            <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                            <span id="qrisStatusMsg">Menunggu scan & pembayaran pelanggan...</span>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 justify-content-center">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
+                                📋 Salin QR String
+                            </button>
+                            <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-outline-primary">
+                                🚀 Buka Simulator Midtrans
+                            </a>
+                        </div>
+                        <div class="text-muted" style="font-size: 11px; margin-top: 8px;">
+                            (Untuk uji coba di Sandbox: Salin QR String ➔ Buka Simulator ➔ Paste & klik Pay)
+                        </div>
+                    </div>
+                `,
+                didOpen: () => {
+                    // Event salin qr string
+                    document.getElementById('btnCopyQrString')?.addEventListener('click', () => {
+                        if (qrString) {
+                            navigator.clipboard.writeText(qrString).then(() => {
+                                Swal.showValidationMessage('✅ QR String berhasil disalin ke clipboard!');
+                                setTimeout(() => Swal.resetValidationMessage(), 2500);
+                            });
+                        }
+                    });
+
+                    // Start Polling setiap 3 detik
+                    pollingTimer = setInterval(async () => {
+                        try {
+                            const checkRes = await fetch(`/api/pos/qris/status/${orderId}`, {
+                                headers: { 'Accept': 'application/json' }
+                            });
+                            const checkData = await checkRes.json();
+
+                            if (checkData.success && checkData.data.is_paid) {
+                                clearInterval(pollingTimer);
+
+                                const statusBox = document.getElementById('qrisStatusBox');
+                                const statusMsg = document.getElementById('qrisStatusMsg');
+                                if (statusBox && statusMsg) {
+                                    statusBox.className = 'alert alert-success py-2 mb-3 d-flex align-items-center justify-content-center gap-2 small fw-bold';
+                                    statusMsg.innerHTML = '🎉 Pembayaran Lunas Terverifikasi!';
+                                }
+
+                                setTimeout(() => {
+                                    Swal.close();
+                                    this.finalizeQrisCheckout(orderId, total);
+                                }, 1200);
+                            }
+                        } catch (e) {
+                            console.error('Polling status QRIS error:', e);
+                        }
+                    }, 3000);
+                },
+                willClose: () => {
+                    if (pollingTimer) {
+                        clearInterval(pollingTimer);
+                    }
+                }
+            });
+
+        } catch (err) {
+            Swal.fire('Gagal Membuat QRIS', err.message || 'Terjadi kesalahan sistem', 'error');
+        }
+    },
+
+    finalizeQrisCheckout(orderId, total) {
+        Object.assign(this.cart, {
+            payment_method: 'qris',
+            paid_amount: total,
+            cash_amount: 0,
+            transfer_amount: 0,
+            qris_order_id: orderId,
+            akun_kasir: null,
+            akun_bank: null
+        });
+
+        Api.checkout(this.cart)
+            .then(res => {
+                Swal.fire({
+                    title: 'Pembayaran QRIS Berhasil',
+                    html: `
+                        <div style="font-size:14px;color:#6b7280">
+                            Invoice <b>${res.invoice}</b>
+                        </div>
+                        <div style="margin-top:8px">
+                            Apakah ingin mencetak struk?
+                        </div>
+                    `,
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: '🖨 Cetak',
+                    cancelButtonText: 'Tidak',
+                    customClass: {
+                        popup: 'pos-checkout'
+                    },
+                    reverseButtons: true
+                }).then(result => {
+                    this.cart.transaction_date = new Date().toISOString().split('T')[0];
+                    $('#transactionDate').val(this.cart.transaction_date);
+
+                    const customerIdSelect = $('#customerId');
+                    if (customerIdSelect.length) {
+                        customerIdSelect.val('').trigger('change.select2');
+                    }
+                    if (result.isConfirmed) {
+                        const printUrl = `/sales/${res.sale_id}/receipt`;
+                        if (window.PRINTER_TYPE === 'pdf') {
+                            window.open(printUrl, '_blank');
+                        } else {
+                            const printWindow = window.open(printUrl, '_blank');
+                            printWindow.focus();
+                            printWindow.onload = function () {
+                                printWindow.print();
+                                printWindow.onafterprint = function () {
+                                    printWindow.close();
+                                };
+                            };
+                        }
+                    }
+
+                    this.closeTab(this.cart.id);
+                    document.getElementById('skuInput')?.focus();
+                });
+            })
+            .catch(err => {
+                Swal.fire('Checkout Error', err.message || 'Pembayaran berhasil tetapi gagal menyimpan pesanan', 'error');
+            });
     }
 };
 
