@@ -30,6 +30,7 @@ class LaporanHarianExport implements
     protected $sumTrx = 0;
     protected $totalTransDiscount = 0;
     protected $totalPointDiscount = 0;
+    protected $totalVoucherDiscount = 0;
 
     public function __construct($mulai, $akhir)
     {
@@ -149,6 +150,7 @@ class LaporanHarianExport implements
 
         $this->totalTransDiscount = $sales->sum('trans_discount');
         $this->totalPointDiscount = $sales->sum('point_discount_amount');
+        $this->totalVoucherDiscount = $sales->sum('voucher_discount_amount');
 
         // Append Subtotal Item
         $rows[] = [
@@ -160,6 +162,13 @@ class LaporanHarianExport implements
             '', '', '', 'DISKON TRANSAKSI', '', '', '', -$this->totalTransDiscount, '', '', '',
         ];
 
+        // Append Diskon Voucher (if any)
+        if ($this->totalVoucherDiscount > 0) {
+            $rows[] = [
+                '', '', '', 'DISKON VOUCHER', '', '', '', -$this->totalVoucherDiscount, '', '', '',
+            ];
+        }
+
         // Append Diskon Point (if any)
         if ($this->totalPointDiscount > 0) {
             $rows[] = [
@@ -167,7 +176,7 @@ class LaporanHarianExport implements
             ];
         }
 
-        $grandTotal = $this->sumSubtotal - $this->totalTransDiscount - $this->totalPointDiscount;
+        $grandTotal = $this->sumSubtotal - $this->totalTransDiscount - $this->totalVoucherDiscount - $this->totalPointDiscount;
 
         // Append Grand Total (Omset)
         $rows[] = [

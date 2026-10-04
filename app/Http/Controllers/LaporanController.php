@@ -447,12 +447,13 @@ class LaporanController extends Controller
 
         $totalTransDiscount = $sales->sum('trans_discount');
         $totalPointDiscount = $sales->sum('point_discount_amount');
+        $totalVoucherDiscount = $sales->sum('voucher_discount_amount');
 
         if ($request->ajax()) {
-            return view('laporan.harian_table', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount'));
+            return view('laporan.harian_table', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount', 'totalVoucherDiscount'));
         }
 
-        return view('laporan.harian', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount'));
+        return view('laporan.harian', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount', 'totalVoucherDiscount'));
     }
 
     public function exportHarian(Request $request)

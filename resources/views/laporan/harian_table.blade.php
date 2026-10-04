@@ -81,6 +81,17 @@
                             <td></td>
                             <td></td>
                         </tr>
+                        @if (isset($totalVoucherDiscount) && $totalVoucherDiscount > 0)
+                        <tr class="fw-bold">
+                            <td colspan="5" class="text-center">DISKON VOUCHER</td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end text-danger">-{{ number_format($totalVoucherDiscount, 0, ',', '.') }}</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        @endif
                         @if ($totalPointDiscount > 0)
                         <tr class="fw-bold">
                             <td colspan="5" class="text-center">DISKON POINT</td>
@@ -93,7 +104,7 @@
                         </tr>
                         @endif
                         @php
-                            $grandTotal = $sumSubtotal - $totalTransDiscount - $totalPointDiscount;
+                            $grandTotal = $sumSubtotal - $totalTransDiscount - ($totalVoucherDiscount ?? 0) - $totalPointDiscount;
                         @endphp
                         <tr class="table-warning fw-bold">
                             <td colspan="5" class="text-center">GRAND TOTAL (OMSET)</td>
