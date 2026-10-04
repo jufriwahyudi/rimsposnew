@@ -1351,18 +1351,37 @@
                         </div>
 
                         <div class="d-flex flex-wrap gap-2 justify-content-center mb-1">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
-                                📋 Salin QR String
+                            <button type="button" class="btn btn-sm btn-outline-primary fw-bold" id="btnCopyQrUrl">
+                                📋 Salin URL Gambar QR (Simulator)
                             </button>
-                            <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-outline-primary">
-                                🚀 Buka Simulator Midtrans
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyQrString">
+                                📄 Salin String
+                            </button>
+                            <a href="https://simulator.sandbox.midtrans.com/qris/index" target="_blank" class="btn btn-sm btn-success fw-bold">
+                                🚀 Buka Simulator
                             </a>
                         </div>
-                        <div class="text-muted" style="font-size: 11px;">
-                            (Untuk uji coba di Sandbox: Salin QR String ➔ Buka Simulator ➔ Paste & klik Pay)
+                        <div class="alert alert-light border small text-muted text-start mt-2 mb-0 py-2" style="font-size: 11px;">
+                            <strong>💡 Cara Tes di Simulator Sandbox:</strong><br>
+                            1. Klik <b>Salin URL Gambar QR</b> di atas.<br>
+                            2. Klik <b>Buka Simulator</b> ➔ Paste di kotak <i>QR Code Image Url</i>.<br>
+                            3. Klik tombol <b>Scan QR</b> ➔ klik <b>Pay</b>. Sistem kasir akan mendeteksi lunas otomatis!
                         </div>
                     </div>
                 `;
+
+                container.querySelector('#btnCopyQrUrl')?.addEventListener('click', () => {
+                    if (qrUrl) {
+                        navigator.clipboard.writeText(qrUrl).then(() => {
+                            const statusMsg = container.querySelector('#qrisStatusMsg');
+                            if (statusMsg) {
+                                const orig = statusMsg.innerText;
+                                statusMsg.innerText = '✅ URL Gambar QR berhasil disalin! Siap dipaste ke Simulator.';
+                                setTimeout(() => statusMsg.innerText = orig, 3000);
+                            }
+                        });
+                    }
+                });
 
                 container.querySelector('#btnCopyQrString')?.addEventListener('click', () => {
                     if (qrString) {
@@ -1370,7 +1389,7 @@
                             const statusMsg = container.querySelector('#qrisStatusMsg');
                             if (statusMsg) {
                                 const orig = statusMsg.innerText;
-                                statusMsg.innerText = '✅ QR String berhasil disalin!';
+                                statusMsg.innerText = '✅ Raw String QR disalin!';
                                 setTimeout(() => statusMsg.innerText = orig, 2000);
                             }
                         });
