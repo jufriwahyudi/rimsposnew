@@ -522,3 +522,9 @@ Route::get('/test-service', function () {
 
     return 'OK';
 });
+
+// ── Midtrans Payment Redirects (Finish / Unfinish / Error) ─────────────────────
+Route::get('/payment/finish', [\App\Http\Controllers\PaymentRedirectController::class, 'finish'])->name('payment.finish');
+Route::get('/payment/unfinish', [\App\Http\Controllers\PaymentRedirectController::class, 'unfinish'])->name('payment.unfinish');
+Route::get('/payment/error', [\App\Http\Controllers\PaymentRedirectController::class, 'error'])->name('payment.error');
+

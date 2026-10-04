@@ -88,7 +88,14 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
         Route::get('/orders/{id}/receipt',          [\App\Http\Controllers\Api\TenantOrderApiController::class, 'receipt']);
         Route::get('/history',                      [\App\Http\Controllers\Api\TenantOrderApiController::class, 'history']);
     });
+
+    // ── Midtrans Dynamic QRIS ────────────────────────────────────────────────
+    Route::post('/pos/qris/generate',            [\App\Http\Controllers\Api\MidtransApiController::class, 'generateQris']);
+    Route::get('/pos/qris/status/{orderId}',     [\App\Http\Controllers\Api\MidtransApiController::class, 'checkStatus']);
 });
+
+// ── Midtrans Payment Webhook (public) ─────────────────────────────────────────
+Route::post('/midtrans/notification', [\App\Http\Controllers\Api\MidtransApiController::class, 'handleNotification']);
 
 // ── Self-Service Status (public fallback) ─────────────────────────────────────
 Route::get('/order/status/{id}', [\App\Http\Controllers\CustomerSelfServiceController::class, 'statusApi']);

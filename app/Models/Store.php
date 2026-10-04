@@ -115,6 +115,18 @@ class Store extends Model
         return $this->hasMany(StoreApiKey::class);
     }
 
+    public function paymentGateways()
+    {
+        return $this->hasMany(StorePaymentGateway::class);
+    }
+
+    public function paymentGateway(string $gateway = 'midtrans')
+    {
+        return $this->hasOne(StorePaymentGateway::class)
+            ->where('gateway', $gateway)
+            ->where('is_active', true);
+    }
+
     public function getQrisImageUrlAttribute(): ?string
     {
         return $this->qris_image ? Storage::url($this->qris_image) : null;
