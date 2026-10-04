@@ -68,17 +68,24 @@ class TenantOrderApiController extends Controller
             $query->where('store_id', $storeId);
         }
 
-        // Filter sales from today or active hold sales
-        $query->where(function ($q) {
-            $q->where('status', 'hold')
-              ->orWhereDate('sale_date', Carbon::today());
-        });
+        // Filter active hold sales or today's paid sales (exclude void or cancelled)
+        $query->whereNotIn('status', ['void', 'cancelled'])
+            ->where(function ($q) {
+                $q->where('status', 'hold')
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'paid')
+                         ->whereDate('sale_date', Carbon::today());
+                  });
+            });
 
         $sales = $query->orderBy('created_at', 'desc')->get();
 
         $data = $sales->map(function ($sale) use ($tenantId) {
-            // Filter only items belonging to this tenant
+            // Filter only items belonging to this tenant (exclude voided/refunded items)
             $filteredItems = $sale->items->filter(function ($item) use ($tenantId) {
+                if (in_array($item->status, ['voided', 'refunded'])) {
+                    return false;
+                }
                 $itemTenant = $item->variant?->product?->tenant_id ?? $item->product?->tenant_id;
                 return $itemTenant == $tenantId;
             });
@@ -152,6 +159,10 @@ class TenantOrderApiController extends Controller
 
         $sale = Sale::findOrFail($saleId);
 
+        if (in_array($sale->status, ['void', 'cancelled'])) {
+            return response()->json(['message' => 'Pesanan ini telah dibatalkan.'], 422);
+        }
+
         $items = SaleItem::where('sale_id', $sale->id)
             ->where(function ($q) use ($tenantId) {
                 $q->whereHas('variant.product', function ($q2) use ($tenantId) {
@@ -197,6 +208,10 @@ class TenantOrderApiController extends Controller
 
         $sale = Sale::findOrFail($saleId);
 
+        if (in_array($sale->status, ['void', 'cancelled'])) {
+            return response()->json(['message' => 'Pesanan ini telah dibatalkan.'], 422);
+        }
+
         $items = SaleItem::where('sale_id', $sale->id)
             ->where(function ($q) use ($tenantId) {
                 $q->whereHas('variant.product', function ($q2) use ($tenantId) {
@@ -239,6 +254,14 @@ class TenantOrderApiController extends Controller
         ]);
 
         $item = SaleItem::with(['variant.product', 'product', 'sale'])->findOrFail($itemId);
+
+        if ($item->sale && in_array($item->sale->status, ['void', 'cancelled'])) {
+            return response()->json(['message' => 'Pesanan ini telah dibatalkan.'], 422);
+        }
+
+        if (in_array($item->status, ['voided', 'refunded'])) {
+            return response()->json(['message' => 'Item ini sudah dibatalkan/void.'], 422);
+        }
 
         $itemTenant = $item->variant?->product?->tenant_id ?? $item->product?->tenant_id;
         if ($itemTenant != $tenantId) {
@@ -349,11 +372,13 @@ class TenantOrderApiController extends Controller
 
         $today = Carbon::today();
         $items = SaleItem::with(['sale', 'variant.product'])
+            ->whereNotIn('status', ['voided', 'refunded'])
             ->whereHas('variant.product', function ($q) use ($tenantId) {
                 $q->where('tenant_id', $tenantId);
             })
             ->whereHas('sale', function ($q) use ($today) {
-                $q->whereDate('sale_date', $today);
+                $q->whereNotIn('status', ['void', 'cancelled'])
+                    ->whereDate('sale_date', $today);
             })
             ->orderBy('created_at', 'desc')
             ->get();

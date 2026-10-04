@@ -294,10 +294,18 @@
                 </button>
                 {{--
                     Logika tombol Void / Refund:
-                    - Void   : sale=paid, belum direfund, DAN (hutang ATAU dibuat hari ini)
+                    - Void   : sale=hold (belum dibayar), ATAU (sale=paid, belum direfund, DAN (hutang ATAU dibuat hari ini))
                     - Refund : sale=paid, lunas, bukan hari ini, belum direfund
                 --}}
-                @if ($sale->status == 'paid' && $sale->refunds->count() === 0
+                @if ($sale->status === 'hold')
+                    <form method="POST" class="form-inline mb-0" action="{{ route('sales.void', $sale) }}"
+                        onsubmit="confirmVoid(event)">
+                        @csrf
+                        <button class="btn btn-outline-danger">
+                            <i class="bi bi-trash"></i> Batalkan Pesanan (Void)
+                        </button>
+                    </form>
+                @elseif ($sale->status == 'paid' && $sale->refunds->count() === 0
                      && ($sale->payment_status === 'hutang' || $sale->created_at->isToday()))
                     <form method="POST" class="form-inline mb-0" action="{{ route('sales.void', $sale) }}"
                         onsubmit="confirmVoid(event)">

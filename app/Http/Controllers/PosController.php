@@ -3412,31 +3412,42 @@ class PosController extends Controller
             return response()->json(['message' => 'Transaksi sudah di-void'], 422);
         }
 
-        if (! $sale->sale_date->isToday()) {
+        if ($sale->status !== 'hold' && ! $sale->sale_date->isToday()) {
             return response()->json(['message' => 'Void hanya bisa dilakukan di hari yang sama dengan transaksi'], 422);
         }
 
         try {
-            DB::transaction(function () use ($sale) {
+            DB::transaction(function () use ($sale, $request) {
 
-                // 1. Kembalikan stok (reverse FIFO)
+                // 1. Kembalikan stok (reverse FIFO atau resep)
                 foreach ($sale->items->whereIn('status', ['sold', 'exchanged_in']) as $item) {
-                    foreach ($item->batches as $batch) {
-                        StockBatch::where('id', $batch->stock_batch_id)
-                            ->increment('qty_sisa', $batch->qty);
+                    $product = Product::find($item->product_id);
+                    if ($product && $product->product_type === 'RECIPE') {
+                        app(IngredientInventoryService::class)->restoreRecipeStock(
+                            $sale->store_id,
+                            $product->id,
+                            (float) $item->qty,
+                            $sale->id,
+                            $item
+                        );
+                    } else {
+                        foreach ($item->batches as $batch) {
+                            StockBatch::where('id', $batch->stock_batch_id)
+                                ->increment('qty_sisa', $batch->qty);
 
-                        $variantId = $item->product_variant_id ?: ($batch->stockBatch?->product_variant_id);
-                        StockMovement::create([
-                            'product_variant_id' => $variantId,
-                            'stock_batch_id' => $batch->stock_batch_id,
-                            'posisi' => 'store',
-                            'tanggal' => now(),
-                            'tipe' => 'in',
-                            'direction' => 'in',
-                            'qty' => $batch->qty,
-                            'ref_type' => 'SaleVoid',
-                            'ref_id' => $sale->id,
-                        ]);
+                            $variantId = $item->product_variant_id ?: ($batch->stockBatch?->product_variant_id);
+                            StockMovement::create([
+                                'product_variant_id' => $variantId,
+                                'stock_batch_id' => $batch->stock_batch_id,
+                                'posisi' => 'store',
+                                'tanggal' => now(),
+                                'tipe' => 'in',
+                                'direction' => 'in',
+                                'qty' => $batch->qty,
+                                'ref_type' => 'SaleVoid',
+                                'ref_id' => $sale->id,
+                            ]);
+                        }
                     }
                     if ($item->product_variant_id) {
                         $variantObj = ProductVariant::find($item->product_variant_id);
@@ -3449,13 +3460,17 @@ class PosController extends Controller
                 }
 
                 // 2. Update status sale
-                $sale->update(['status' => 'void']);
+                $saleUpdates = ['status' => 'void'];
+                if ($request->filled('reason')) {
+                    $saleUpdates['notes'] = ($sale->notes ? $sale->notes.' | ' : '').'Void Reason: '.$request->input('reason');
+                }
+                $sale->update($saleUpdates);
 
                 // Revert member loyalty points
                 app(LoyaltyPointService::class)->revertPointsForVoid($sale);
 
                 // 3. Hapus cash transaction & jurnal
-                $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse'])
+                $cashTrx = CashTransaction::whereIn('transaction_type', ['sale', 'nse', 'tip'])
                     ->where('ref_id', $sale->id)
                     ->get();
                 $jurnalService = new JournalEntryService;
@@ -3466,6 +3481,15 @@ class PosController extends Controller
                     $trx->delete();
                 }
             });
+
+            // 4. Sinkronisasi status void ke Firestore jika F&B / Self-service aktif
+            if ($sale->store && $sale->store->business_type === 'fnb' && $sale->store->addon_self_service) {
+                try {
+                    app(FirestoreService::class)->syncOrder($sale);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Firestore sync on void failed: '.$e->getMessage());
+                }
+            }
 
             return response()->json(['message' => 'Transaksi berhasil di-void']);
         } catch (\Exception $e) {
@@ -4122,6 +4146,15 @@ class PosController extends Controller
                     }
                 }
             });
+
+            // Sinkronisasi status void ke Firestore jika F&B / Self-service aktif
+            if ($sale->store && $sale->store->business_type === 'fnb' && $sale->store->addon_self_service) {
+                try {
+                    app(FirestoreService::class)->syncOrder($sale);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Firestore sync on void failed: '.$e->getMessage());
+                }
+            }
 
             return back()->with('success', 'Transaksi berhasil di-VOID');
         } catch (\Exception $e) {
