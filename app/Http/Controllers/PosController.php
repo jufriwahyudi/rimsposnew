@@ -1295,13 +1295,19 @@ class PosController extends Controller
                 // 5️⃣.b CASH TRANSACTION (QRIS DINAMIS)
                 // =========================
                 if ($paymentMethod === 'qris') {
+                    $qrisAccountCode = $akunBank;
+                    if (empty($qrisAccountCode)) {
+                        $defaultRekening = Rekening::where('store_id', session('store_id'))->first();
+                        $qrisAccountCode = $defaultRekening?->kode_akun ?? '0';
+                    }
+
                     CashTransaction::create([
                         'store_id' => session('store_id'),
                         'ref_type' => 'SalePos',
                         'ref_id' => $sale->id,
                         'transaction_type' => 'sale',
                         'payment_method' => 'qris',
-                        'account_code' => $akunBank ?: 0,
+                        'account_code' => $qrisAccountCode,
                         'amount' => $cart['total'],
                         'direction' => 'in',
                         'transaction_date' => $transactionDate,
