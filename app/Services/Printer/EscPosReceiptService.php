@@ -270,12 +270,14 @@ class EscPosReceiptService
             $logoPath = $this->resolveLogoPath($store['logo']);
             if ($logoPath && file_exists($logoPath)) {
                 try {
-                    $img = EscposImage::load($logoPath, false);
-                    $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-                    try {
-                        $this->printer->graphics($img);
-                    } catch (\Throwable $e) {
-                        $this->printer->bitImage($img);
+                    $img = $this->prepareLogoImage($logoPath);
+                    if ($img) {
+                        $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+                        try {
+                            $this->printer->bitImage($img);
+                        } catch (\Throwable $e) {
+                            $this->printer->graphics($img);
+                        }
                     }
                 } catch (\Throwable $e) {
                     // Abaikan error gambar/logo jika printer tidak mendukung
@@ -350,6 +352,120 @@ class EscPosReceiptService
         }
 
         return null;
+    }
+
+    /**
+     * Resize dan binarisasi logo ke format monokrom siap cetak thermal
+     * (Menangani logo berwarna terang seperti kuning/emas pada background transparan agar tidak jadi putih)
+     */
+    protected function prepareLogoImage(string $logoPath): ?EscposImage
+    {
+        $raw = @file_get_contents($logoPath);
+        if (!$raw) {
+            return null;
+        }
+
+        $src = @imagecreatefromstring($raw);
+        if (!$src) {
+            return null;
+        }
+
+        $origW = imagesx($src);
+        $origH = imagesy($src);
+
+        if ($origW <= 0 || $origH <= 0) {
+            imagedestroy($src);
+            return null;
+        }
+
+        // Cek apakah gambar memiliki channel transparansi (PNG)
+        $hasTransparency = false;
+        for ($x = 0; $x < $origW; $x += max(1, (int)($origW / 20))) {
+            for ($y = 0; $y < $origH; $y += max(1, (int)($origH / 20))) {
+                $rgba = imagecolorat($src, $x, $y);
+                $alpha = ($rgba & 0x7F000000) >> 24;
+                if ($alpha > 30) {
+                    $hasTransparency = true;
+                    break 2;
+                }
+            }
+        }
+
+        // Lebar ideal logo pada thermal: 200px untuk 58mm, 260px untuk 80mm
+        $maxW = ($this->width === 32) ? 200 : 260;
+        $targetW = min($origW, $maxW);
+        $targetH = (int) round($origH * ($targetW / $origW));
+
+        // Resample dengan alpha channel dipertahankan
+        $resized = imagecreatetruecolor($targetW, $targetH);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        $transparentColor = imagecolorallocatealpha($resized, 255, 255, 255, 127);
+        imagefill($resized, 0, 0, $transparentColor);
+        imagecopyresampled($resized, $src, 0, 0, 0, 0, $targetW, $targetH, $origW, $origH);
+        imagedestroy($src);
+
+        // Kanvas final monokrom (hitam & putih murni)
+        $canvas = imagecreatetruecolor($targetW, $targetH);
+        $white = imagecolorallocate($canvas, 255, 255, 255);
+        $black = imagecolorallocate($canvas, 0, 0, 0);
+        imagefill($canvas, 0, 0, $white);
+
+        if ($hasTransparency) {
+            // Untuk gambar transparan (PNG):
+            // Latar transparan dan elemen putih bersih di dalam logo tetap PUTIH,
+            // sedangkan elemen logo yang berwarna (merah, kuning, biru, dll) dicetak HITAM.
+            for ($y = 0; $y < $targetH; $y++) {
+                for ($x = 0; $x < $targetW; $x++) {
+                    $rgba = imagecolorat($resized, $x, $y);
+                    $alpha = ($rgba & 0x7F000000) >> 24;
+                    $r = ($rgba >> 16) & 0xFF;
+                    $g = ($rgba >> 8) & 0xFF;
+                    $b = $rgba & 0xFF;
+                    // GD alpha: 0 = fully opaque, 127 = fully transparent
+                    if ($alpha >= 80 || ($r > 245 && $g > 245 && $b > 245)) {
+                        imagesetpixel($canvas, $x, $y, $white);
+                    } else {
+                        imagesetpixel($canvas, $x, $y, $black);
+                    }
+                }
+            }
+        } else {
+            // Untuk gambar tanpa transparansi (JPEG/PNG berlatar putih):
+            // Latar putih (lum > 235) tetap PUTIH, elemen bergambar/berwarna dicetak HITAM.
+            for ($y = 0; $y < $targetH; $y++) {
+                for ($x = 0; $x < $targetW; $x++) {
+                    $rgba = imagecolorat($resized, $x, $y);
+                    $r = ($rgba >> 16) & 0xFF;
+                    $g = ($rgba >> 8) & 0xFF;
+                    $b = $rgba & 0xFF;
+                    $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+                    if ($lum < 235) {
+                        imagesetpixel($canvas, $x, $y, $black);
+                    } else {
+                        imagesetpixel($canvas, $x, $y, $white);
+                    }
+                }
+            }
+        }
+        imagedestroy($resized);
+
+        $tempFile = sys_get_temp_dir() . '/receipt_logo_' . uniqid() . '.png';
+        imagepng($canvas, $tempFile);
+        imagedestroy($canvas);
+
+        try {
+            $img = EscposImage::load($tempFile, false);
+            $img->toRasterFormat(); // Caching data raster ke memory sebelum file dihapus
+            @unlink($tempFile);
+            return $img;
+        } catch (\Throwable $e) {
+            if (file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
+            \Log::warning('[EscPosReceiptService] Failed to load logo EscposImage: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
