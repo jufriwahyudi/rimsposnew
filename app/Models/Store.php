@@ -21,6 +21,7 @@ class Store extends Model
         'is_active',
         'printer_type',
         'logo',
+        'show_receipt_logo',
         'qris_image',
         'business_type',
         'fnb_layout_template',
@@ -39,6 +40,7 @@ class Store extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'show_receipt_logo' => 'boolean',
         'addon_self_service' => 'boolean',
         'addon_kds' => 'boolean',
         'addon_multi_printer' => 'boolean',

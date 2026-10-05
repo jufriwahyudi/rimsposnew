@@ -77,6 +77,7 @@ $data = [
         'receipt_header' => $store['receipt_header'],
         'receipt_footer' => $store['receipt_footer'],
         'logo' => $store['logo'] ?? null,
+        'show_receipt_logo' => (bool) ($store['show_receipt_logo'] ?? false),
         'qris_image' => $store['qris_image'] ?? null,
     ],
     'transaction' => [

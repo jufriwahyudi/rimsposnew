@@ -112,6 +112,7 @@ class StoreController extends Controller
                 'printer_type'         => $request->printer_type,
                 'is_active'            => $request->boolean('is_active', true),
                 'logo'                 => $logoPath,
+                'show_receipt_logo'    => $request->boolean('show_receipt_logo', false),
                 'qris_image'           => $qrisPath,
                 'business_type'        => $request->bussiness_type,
                 'fnb_layout_template'  => $request->fnb_layout_template ?? 'grid',
@@ -256,6 +257,7 @@ class StoreController extends Controller
             'enable_cash_register' => 'nullable|boolean',
             'receipt_header'       => 'nullable|string|max:500',
             'receipt_footer'       => 'nullable|string|max:500',
+            'show_receipt_logo'    => 'nullable|boolean',
         ];
 
         if (!$isNewBusiness) {
@@ -296,6 +298,7 @@ class StoreController extends Controller
             'enable_cash_register' => $request->boolean('enable_cash_register', false),
             'receipt_header'       => $request->receipt_header,
             'receipt_footer'       => $request->receipt_footer,
+            'show_receipt_logo'    => $request->boolean('show_receipt_logo', false),
         ];
 
         if ($request->filled('logo_data')) {

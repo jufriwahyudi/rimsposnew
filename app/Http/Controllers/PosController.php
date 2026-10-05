@@ -3040,6 +3040,7 @@ class PosController extends Controller
                 'receipt_header' => $store->receipt_header,
                 'receipt_footer' => $store->receipt_footer,
                 'logo' => $store->logo,
+                'show_receipt_logo' => (bool) ($store->show_receipt_logo ?? false),
                 'qris_image' => $store->qris_image,
             ],
             'transaction' => [
@@ -4724,6 +4725,7 @@ class PosController extends Controller
                 'receipt_header' => $store->receipt_header,
                 'receipt_footer' => $store->receipt_footer,
                 'logo' => $store?->logo ? Storage::url($store->logo) : null,
+                'show_receipt_logo' => (bool) ($store?->show_receipt_logo ?? false),
                 'qris_image' => $store?->qris_image ? Storage::url($store->qris_image) : null,
             ],
             'transaction' => [
@@ -4732,6 +4734,8 @@ class PosController extends Controller
                 'cashier' => $sale->cashier->name ?? 'Admin',
                 'customer' => $sale->customer_name ?? 'Umum',
                 'status' => $sale->refunds->isNotEmpty() ? 'REFUNDED' : strtoupper($sale->status),
+                'payment_status' => strtoupper($sale->payment_status),
+                'table_number' => $sale->table_number,
             ],
             'items' => $sale->items->map(function ($item) {
                 return [

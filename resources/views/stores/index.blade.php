@@ -517,6 +517,17 @@
                                     </div>
                                 </div>
                                 <div class="row g-2 mt-1">
+                                    <div class="col-12 mb-2 pb-2 border-bottom">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="show_receipt_logo">
+                                            <label class="form-check-label fw-bold text-dark" for="show_receipt_logo">
+                                                <i class="bi bi-image text-primary me-1"></i> Cetak Logo di Bagian Atas Struk
+                                            </label>
+                                            <div class="text-muted small" style="font-size: 11px;">
+                                                Jika diaktifkan dan logo toko tersedia, logo toko akan dicetak di baris paling atas struk (Thermal & PDF).
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold" for="receipt_header">
                                             Header Struk (Kustom di Bawah Nama Toko)
@@ -1277,6 +1288,7 @@
         setQrisPreview(null);
         document.getElementById('is_active').checked = true;
         document.getElementById('enable_cash_register').checked = false;
+        document.getElementById('show_receipt_logo').checked = false;
         document.getElementById('business_id').selectedIndex = 0;
         document.getElementById('bussiness_type').value = 'retail';
         document.getElementById('fnb_layout_template').value = 'grid';
@@ -1322,6 +1334,7 @@
                 document.getElementById('printer_type').value = data.printer_type ?? '80mm';
                 document.getElementById('is_active').checked = data.is_active == 1;
                 document.getElementById('enable_cash_register').checked = data.enable_cash_register == 1;
+                document.getElementById('show_receipt_logo').checked = data.show_receipt_logo == 1;
                 document.getElementById('receipt_header').value = data.receipt_header ?? '';
                 document.getElementById('receipt_footer').value = data.receipt_footer ?? '';
                 document.getElementById('logo_data').value = '';
@@ -1379,6 +1392,7 @@
             printer_type: document.getElementById('printer_type').value,
             is_active: document.getElementById('is_active').checked ? 1 : 0,
             enable_cash_register: document.getElementById('enable_cash_register').checked ? 1 : 0,
+            show_receipt_logo: document.getElementById('show_receipt_logo').checked ? 1 : 0,
             receipt_header: document.getElementById('receipt_header').value.trim() || null,
             receipt_footer: document.getElementById('receipt_footer').value.trim() || null,
             logo_data: document.getElementById('logo_data').value || null,

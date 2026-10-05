@@ -265,22 +265,23 @@ class EscPosReceiptService
         $this->printer->initialize();
         $this->printer->setFont(Printer::FONT_A);
 
-        // Logo store (di-disable sementara, uncomment blok di bawah ini jika ingin mencetak logo)
-        /*
-        $logoPath = !empty($store['logo']) && file_exists(public_path('storage/' . $store['logo']))
-            ? public_path('storage/' . $store['logo'])
-            : public_path('img/logo.png');
-
-        if (file_exists($logoPath)) {
-            try {
-                $img = EscposImage::load($logoPath, false);
-                $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-                $this->printer->graphics($img);
-            } catch (\Exception $e) {
-                // Abaikan error gambar/logo jika printer tidak mendukung
+        // Logo store (jika show_receipt_logo aktif dan logo tersedia)
+        if (!empty($store['show_receipt_logo']) && !empty($store['logo'])) {
+            $logoPath = $this->resolveLogoPath($store['logo']);
+            if ($logoPath && file_exists($logoPath)) {
+                try {
+                    $img = EscposImage::load($logoPath, false);
+                    $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+                    try {
+                        $this->printer->graphics($img);
+                    } catch (\Throwable $e) {
+                        $this->printer->bitImage($img);
+                    }
+                } catch (\Throwable $e) {
+                    // Abaikan error gambar/logo jika printer tidak mendukung
+                }
             }
         }
-        */
 
         // Nama toko
         $this->printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -601,6 +602,9 @@ class EscPosReceiptService
         $this->writeLine('Tgl  : ' . ($trx['date']     ?? '-'));
         $this->writeLine('Kasir: ' . ($trx['cashier']  ?? '-'));
         $this->writeLine('Cust : ' . ($trx['customer'] ?? 'Umum'));
+        if (!empty($trx['table_number'])) {
+            $this->writeLine('Meja : ' . $trx['table_number']);
+        }
 
         $status = $trx['status'] ?? 'PAID';
         if ($status !== 'PAID') {

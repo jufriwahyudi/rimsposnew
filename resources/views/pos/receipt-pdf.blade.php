@@ -257,7 +257,7 @@
                         }
                     }
                 @endphp
-                @if ($logoBase64)
+                @if (!empty($store['show_receipt_logo']) && $logoBase64)
                     <img src="{{ $logoBase64 }}" class="logo" alt="Logo Toko">
                 @endif
                 <h1 class="store-name">{{ $store['name'] }}</h1>
@@ -296,6 +296,12 @@
                         <td class="meta-label">Pelanggan</td>
                         <td class="meta-value">{{ $transaction['customer'] }}</td>
                     </tr>
+                    @if (!empty($transaction['table_number']))
+                    <tr>
+                        <td class="meta-label">Meja</td>
+                        <td class="meta-value">{{ $transaction['table_number'] }}</td>
+                    </tr>
+                    @endif
                     <tr>
                         <td class="meta-label">Status</td>
                         <td class="meta-value">

@@ -323,9 +323,16 @@
         <div class="receipt">
             {{-- HEADER --}}
             <div class="header">
-                {{-- Logo toko di-disable untuk cetakan thermal, ganti false ke true jika ingin mengaktifkan --}}
-                @if (false && !empty($store['logo']))
-                    <img src="{{ $store['logo'] }}" alt="Logo" style="max-width: 50px; margin-bottom: 4px;">
+                @php
+                    $logoUrl = null;
+                    if (!empty($store['logo'])) {
+                        $logoUrl = (str_starts_with($store['logo'], 'http') || str_starts_with($store['logo'], '/storage'))
+                            ? $store['logo']
+                            : \Illuminate\Support\Facades\Storage::url($store['logo']);
+                    }
+                @endphp
+                @if (!empty($store['show_receipt_logo']) && $logoUrl)
+                    <img src="{{ $logoUrl }}" alt="Logo" style="max-width: 50px; margin-bottom: 4px;">
                 @endif
                 <h2>{{ $store['name'] }}</h2>
                 @if (!empty($store['receipt_header']))
@@ -365,6 +372,12 @@
                     <td>Pelanggan</td>
                     <td style="text-align:right;">{{ $transaction['customer'] }}</td>
                 </tr>
+                @if (!empty($transaction['table_number']))
+                <tr>
+                    <td>Meja</td>
+                    <td style="text-align:right;">{{ $transaction['table_number'] }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td>Status</td>
                     <td style="text-align:right;">
