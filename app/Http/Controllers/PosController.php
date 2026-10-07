@@ -970,6 +970,43 @@ class PosController extends Controller
                 $customerName = $cart['customer_name'] ?? 'Umum';
                 $customerId = $cart['customer_id'] ?? null;
 
+                // ── Validasi Ketat Integritas Subtotal & Total dengan Rincian Item ──────────
+                if (! empty($cart['items']) && is_array($cart['items'])) {
+                    $realItemsSubtotal = 0;
+                    foreach ($cart['items'] as $it) {
+                        $itPrice = (float) ($it['price'] ?? 0);
+                        $itQty = (float) ($it['qty'] ?? 1);
+                        $itDisc = (float) ($it['discount_amount'] ?? 0);
+                        $realItemsSubtotal += isset($it['subtotal'])
+                            ? (float) $it['subtotal']
+                            : round(($itPrice * $itQty) - $itDisc, 2);
+                    }
+
+                    // 1. Tolak jika Subtotal layar tidak cocok dengan rincian item (toleransi pembulatan Rp 1)
+                    if ($realItemsSubtotal > 0 && isset($cart['subtotal'])) {
+                        $clientSubtotal = (float) $cart['subtotal'];
+                        if (abs($clientSubtotal - $realItemsSubtotal) > 1) {
+                            \Illuminate\Support\Facades\Log::warning("POS Web Mismatch Rejection [Store " . session('store_id') . "]: Subtotal client = {$clientSubtotal}, real = {$realItemsSubtotal}, User = " . auth()->id());
+                            throw new \Exception("Subtotal belanja tidak sesuai dengan rincian item (Layar: Rp ".number_format($clientSubtotal, 0, ',', '.').", Rincian: Rp ".number_format($realItemsSubtotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
+                        }
+                    }
+
+                    $transDisc = (float) ($cart['trans_discount'] ?? ($cart['transaction_discount'] ?? 0));
+                    $expectedTotal = max(0, $realItemsSubtotal - $transDisc);
+
+                    // 2. Tolak jika Grand Total layar tidak cocok dengan perhitungan sistem
+                    if ($expectedTotal > 0 && isset($cart['total'])) {
+                        $clientTotal = (float) $cart['total'];
+                        if (abs($clientTotal - $expectedTotal) > 1) {
+                            \Illuminate\Support\Facades\Log::warning("POS Web Mismatch Rejection [Store " . session('store_id') . "]: Total client = {$clientTotal}, expected = {$expectedTotal}, User = " . auth()->id());
+                            throw new \Exception("Total pembayaran tidak sesuai dengan perhitungan sistem (Layar: Rp ".number_format($clientTotal, 0, ',', '.').", Sistem: Rp ".number_format($expectedTotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
+                        }
+                    }
+
+                    $cart['subtotal'] = $realItemsSubtotal;
+                    $cart['total'] = $expectedTotal;
+                }
+
                 // =========================
                 // 1️⃣ VALIDASI
                 // =========================
@@ -1476,6 +1513,45 @@ class PosController extends Controller
                     }
 
                     $voucherDiscountAmount = min($voucherDiscountAmount, $cart['subtotal']);
+                }
+
+                // ── Validasi Ketat Integritas Subtotal & Total dengan Rincian Item ──────────
+                if (! empty($cart['items']) && is_array($cart['items'])) {
+                    $realItemsSubtotal = 0;
+                    foreach ($cart['items'] as $it) {
+                        $itPrice = (float) ($it['price'] ?? 0);
+                        $itQty = (float) ($it['qty'] ?? 1);
+                        $itDisc = (float) ($it['discount_amount'] ?? 0);
+                        $realItemsSubtotal += isset($it['subtotal'])
+                            ? (float) $it['subtotal']
+                            : round(($itPrice * $itQty) - $itDisc, 2);
+                    }
+
+                    // 1. Tolak jika Subtotal layar tidak cocok dengan rincian item (toleransi pembulatan Rp 1)
+                    if ($realItemsSubtotal > 0 && isset($cart['subtotal'])) {
+                        $clientSubtotal = (float) $cart['subtotal'];
+                        if (abs($clientSubtotal - $realItemsSubtotal) > 1) {
+                            \Illuminate\Support\Facades\Log::warning("POS Mobile Mismatch Rejection [Store {$storeId}]: Subtotal client = {$clientSubtotal}, real = {$realItemsSubtotal}, User = " . auth()->id());
+                            throw new \Exception("Subtotal belanja tidak sesuai dengan rincian item (Layar: Rp ".number_format($clientSubtotal, 0, ',', '.').", Rincian: Rp ".number_format($realItemsSubtotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
+                        }
+                    }
+
+                    // 2. Tolak jika Grand Total layar tidak cocok dengan perhitungan sistem
+                    $transDisc = (float) ($cart['trans_discount'] ?? ($cart['transaction_discount'] ?? 0));
+                    $tuslah = (float) ($cart['total_tuslah'] ?? 0);
+                    $embalase = (float) ($cart['total_embalase'] ?? 0);
+                    $expectedTotal = max(0, $realItemsSubtotal - $transDisc - $voucherDiscountAmount - $pointDiscountAmount + $tuslah + $embalase);
+
+                    if ($expectedTotal > 0 && isset($cart['total'])) {
+                        $clientTotal = (float) $cart['total'];
+                        if (abs($clientTotal - $expectedTotal) > 1) {
+                            \Illuminate\Support\Facades\Log::warning("POS Mobile Mismatch Rejection [Store {$storeId}]: Total client = {$clientTotal}, expected = {$expectedTotal}, User = " . auth()->id());
+                            throw new \Exception("Total pembayaran tidak sesuai dengan perhitungan sistem (Layar: Rp ".number_format($clientTotal, 0, ',', '.').", Sistem: Rp ".number_format($expectedTotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
+                        }
+                    }
+
+                    $cart['subtotal'] = $realItemsSubtotal;
+                    $cart['total'] = $expectedTotal;
                 }
 
                 // ── Hutang: buat/temukan pelanggan ──────────────────────────
