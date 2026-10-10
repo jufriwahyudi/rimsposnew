@@ -176,6 +176,8 @@
         {{-- RIGHT COLUMN: TABBED TRANSACTION DETAILS --}}
         <div class="col-lg-7">
             @php
+                $validSales = $register->sales->whereNotIn('status', ['void', 'cancelled']);
+                $voidSales = $register->sales->whereIn('status', ['void', 'cancelled']);
                 $nonCashTxs = $register->cashTransactions->where('transaction_type', 'sale')->where('payment_method', '!=', 'cash');
                 $nonCashBreakdown = $reportData['financial']['non_cash_breakdown'] ?? [];
             @endphp
@@ -185,7 +187,7 @@
                     <ul class="nav nav-pills card-header-pills gap-2 flex-wrap" id="shiftDetailTab" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active rounded-pill px-3 py-1 small" id="sales-tab" data-bs-toggle="tab" data-bs-target="#sales-content" type="button" role="tab">
-                                <i class="bi bi-receipt me-1"></i> Seluruh Penjualan ({{ $register->sales->count() }})
+                                <i class="bi bi-receipt me-1"></i> Seluruh Penjualan ({{ $validSales->count() }})
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -201,6 +203,11 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link rounded-pill px-3 py-1 small" id="menu-tab" data-bs-toggle="tab" data-bs-target="#menu-content" type="button" role="tab">
                                 <i class="bi bi-box-seam me-1"></i> Rekap Produk ({{ $reportData['menu_sales']['total_qty'] ?? 0 }})
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill px-3 py-1 small {{ $voidSales->count() > 0 ? 'text-danger' : '' }}" id="void-tab" data-bs-toggle="tab" data-bs-target="#void-content" type="button" role="tab">
+                                <i class="bi bi-x-octagon me-1"></i> Transaksi Void ({{ $voidSales->count() }})
                             </button>
                         </li>
                     </ul>
@@ -228,7 +235,7 @@
                                             $totalNonTunaiInTab = 0;
                                             $grandTotalInTab = 0;
                                         @endphp
-                                        @forelse($register->sales as $sale)
+                                        @forelse($validSales as $sale)
                                             @php
                                                 $grandTotalInTab += $sale->grand_total;
                                                 $isCash = in_array(strtolower($sale->payment_method ?? 'cash'), ['cash', 'tunai']);
@@ -267,7 +274,7 @@
                                             </tr>
                                         @endforelse
                                     </tbody>
-                                    @if($register->sales->isNotEmpty())
+                                    @if($validSales->isNotEmpty())
                                         <tfoot class="table-light">
                                             <tr class="fw-semibold text-secondary">
                                                 <td colspan="4" class="text-end">Total Penjualan Tunai:</td>
@@ -489,6 +496,75 @@
                                                 <td colspan="3" class="text-end text-dark">TOTAL KESELURUHAN ITEM TERJUAL:</td>
                                                 <td class="text-center text-dark">{{ number_format($totalQty, 0) }}</td>
                                                 <td class="text-end text-primary">Rp {{ number_format($totalAmount, 0, ',', '.') }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    @endif
+                                </table>
+                            </div>
+                        </div>
+
+                        {{-- TAB 5: TRANSAKSI VOID / DIBATALKAN --}}
+                        <div class="tab-pane fade" id="void-content" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-striped mb-0 align-middle small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Invoice</th>
+                                            <th>Waktu Order</th>
+                                            <th>Waktu Batal</th>
+                                            <th>Meja / Pelanggan</th>
+                                            <th>Item Dibatalkan</th>
+                                            <th class="text-end">Nominal</th>
+                                            <th class="text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($voidSales as $sale)
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ route('sales.show', $sale->id) }}" class="fw-bold text-danger text-decoration-none">
+                                                        {{ $sale->invoice_number }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ $sale->sale_date ? $sale->sale_date->format('H:i') : '-' }}</td>
+                                                <td>{{ $sale->updated_at ? $sale->updated_at->format('H:i') : '-' }}</td>
+                                                <td>
+                                                    @if($sale->table_number)
+                                                        <span class="badge bg-light text-dark border me-1">Meja {{ $sale->table_number }}</span>
+                                                    @endif
+                                                    {{ $sale->customer_name ?: ($sale->customer?->name ?? 'Umum') }}
+                                                </td>
+                                                <td>
+                                                    <ul class="list-unstyled mb-0 small text-secondary">
+                                                        @foreach($sale->items as $item)
+                                                            <li>• {{ $item->product_name }} ({{ number_format($item->qty, 0) }}x)</li>
+                                                        @endforeach
+                                                    </ul>
+                                                </td>
+                                                <td class="text-end fw-semibold text-muted text-decoration-line-through">
+                                                    Rp {{ number_format($sale->grand_total, 0, ',', '.') }}
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-danger">
+                                                        <i class="bi bi-x-circle me-1"></i>VOID
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="7" class="text-center py-5 text-muted">
+                                                    <i class="bi bi-check-circle fs-2 d-block mb-1 text-success"></i>
+                                                    Tidak ada transaksi void / dibatalkan pada shift ini.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                    @if($voidSales->isNotEmpty())
+                                        <tfoot class="table-light">
+                                            <tr class="fw-semibold text-secondary">
+                                                <td colspan="5" class="text-end">Total Nilai Void (Dikecualikan dari Kas Laci):</td>
+                                                <td class="text-end text-danger fw-bold">Rp {{ number_format($voidSales->sum('grand_total'), 0, ',', '.') }}</td>
+                                                <td></td>
                                             </tr>
                                         </tfoot>
                                     @endif
