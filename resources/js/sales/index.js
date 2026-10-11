@@ -13,9 +13,11 @@ const Sales = {
             ajax: {
                 url: '/sales/datatables',
                 data: d => {
-                    // You can add additional parameters here if needed
-                    d.from_date = document.getElementById('from_date').value;
-                    d.to_date = document.getElementById('to_date').value;
+                    d.from_date = document.getElementById('from_date')?.value || '';
+                    d.to_date = document.getElementById('to_date')?.value || '';
+                    d.payment_method = document.getElementById('payment_method')?.value || '';
+                    d.payment_status = document.getElementById('payment_status')?.value || '';
+                    d.status = document.getElementById('status')?.value || '';
                 }
             },
 
@@ -36,8 +38,41 @@ const Sales = {
                 { data: 'action', orderable: false, searchable: false, className: 'text-center' }
             ]
         });
-        document.getElementById('btnFilter').addEventListener('click', () => {
-            this.table.ajax.reload();
+
+        const btnFilter = document.getElementById('btnFilter');
+        if (btnFilter) {
+            btnFilter.addEventListener('click', () => {
+                this.table.ajax.reload();
+            });
+        }
+
+        const btnReset = document.getElementById('btnReset');
+        if (btnReset) {
+            btnReset.addEventListener('click', () => {
+                const fromDate = document.getElementById('from_date');
+                const toDate = document.getElementById('to_date');
+                const paymentMethod = document.getElementById('payment_method');
+                const paymentStatus = document.getElementById('payment_status');
+                const status = document.getElementById('status');
+
+                if (fromDate) fromDate.value = '';
+                if (toDate) toDate.value = '';
+                if (paymentMethod) paymentMethod.value = '';
+                if (paymentStatus) paymentStatus.value = '';
+                if (status) status.value = '';
+
+                this.table.ajax.reload();
+            });
+        }
+
+        // Auto reload on filter dropdown change
+        ['payment_method', 'payment_status', 'status'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => {
+                    this.table.ajax.reload();
+                });
+            }
         });
     },
 

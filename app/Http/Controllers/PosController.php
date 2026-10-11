@@ -409,7 +409,17 @@ class PosController extends Controller
 
     public function sales()
     {
-        return view('pos.sales');
+        $dbMethods = CashTransaction::where('transaction_type', 'sale')
+            ->whereNotNull('payment_method')
+            ->where('payment_method', '!=', '')
+            ->distinct()
+            ->pluck('payment_method')
+            ->toArray();
+
+        $defaultMethods = ['cash', 'transfer', 'qris'];
+        $paymentMethods = array_values(array_unique(array_merge($defaultMethods, $dbMethods)));
+
+        return view('pos.sales', compact('paymentMethods'));
     }
 
     public function datatable(Request $request)
@@ -418,11 +428,35 @@ class PosController extends Controller
             ->whereNull('ref_sale_id')
             ->orderByDesc('sale_date');
 
-        if ($request->from_date && $request->to_date) {
+        if ($request->filled('from_date') && $request->filled('to_date')) {
             $query->whereBetween('sale_date', [
                 $request->from_date.' 00:00:00',
                 $request->to_date.' 23:59:59',
             ]);
+        } elseif ($request->filled('from_date')) {
+            $query->where('sale_date', '>=', $request->from_date.' 00:00:00');
+        } elseif ($request->filled('to_date')) {
+            $query->where('sale_date', '<=', $request->to_date.' 23:59:59');
+        }
+
+        if ($request->filled('payment_method')) {
+            $query->whereHas('payments', function ($q) use ($request) {
+                $q->where('payment_method', $request->payment_method);
+            });
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        if ($request->filled('status')) {
+            if ($request->status === 'refund') {
+                $query->has('refunds');
+            } elseif ($request->status === 'paid') {
+                $query->where('status', 'paid')->doesntHave('refunds');
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         return DataTables::of($query)
