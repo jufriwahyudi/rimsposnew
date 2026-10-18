@@ -77,7 +77,13 @@
             </tr>
         </thead>
         <tbody>
-            @php $no = 1; @endphp
+            @php
+                $no = 1;
+                $isSameDay = false;
+                try {
+                    $isSameDay = \Carbon\Carbon::parse($mulai)->isSameDay(\Carbon\Carbon::parse($akhir));
+                } catch (\Throwable $e) {}
+            @endphp
 
             @foreach($transactions as $trx)
                 @php
@@ -97,7 +103,7 @@
                 <tr>
                     <td class="text-center">{{ $no++ }}</td>
                     <td class="text-center">
-                        {{ \Carbon\Carbon::parse($trx->transaction_date)->format($mulai === $akhir ? 'H:i:s' : 'd/m/Y H:i') }}
+                        {{ \Carbon\Carbon::parse($trx->transaction_date)->format($isSameDay ? 'H:i:s' : 'd/m/Y H:i') }}
                     </td>
                     <td>{{ $typeLabel }}</td>
                     <td>

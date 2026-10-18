@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\CashTransaction;
+use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
@@ -35,6 +36,37 @@ class PenerimaanKasExport implements
         $this->paymentMethod = $paymentMethod;
     }
 
+    protected function parseDateTimeRange(?string $mulai, ?string $akhir): array
+    {
+        try {
+            $start = $mulai ?: now()->startOfDay()->format('Y-m-d H:i');
+            if (str_contains($start, ':')) {
+                $parsedStart = Carbon::parse($start)->format('Y-m-d H:i:00');
+            } else {
+                $parsedStart = Carbon::parse($start)->startOfDay()->format('Y-m-d H:i:s');
+            }
+        } catch (\Throwable $e) {
+            $parsedStart = now()->startOfDay()->format('Y-m-d H:i:s');
+        }
+
+        try {
+            $end = $akhir ?: now()->endOfDay()->format('Y-m-d H:i');
+            if (str_contains($end, ':')) {
+                if (substr_count($end, ':') === 1) {
+                    $parsedEnd = Carbon::parse($end)->format('Y-m-d H:i:59');
+                } else {
+                    $parsedEnd = Carbon::parse($end)->format('Y-m-d H:i:s');
+                }
+            } else {
+                $parsedEnd = Carbon::parse($end)->endOfDay()->format('Y-m-d H:i:s');
+            }
+        } catch (\Throwable $e) {
+            $parsedEnd = now()->endOfDay()->format('Y-m-d H:i:s');
+        }
+
+        return [$parsedStart, $parsedEnd];
+    }
+
     public function headings(): array
     {
         $title = $this->paymentMethod === 'transfer' ? 'Laporan Penerimaan Transfer' : 'Laporan Penerimaan Kas (Cash)';
@@ -63,12 +95,19 @@ class PenerimaanKasExport implements
 
     public function array(): array
     {
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($this->mulai, $this->akhir);
+
         $transactions = CashTransaction::with('user')
-            ->whereBetween('transaction_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59'])
+            ->whereBetween('transaction_date', [$startDateTime, $endDateTime])
             ->where('payment_method', $this->paymentMethod)
             ->when($this->userId, fn($q) => $q->where('user_id', $this->userId))
             ->orderBy('transaction_date', 'asc')
             ->get();
+
+        $isSameDay = false;
+        try {
+            $isSameDay = Carbon::parse($this->mulai)->isSameDay(Carbon::parse($this->akhir));
+        } catch (\Throwable $e) {}
 
         $rows = [];
         foreach ($transactions as $i => $trx) {
@@ -88,7 +127,7 @@ class PenerimaanKasExport implements
 
             $rows[] = [
                 $i + 1,
-                \Carbon\Carbon::parse($trx->transaction_date)->format($this->mulai === $this->akhir ? 'H:i:s' : 'd/m/Y H:i'),
+                Carbon::parse($trx->transaction_date)->format($isSameDay ? 'H:i:s' : 'd/m/Y H:i'),
                 $typeLabel,
                 $trx->ref_type ? $trx->ref_type . '#' . $trx->ref_id : '-',
                 $trx->notes ?: '-',

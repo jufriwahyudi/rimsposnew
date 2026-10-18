@@ -1,4 +1,10 @@
 <div class="card rounded-4 p-2">
+    @php
+        $isSameDay = false;
+        try {
+            $isSameDay = \Carbon\Carbon::parse($mulai)->isSameDay(\Carbon\Carbon::parse($akhir));
+        } catch (\Throwable $e) {}
+    @endphp
     <div class="card-header mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <h5 class="fw-bold mb-0" style="color: #7c3aed">Penerimaan Kas</h5>
@@ -81,7 +87,7 @@
                                     <tr>
                                         <td class="text-center">{{ $row->no }}</td>
                                         <td class="text-center">
-                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format($mulai === $akhir ? 'H:i:s' : 'd/m/Y H:i') }}</td>
+                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format($isSameDay ? 'H:i:s' : 'd/m/Y H:i') }}</td>
                                         <td>
                                             @php
                                                 $typeLabel = match ($row->transaction_type) {
@@ -190,7 +196,7 @@
                                     <tr>
                                         <td class="text-center">{{ $row->no }}</td>
                                         <td class="text-center">
-                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format($mulai === $akhir ? 'H:i:s' : 'd/m/Y H:i') }}</td>
+                                            {{ \Carbon\Carbon::parse($row->transaction_date)->format($isSameDay ? 'H:i:s' : 'd/m/Y H:i') }}</td>
                                         <td>
                                             @php
                                                 $typeLabel = match ($row->transaction_type) {

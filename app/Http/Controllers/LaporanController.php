@@ -26,6 +26,7 @@ use App\Exports\LaporanHutangExport;
 use App\Exports\LaporanMemberExport;
 use Maatwebsite\Excel\Facades\Excel;
 use PDF;
+use Carbon\Carbon;
 
 class LaporanController extends Controller
 {
@@ -482,16 +483,49 @@ class LaporanController extends Controller
         return view('laporan.penerimaan_kas_frontliner', compact('frontliners'));
     }
 
+    protected function parseDateTimeRange(?string $mulai, ?string $akhir): array
+    {
+        try {
+            $start = $mulai ?: now()->startOfDay()->format('Y-m-d H:i');
+            if (str_contains($start, ':')) {
+                $parsedStart = Carbon::parse($start)->format('Y-m-d H:i:00');
+            } else {
+                $parsedStart = Carbon::parse($start)->startOfDay()->format('Y-m-d H:i:s');
+            }
+        } catch (\Throwable $e) {
+            $parsedStart = now()->startOfDay()->format('Y-m-d H:i:s');
+        }
+
+        try {
+            $end = $akhir ?: now()->endOfDay()->format('Y-m-d H:i');
+            if (str_contains($end, ':')) {
+                if (substr_count($end, ':') === 1) {
+                    $parsedEnd = Carbon::parse($end)->format('Y-m-d H:i:59');
+                } else {
+                    $parsedEnd = Carbon::parse($end)->format('Y-m-d H:i:s');
+                }
+            } else {
+                $parsedEnd = Carbon::parse($end)->endOfDay()->format('Y-m-d H:i:s');
+            }
+        } catch (\Throwable $e) {
+            $parsedEnd = now()->endOfDay()->format('Y-m-d H:i:s');
+        }
+
+        return [$parsedStart, $parsedEnd];
+    }
+
     public function getPenerimaanKas(Request $request)
     {
-        $mulai = $request->mulai ?? $request->tanggal ?? now()->toDateString();
-        $akhir = $request->akhir ?? $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? $request->tanggal ?? now()->startOfMonth()->format('Y-m-d 00:00');
+        $akhir = $request->akhir ?? $request->tanggal ?? now()->format('Y-m-d H:i');
 
         $userId = $request->user_id;
 
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($mulai, $akhir);
+
         // Ambil semua transaksi kas (cash & transfer)
         $kasTransactions = CashTransaction::with('user')
-            ->whereBetween('transaction_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
+            ->whereBetween('transaction_date', [$startDateTime, $endDateTime])
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->orderBy('transaction_date', 'asc')
             ->get();
@@ -559,26 +593,31 @@ class LaporanController extends Controller
 
     public function exportPenerimaanKas(Request $request)
     {
-        $mulai = $request->mulai ?? $request->tanggal ?? now()->toDateString();
-        $akhir = $request->akhir ?? $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? $request->tanggal ?? now()->startOfMonth()->format('Y-m-d 00:00');
+        $akhir = $request->akhir ?? $request->tanggal ?? now()->format('Y-m-d H:i');
         $userId = $request->user_id;
         $paymentMethod = $request->payment_method ?? 'cash';
 
+        $safeMulai = str_replace([':', ' '], ['-', '_'], $mulai);
+        $safeAkhir = str_replace([':', ' '], ['-', '_'], $akhir);
+
         return Excel::download(
             new \App\Exports\PenerimaanKasExport($mulai, $akhir, $userId, $paymentMethod),
-            'Laporan_Penerimaan_Kas_' . ($paymentMethod === 'transfer' ? 'Transfer' : 'Cash') . '_' . $mulai . '_to_' . $akhir . '.xlsx'
+            'Laporan_Penerimaan_Kas_' . ($paymentMethod === 'transfer' ? 'Transfer' : 'Cash') . '_' . $safeMulai . '_to_' . $safeAkhir . '.xlsx'
         );
     }
 
     public function cetakPenerimaanKas(Request $request, $tanggal = null, $userId = null)
     {
-        $mulai = $request->mulai ?? $tanggal ?? $request->tanggal ?? now()->toDateString();
-        $akhir = $request->akhir ?? $tanggal ?? $request->tanggal ?? now()->toDateString();
+        $mulai = $request->mulai ?? $tanggal ?? $request->tanggal ?? now()->startOfMonth()->format('Y-m-d 00:00');
+        $akhir = $request->akhir ?? $tanggal ?? $request->tanggal ?? now()->format('Y-m-d H:i');
         $userId = $request->user_id ?? $userId;
         $paymentMethod = $request->payment_method ?? 'cash';
 
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($mulai, $akhir);
+
         $transactions = CashTransaction::with('user')
-            ->whereBetween('transaction_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
+            ->whereBetween('transaction_date', [$startDateTime, $endDateTime])
             ->where('payment_method', $paymentMethod)
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->orderBy('transaction_date', 'asc')
