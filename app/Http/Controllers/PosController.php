@@ -2682,6 +2682,9 @@ class PosController extends Controller
             'items' => 'required|array|min:1',
             'items.*.variant_id' => 'required|integer',
             'items.*.qty' => 'required|integer|min:1',
+            'target_table_number' => 'nullable|string',
+            'table_number' => 'nullable|string',
+            'customer_name' => 'nullable|string',
         ]);
 
         $storeId = $request->integer('store_id');
@@ -2696,7 +2699,7 @@ class PosController extends Controller
         }
 
         try {
-            $newSaleId = DB::transaction(function () use ($request, $storeId, $id) {
+            $splitResult = DB::transaction(function () use ($request, $storeId, $id) {
                 $sourceSale = Sale::with('items.batches')
                     ->where('store_id', $storeId)
                     ->findOrFail($id);
@@ -2733,11 +2736,16 @@ class PosController extends Controller
 
                 $originalSubtotal = (float) $sourceSale->items->where('status', 'sold')->sum('subtotal');
 
+                $targetTable = trim((string) ($request->input('target_table_number') ?: ($request->input('table_number') ?: '')));
+                if ($targetTable === '') {
+                    $targetTable = $sourceSale->table_number;
+                }
+
                 // ── 1. Bill hold baru untuk bagian yang dipisah ───────────────
                 $newSale = Sale::create([
                     'store_id' => $storeId,
                     'invoice_number' => $this->generateInvoice(),
-                    'table_number' => $sourceSale->table_number,
+                    'table_number' => $targetTable,
                     'sale_date' => now(),
                     'sale_type' => $sourceSale->sale_type,
                     'customer_name' => $request->input('customer_name') ?: ($sourceSale->customer_name ?: 'Umum'),
@@ -2824,12 +2832,6 @@ class PosController extends Controller
                 $newItems = $newSale->items->where('status', 'sold');
                 $newSubtotal = (float) $newItems->sum('subtotal');
 
-                // Diskon transaksi dibagi proporsional terhadap porsi subtotal.
-                // Pakai `discount_total` (nilai rupiah hasil resolve), BUKAN
-                // `trans_discount` yang menyimpan input mentah (mis. "10" = 10%).
-                // Catatan: `subtotal` = sum(item.subtotal) dan item.subtotal sudah
-                // NET dari diskon per-item, jadi grand_total TIDAK boleh mengurangi
-                // diskon per-item lagi (dulu double-count).
                 $origTransDiscount = (float) $sourceSale->discount_total;
                 $newTransDiscount = $originalSubtotal > 0
                     ? round($origTransDiscount * ($newSubtotal / $originalSubtotal))
@@ -2860,14 +2862,15 @@ class PosController extends Controller
                     ]);
                 }
 
-                return $newSale->id;
+                return [
+                    'new_sale_id' => $newSale->id,
+                    'table_number' => $targetTable,
+                ];
             });
 
             return response()->json([
                 'message' => 'Bill berhasil dipisah',
-                'data' => [
-                    'new_sale_id' => $newSaleId,
-                ],
+                'data' => $splitResult,
             ]);
         } catch (\Exception $e) {
             return response()->json([
