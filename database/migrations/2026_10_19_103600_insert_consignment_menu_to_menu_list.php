@@ -28,7 +28,7 @@ return new class extends Migration
                     'routename'  => '#',
                     'icon'       => 'handshake',
                     'id_parent'  => 0,
-                    'jnsmenu'    => 'parent',
+                    'jnsmenu'    => 'menu',
                     'urutan'     => $maxUrutan + 1,
                     'stts'       => 'Y',
                     'created_at' => now(),
