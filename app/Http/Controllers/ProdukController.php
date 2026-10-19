@@ -833,20 +833,76 @@ class ProdukController extends Controller
             return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage(), 'icon' => 'error'], 500);
         }
     }
-    public function destroyVariant(ProductVariant $variant)
+    public function destroyVariant($variant)
     {
-        // Cek apakah variant memiliki stok di batch
-        $hasStock = $variant->batches()->whereHas('movements')->exists();
-        if ($hasStock) {
-            $variant->update(['is_active' => 'N']);
-            return response()
-                ->json(['success' => true, 'message' => 'Variant memiliki histori stok. Variant dinonaktifkan.', 'icon' => 'info'], 200);
+        if (!($variant instanceof ProductVariant)) {
+            $variant = ProductVariant::withoutGlobalScopes()->findOrFail($variant);
+        }
+
+        $currentStoreId = session('store_id');
+        if ($currentStoreId && $variant->store_id && $variant->store_id != $currentStoreId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses untuk menghapus varian ini.',
+                'icon'    => 'error',
+            ], 403);
+        }
+
+        $variantId = $variant->id;
+
+        // Cek riwayat transaksi & pergerakan stok
+        $hasSales         = \App\Models\SaleItem::where('product_variant_id', $variantId)->exists();
+        $hasPurchases     = \App\Models\PurchaseOrderItem::where('product_variant_id', $variantId)->exists();
+        $hasMovements     = \App\Models\StockMovement::where('product_variant_id', $variantId)->exists();
+        $hasTransfers     = \App\Models\StockTransferItem::where('product_variant_id', $variantId)->exists();
+        $hasAdjustments   = \App\Models\StockAdjustmentItem::where('product_variant_id', $variantId)->exists();
+        $hasOpnames       = \App\Models\StockOpnameItem::where('product_variant_id', $variantId)->exists();
+        $hasBatches       = \App\Models\StockBatch::where('product_variant_id', $variantId)
+            ->where(function ($q) {
+                $q->where('qty_awal', '>', 0)
+                    ->orWhere('qty_sisa', '>', 0)
+                    ->orWhereHas('movements');
+            })->exists();
+        $hasServiceOrders = \App\Models\ServiceOrderItem::where('product_variant_id', $variantId)->exists();
+        $hasConsignment   = \App\Models\DailyConsignmentItem::where('product_variant_id', $variantId)->exists()
+            || \App\Models\ConsignorItem::where('product_variant_id', $variantId)->exists();
+
+        $hasTransactions = $hasSales || $hasPurchases || $hasMovements || $hasTransfers
+            || $hasAdjustments || $hasOpnames || $hasBatches || $hasServiceOrders || $hasConsignment;
+
+        if ($hasTransactions) {
+            // SOFT DEACTIVATE: Ada transaksi/riwayat stok, nonaktifkan agar integritas laporan keuangan terjaga
+            DB::transaction(function () use ($variant) {
+                $variant->update([
+                    'is_active'    => 'N',
+                    'is_available' => false,
+                ]);
+                $variant->units()->update(['is_active' => false]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Varian memiliki riwayat transaksi/penjualan. Varian dinonaktifkan (arsip) agar laporan keuangan & riwayat transaksi tetap akurat.',
+                'icon'    => 'info',
+            ], 200);
         }
 
         try {
-            DB::transaction(function () use ($variant) {
+            DB::transaction(function () use ($variant, $variantId) {
                 // Hapus relasi attribute
                 $variant->variantAttributes()->delete();
+
+                // Hapus barcode varian
+                $variant->barcodes()->delete();
+
+                // Hapus diskon terkait varian jika ada
+                \App\Models\DiscountItem::where('product_variant_id', $variantId)->delete();
+
+                // Hapus satuan kemasan multi-unit varian
+                $variant->units()->delete();
+
+                // Hapus resep jika ada
+                \App\Models\ProductRecipe::where('product_variant_id', $variantId)->delete();
 
                 // Hapus batch kosong (jika ada)
                 $variant->batches()->delete();
@@ -855,11 +911,37 @@ class ProdukController extends Controller
                 $variant->delete();
             });
 
-            return response()
-                ->json(['success' => true, 'message' => 'Variant berhasil dihapus.', 'icon' => 'success'], 200);
-        } catch (\Exception $e) {
-            return response()
-                ->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage(), 'icon' => 'error'], 500);
+            return response()->json([
+                'success' => true,
+                'message' => 'Varian berhasil dihapus.',
+                'icon'    => 'success',
+            ], 200);
+        } catch (\Throwable $e) {
+            // Fallback safety net: jika ada foreign key constraint violation (SQLSTATE 23000 / Error 1451)
+            if ($e instanceof \Illuminate\Database\QueryException && ($e->errorInfo[1] ?? null) == 1451) {
+                $variant->update([
+                    'is_active'    => 'N',
+                    'is_available' => false,
+                ]);
+                $variant->units()->update(['is_active' => false]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Varian memiliki riwayat data terkait. Varian berhasil dinonaktifkan (arsip) demi menjaga integritas data.',
+                    'icon'    => 'info',
+                ], 200);
+            }
+
+            Log::error('Gagal menghapus varian produk', [
+                'variant_id' => $variantId,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
+                'icon'    => 'error',
+            ], 500);
         }
     }
 
