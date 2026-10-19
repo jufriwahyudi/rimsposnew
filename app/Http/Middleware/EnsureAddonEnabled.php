@@ -31,7 +31,26 @@ class EnsureAddonEnabled
 
         $store = Store::find($storeId);
 
-        if (!$store || $store->business_type !== 'fnb') {
+        if (!$store) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Akses ditolak: Toko tidak ditemukan.'], 403);
+            }
+            abort(403, 'Akses ditolak: Toko tidak ditemukan.');
+        }
+
+        // Add-on Konsinyasi & Barang Titipan
+        if ($addonName === 'consignment') {
+            if (!$store->addon_consignment) {
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => 'Fitur Konsinyasi & Barang Titipan dinonaktifkan untuk toko ini.'], 403);
+                }
+                abort(403, 'Akses ditolak: Fitur Konsinyasi & Barang Titipan dinonaktifkan untuk toko ini.');
+            }
+            return $next($request);
+        }
+
+        // Addons yang khusus F&B (KDS & Self-Service)
+        if ($store->business_type !== 'fnb') {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Akses ditolak: Fitur ini hanya untuk tipe bisnis FnB.'], 403);
             }

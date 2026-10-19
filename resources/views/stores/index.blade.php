@@ -209,6 +209,9 @@
                                                 <span class="badge bg-dark" style="font-size: 9px;">Obat Racikan</span>
                                                 @endif
                                                 @endif
+                                                @if($store->addon_consignment)
+                                                <span class="badge bg-warning text-dark" style="font-size: 9px;"><i class="bi bi-box-seam me-1"></i>Konsinyasi</span>
+                                                @endif
                                             </div>
                                         </td>
                                         <td>
@@ -454,6 +457,22 @@
                                 </div>
                             </div>
                         </div>
+
+                        {{-- Addon Konsinyasi (Universal: FnB & Retail) --}}
+                        <div class="col-md-12">
+                            <div class="p-3 border rounded-3 bg-light border-warning-subtle">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="addon_consignment">
+                                    <label class="form-check-label fw-bold text-dark" for="addon_consignment">
+                                        <i class="bi bi-box-seam text-warning me-1"></i> Add-on Konsinyasi & Barang Titipan Kantin
+                                    </label>
+                                    <div class="text-muted small" style="font-size: 11px;">
+                                        Aktifkan alur terima titip pagi, rekonsiliasi sisa fisik & bayar tunai sore hari (Kantin Universitas/Sekolah/Pujasera/Toko Titipan).
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Nama Toko <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="name" placeholder="Contoh: Toko Pusat">
@@ -1299,6 +1318,7 @@
         document.getElementById('addon_multi_unit').checked = false;
         document.getElementById('addon_fefo').checked = false;
         document.getElementById('addon_concoction').checked = false;
+        document.getElementById('addon_consignment').checked = false;
         document.getElementById('addonFields').style.display = 'none';
         document.getElementById('addonRetailPharmacyFields').style.display = 'block';
         document.getElementById('wrapAddonConcoction').style.display = 'none';
@@ -1349,6 +1369,7 @@
                 document.getElementById('addon_multi_unit').checked = data.addon_multi_unit == 1;
                 document.getElementById('addon_fefo').checked = data.addon_fefo == 1;
                 document.getElementById('addon_concoction').checked = data.addon_concoction == 1;
+                document.getElementById('addon_consignment').checked = data.addon_consignment == 1;
 
                 const bType = data.business_type ?? 'retail';
                 document.getElementById('addonFields').style.display = bType === 'fnb' ? 'block' : 'none';
@@ -1406,6 +1427,7 @@
             addon_multi_unit: document.getElementById('addon_multi_unit').checked ? 1 : 0,
             addon_fefo: document.getElementById('addon_fefo').checked ? 1 : 0,
             addon_concoction: document.getElementById('addon_concoction').checked ? 1 : 0,
+            addon_consignment: document.getElementById('addon_consignment').checked ? 1 : 0,
             _token: '{{ csrf_token() }}',
         };
 

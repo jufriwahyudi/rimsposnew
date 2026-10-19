@@ -32,6 +32,7 @@ class Store extends Model
         'addon_multi_unit',
         'addon_fefo',
         'addon_concoction',
+        'addon_consignment',
         'enable_cash_register',
         'quick_discounts',
         'receipt_header',
@@ -48,6 +49,7 @@ class Store extends Model
         'addon_multi_unit' => 'boolean',
         'addon_fefo' => 'boolean',
         'addon_concoction' => 'boolean',
+        'addon_consignment' => 'boolean',
         'enable_cash_register' => 'boolean',
     ];
 

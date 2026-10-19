@@ -473,6 +473,24 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::get('/datatables', [\App\Http\Controllers\StaffCommissionController::class, 'datatables'])->name('datatables');
         Route::post('/settle', [\App\Http\Controllers\StaffCommissionController::class, 'settle'])->name('settle');
     });
+
+    // ── Konsinyasi & Barang Titipan Kantin ────────────────────────────────────
+    Route::middleware('addon:consignment')->prefix('consignments')->name('consignments.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ConsignmentController::class, 'index'])->name('index');
+        Route::post('/consignors', [\App\Http\Controllers\ConsignmentController::class, 'storeConsignor'])->name('consignors.store');
+        Route::put('/consignors/{consignor}', [\App\Http\Controllers\ConsignmentController::class, 'updateConsignor'])->name('consignors.update');
+        Route::delete('/consignors/{consignor}', [\App\Http\Controllers\ConsignmentController::class, 'destroyConsignor'])->name('consignors.destroy');
+
+        Route::post('/consignors/{consignor}/items', [\App\Http\Controllers\ConsignmentController::class, 'storeConsignorItem'])->name('consignors.items.store');
+        Route::delete('/items/{item}', [\App\Http\Controllers\ConsignmentController::class, 'destroyConsignorItem'])->name('items.destroy');
+
+        Route::get('/daily', [\App\Http\Controllers\ConsignmentController::class, 'daily'])->name('daily');
+        Route::post('/daily', [\App\Http\Controllers\ConsignmentController::class, 'storeDaily'])->name('daily.store');
+        Route::post('/daily/{daily}/settle', [\App\Http\Controllers\ConsignmentController::class, 'settleDaily'])->name('daily.settle');
+
+        Route::get('/settlements', [\App\Http\Controllers\ConsignmentController::class, 'settlements'])->name('settlements');
+        Route::get('/settlements/{settlement}/receipt', [\App\Http\Controllers\ConsignmentController::class, 'printReceipt'])->name('receipt');
+    });
 });
 
 // pemilihan jadwal distribusi NSE untuk orang tua/wali siswa
