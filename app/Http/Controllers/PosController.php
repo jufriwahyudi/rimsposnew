@@ -2351,6 +2351,7 @@ class PosController extends Controller
                 'invoice_number' => $sale->invoice_number,
                 'table_number' => $sale->table_number,
                 'sale_date' => $sale->sale_date->format('Y-m-d H:i:s'),
+                'created_at' => ($sale->created_at ?? $sale->sale_date)->toIso8601String(),
                 'customer_name' => $sale->customer_name,
                 'customer_phone' => $sale->customer_phone,
                 'subtotal' => (float) $sale->subtotal,
