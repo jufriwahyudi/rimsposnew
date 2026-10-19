@@ -21,110 +21,110 @@
         </div>
 
         @if($consignors->isEmpty())
-            <div class="card shadow-sm border-0 rounded-3 p-5 text-center">
-                <div class="my-4">
-                    <span class="material-icons-outlined text-muted" style="font-size: 64px;">storefront</span>
-                </div>
-                <h5 class="fw-semibold text-dark">Belum Ada Data Penitip</h5>
-                <p class="text-muted mx-auto" style="max-width: 450px;">
-                    Daftarkan penitip pertama Anda (misal: Bu Siti, Pak Joko, atau vendor AICE) beserta item/kue yang biasa mereka titipkan.
-                </p>
-                <div>
-                    <button type="button" class="btn btn-primary rounded-pill px-4" onclick="openConsignorModal()">
-                        <i class="material-icons-outlined me-1 align-middle">add</i> Tambah Penitip Pertama
-                    </button>
-                </div>
+        <div class="card shadow-sm border-0 rounded-3 p-5 text-center">
+            <div class="my-4">
+                <span class="material-icons-outlined text-muted" style="font-size: 64px;">storefront</span>
             </div>
+            <h5 class="fw-semibold text-dark">Belum Ada Data Penitip</h5>
+            <p class="text-muted mx-auto" style="max-width: 450px;">
+                Daftarkan penitip pertama Anda (misal: Bu Siti, Pak Joko, atau Vendor Eskrim) beserta item/kue yang biasa mereka titipkan.
+            </p>
+            <div>
+                <button type="button" class="btn btn-primary rounded-pill px-4" onclick="openConsignorModal()">
+                    <i class="material-icons-outlined me-1 align-middle">add</i> Tambah Penitip Pertama
+                </button>
+            </div>
+        </div>
         @else
-            <div class="row g-3">
-                @foreach($consignors as $consignor)
-                    <div class="col-12 col-md-6 col-xl-4">
-                        <div class="card shadow-sm border-0 rounded-3 h-100 hover-shadow transition-all" style="border-top: 4px solid #4f46e5 !important;">
-                            <div class="card-body p-4 d-flex flex-column justify-content-between">
+        <div class="row g-3">
+            @foreach($consignors as $consignor)
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="card shadow-sm border-0 rounded-3 h-100 hover-shadow transition-all" style="border-top: 4px solid #4f46e5 !important;">
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
-                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                        <div>
-                                            <span class="badge {{ $consignor->tipe === 'daily' ? 'bg-light-success text-success' : 'bg-light-info text-info' }} fw-semibold px-2 py-1 mb-1">
-                                                {{ $consignor->tipe === 'daily' ? 'Titipan Harian (Kue Basah)' : 'Konsinyasi Periodik (Freezer)' }}
-                                            </span>
-                                            <h5 class="fw-bold text-dark mb-0">{{ $consignor->nama_penitip }}</h5>
-                                            @if($consignor->kode_penitip)
-                                                <small class="text-muted">Kode: {{ $consignor->kode_penitip }}</small>
-                                            @endif
-                                        </div>
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-light border-0" type="button" data-bs-toggle="dropdown">
-                                                <i class="material-icons-outlined">more_vert</i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                                                <li>
-                                                    <a class="dropdown-item" href="javascript:void(0)" onclick="editConsignor({{ json_encode($consignor) }})">
-                                                        <i class="material-icons-outlined me-2 align-middle text-warning" style="font-size: 18px;">edit</i> Edit Penitip
-                                                    </a>
-                                                </li>
-                                                <li>
-                                                    <a class="dropdown-item text-danger" href="javascript:void(0)" onclick="deleteConsignor({{ $consignor->id }}, '{{ $consignor->nama_penitip }}')">
-                                                        <i class="material-icons-outlined me-2 align-middle" style="font-size: 18px;">delete</i> Hapus
-                                                    </a>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    <div class="small text-muted mb-3">
-                                        <div><i class="material-icons-outlined me-1 align-middle" style="font-size: 14px;">call</i> {{ $consignor->telepon ?: 'Tidak ada telepon' }}</div>
-                                        @if($consignor->nomor_rekening)
-                                            <div><i class="material-icons-outlined me-1 align-middle" style="font-size: 14px;">account_balance</i> {{ $consignor->nama_bank }} - {{ $consignor->nomor_rekening }}</div>
-                                        @endif
-                                    </div>
-
-                                    <div class="border-top pt-3 mb-3">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="fw-bold text-dark small">Daftar Menu Titipan ({{ $consignor->items->count() }})</span>
-                                            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 11px;" onclick="openAddItemModal({{ $consignor->id }}, '{{ $consignor->nama_penitip }}')">
-                                                + Tambah Menu
-                                            </button>
-                                        </div>
-
-                                        @if($consignor->items->isEmpty())
-                                            <div class="text-center py-2 text-muted small bg-light rounded">
-                                                Belum ada menu terdaftar.<br>
-                                                <a href="javascript:void(0)" class="text-primary fw-semibold" onclick="openAddItemModal({{ $consignor->id }}, '{{ $consignor->nama_penitip }}')">+ Tambah Item Sekarang</a>
-                                            </div>
-                                        @else
-                                            <ul class="list-group list-group-flush small">
-                                                @foreach($consignor->items as $item)
-                                                    <li class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center bg-transparent border-bottom">
-                                                        <div>
-                                                            <strong class="text-dark">{{ $item->nama_item }}</strong>
-                                                            @if($item->variant)
-                                                                <span class="badge bg-light text-muted border px-1" style="font-size: 9px;">POS: {{ $item->variant->variant_name }}</span>
-                                                            @endif
-                                                            <div class="text-muted" style="font-size: 10px;">
-                                                                Setor: <span class="text-success fw-semibold">Rp {{ number_format($item->harga_setor, 0, ',', '.') }}</span> | Jual: Rp {{ number_format($item->harga_jual, 0, ',', '.') }}
-                                                            </div>
-                                                        </div>
-                                                        <button class="btn btn-link text-danger p-0" title="Hapus item" onclick="deleteItem({{ $item->id }}, '{{ $item->nama_item }}')">
-                                                            <i class="material-icons-outlined" style="font-size: 16px;">close</i>
-                                                        </button>
-                                                    </li>
-                                                @endforeach
-                                            </ul>
-                                        @endif
-                                    </div>
+                                    <span class="badge {{ $consignor->tipe === 'daily' ? 'bg-light-success text-success' : 'bg-light-info text-info' }} fw-semibold px-2 py-1 mb-1">
+                                        {{ $consignor->tipe === 'daily' ? 'Titipan Harian (Kue Basah)' : 'Konsinyasi Periodik (Freezer)' }}
+                                    </span>
+                                    <h5 class="fw-bold text-dark mb-0">{{ $consignor->nama_penitip }}</h5>
+                                    @if($consignor->kode_penitip)
+                                    <small class="text-muted">Kode: {{ $consignor->kode_penitip }}</small>
+                                    @endif
                                 </div>
-
-                                <div class="border-top pt-3 mt-2 d-flex justify-content-between align-items-center text-muted small">
-                                    <span>Riwayat Sesi: <strong>{{ $consignor->daily_consignments_count }} kali</strong></span>
-                                    <a href="{{ route('consignments.daily', ['consignor_id' => $consignor->id]) }}" class="text-primary fw-semibold text-decoration-none">
-                                        Catat Titip <i class="material-icons-outlined align-middle" style="font-size: 14px;">arrow_forward</i>
-                                    </a>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light border-0" type="button" data-bs-toggle="dropdown">
+                                        <i class="material-icons-outlined">more_vert</i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                        <li>
+                                            <a class="dropdown-item" href="javascript:void(0)" onclick="editConsignor({{ json_encode($consignor) }})">
+                                                <i class="material-icons-outlined me-2 align-middle text-warning" style="font-size: 18px;">edit</i> Edit Penitip
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item text-danger" href="javascript:void(0)" onclick="deleteConsignor({{ $consignor->id }}, '{{ $consignor->nama_penitip }}')">
+                                                <i class="material-icons-outlined me-2 align-middle" style="font-size: 18px;">delete</i> Hapus
+                                            </a>
+                                        </li>
+                                    </ul>
                                 </div>
                             </div>
+
+                            <div class="small text-muted mb-3">
+                                <div><i class="material-icons-outlined me-1 align-middle" style="font-size: 14px;">call</i> {{ $consignor->telepon ?: 'Tidak ada telepon' }}</div>
+                                @if($consignor->nomor_rekening)
+                                <div><i class="material-icons-outlined me-1 align-middle" style="font-size: 14px;">account_balance</i> {{ $consignor->nama_bank }} - {{ $consignor->nomor_rekening }}</div>
+                                @endif
+                            </div>
+
+                            <div class="border-top pt-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold text-dark small">Daftar Menu Titipan ({{ $consignor->items->count() }})</span>
+                                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 11px;" onclick="openAddItemModal({{ $consignor->id }}, '{{ $consignor->nama_penitip }}')">
+                                        + Tambah Menu
+                                    </button>
+                                </div>
+
+                                @if($consignor->items->isEmpty())
+                                <div class="text-center py-2 text-muted small bg-light rounded">
+                                    Belum ada menu terdaftar.<br>
+                                    <a href="javascript:void(0)" class="text-primary fw-semibold" onclick="openAddItemModal({{ $consignor->id }}, '{{ $consignor->nama_penitip }}')">+ Tambah Item Sekarang</a>
+                                </div>
+                                @else
+                                <ul class="list-group list-group-flush small">
+                                    @foreach($consignor->items as $item)
+                                    <li class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center bg-transparent border-bottom">
+                                        <div>
+                                            <strong class="text-dark">{{ $item->nama_item }}</strong>
+                                            @if($item->variant)
+                                            <span class="badge bg-light text-muted border px-1" style="font-size: 9px;">POS: {{ $item->variant->variant_name }}</span>
+                                            @endif
+                                            <div class="text-muted" style="font-size: 10px;">
+                                                Setor: <span class="text-success fw-semibold">Rp {{ number_format($item->harga_setor, 0, ',', '.') }}</span> | Jual: Rp {{ number_format($item->harga_jual, 0, ',', '.') }}
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-link text-danger p-0" title="Hapus item" onclick="deleteItem({{ $item->id }}, '{{ $item->nama_item }}')">
+                                            <i class="material-icons-outlined" style="font-size: 16px;">close</i>
+                                        </button>
+                                    </li>
+                                    @endforeach
+                                </ul>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="border-top pt-3 mt-2 d-flex justify-content-between align-items-center text-muted small">
+                            <span>Riwayat Sesi: <strong>{{ $consignor->daily_consignments_count }} kali</strong></span>
+                            <a href="{{ route('consignments.daily', ['consignor_id' => $consignor->id]) }}" class="text-primary fw-semibold text-decoration-none">
+                                Catat Titip <i class="material-icons-outlined align-middle" style="font-size: 14px;">arrow_forward</i>
+                            </a>
                         </div>
                     </div>
-                @endforeach
+                </div>
             </div>
+            @endforeach
+        </div>
         @endif
     </div>
 </div>
@@ -158,7 +158,7 @@
                         <label class="form-label fw-semibold">Tipe Titipan</label>
                         <select class="form-select" id="tipe">
                             <option value="daily">Harian (Kue Basah / Nasi Bungkus / Bayar Sore)</option>
-                            <option value="periodic">Periodik (AICE / Freezer / Minuman / Bayar Mingguan)</option>
+                            <option value="periodic">Periodik (Eskrim / Freezer / Minuman / Bayar Mingguan)</option>
                         </select>
                     </div>
                     <div class="row g-2 mb-3">
@@ -223,7 +223,7 @@
                         <select class="form-select" id="item_product_variant_id">
                             <option value="">-- Tanpa Mapping (Otomatis) --</option>
                             @foreach($variants as $variant)
-                                <option value="{{ $variant->id }}">{{ $variant->product->nama_produk ?? 'Produk' }} - {{ $variant->variant_name }} (Rp {{ number_format($variant->price, 0, ',', '.') }})</option>
+                            <option value="{{ $variant->id }}">{{ $variant->product->nama_produk ?? 'Produk' }} - {{ $variant->variant_name }} (Rp {{ number_format($variant->price, 0, ',', '.') }})</option>
                             @endforeach
                         </select>
                         <small class="text-muted" style="font-size: 11px;">Pilih tombol kategori POS (misal: "Kue Basah") untuk menyelaraskan laporan kasir.</small>
@@ -281,33 +281,39 @@
         };
 
         fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-            body: JSON.stringify(payload)
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.message || 'Terjadi kesalahan.');
-            }
-        })
-        .catch(err => alert('Gagal menyimpan penitip.'));
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Terjadi kesalahan.');
+                }
+            })
+            .catch(err => alert('Gagal menyimpan penitip.'));
     });
 
     function deleteConsignor(id, name) {
         if (!confirm(`Hapus penitip ${name}?`)) return;
 
         fetch(`/consignments/consignors/${id}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) location.reload();
-            else alert(data.message);
-        });
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.message);
+            });
     }
 
     function openAddItemModal(consignorId, consignorName) {
@@ -329,30 +335,36 @@
         };
 
         fetch(`/consignments/consignors/${consignorId}/items`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-            body: JSON.stringify(payload)
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) location.reload();
-            else alert(data.message);
-        })
-        .catch(err => alert('Gagal menyimpan menu titipan.'));
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.message);
+            })
+            .catch(err => alert('Gagal menyimpan menu titipan.'));
     });
 
     function deleteItem(itemId, name) {
         if (!confirm(`Hapus menu titipan ${name}?`)) return;
 
         fetch(`/consignments/items/${itemId}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) location.reload();
-            else alert(data.message);
-        });
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) location.reload();
+                else alert(data.message);
+            });
     }
 </script>
 @endpush
