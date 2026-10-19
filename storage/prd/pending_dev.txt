@@ -1,3 +1,4 @@
 untuk Fnb produk dengan track_stok false bisa di setting available atau not availabe untuk di pesan
 member loyalty fitur add on
 status stok di pelanggan self service jangan undefined tapi avail/not
+[POS Modular - FnB] Terapkan fitur Split Meja yang baru disesuaikan (dukungan target_table_number, input nomor meja tujuan, serta pilihan 'Pisah Meja (Hold)' vs 'Pisah & Bayar') ke dalam template POS Modular FnB workspace saat branch refactor/modular-pos dilanjutkan.

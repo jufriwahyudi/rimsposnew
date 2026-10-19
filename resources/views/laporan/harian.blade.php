@@ -37,16 +37,30 @@
                     <div class="card-body">
                         <form id="searchForm" method="POST">
                             @csrf
-                            <div class="row">
-                                <div class="col-md-12 col-sm-12">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-5 col-sm-12">
+                                    <label for="datefilter" class="form-label fw-semibold small mb-1">Periode Tanggal</label>
                                     <div class="input-group">
-                                        <label for="datefilter" class="input-group-text">Pilih Tanggal</label>
+                                        <span class="input-group-text bg-light"><i class="bx bx-calendar"></i></span>
                                         <input type="text" name="date_filter" id="datefilter" class="form-control"
                                             required placeholder="Pilih tanggal">
-                                        <button class="btn btn-primary" type="button" id="searchBtn">
-                                            <i class="fa fa-search"></i>
-                                        </button>
                                     </div>
+                                </div>
+                                <div class="col-md-4 col-sm-12">
+                                    <label for="category_filter" class="form-label fw-semibold small mb-1">Filter Kategori</label>
+                                    <select name="category_id" id="category_filter" class="form-select">
+                                        <option value="">-- Semua Kategori --</option>
+                                        @if(isset($categories) && count($categories))
+                                            @foreach ($categories as $cat)
+                                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                            @endforeach
+                                        @endif
+                                    </select>
+                                </div>
+                                <div class="col-md-3 col-sm-12">
+                                    <button class="btn btn-primary w-100 fw-semibold" type="button" id="searchBtn">
+                                        <i class="fa fa-search me-1"></i> Tampilkan Laporan
+                                    </button>
                                 </div>
                             </div>
                         </form>
@@ -99,9 +113,15 @@
                 loadData(mulai, akhir);
             });
 
-            function loadData(mulai, akhir) {
+            // Auto reload when category changes
+            $('#category_filter').change(function() {
+                $('#searchBtn').trigger('click');
+            });
+
+            function loadData(mulai, akhir, categoryId) {
+                categoryId = categoryId !== undefined ? categoryId : $('#category_filter').val();
                 $('#dataContainer').html(
-                    '<div class="text-center py-4"><i class="fa fa-spinner fa-spin fa-2x"></i></div>');
+                    '<div class="text-center py-5"><i class="fa fa-spinner fa-spin fa-2x text-primary"></i><div class="mt-2 text-muted small">Memuat laporan...</div></div>');
 
                 $.ajax({
                     url: "{{ route('laporan.harian.data') }}",
@@ -109,7 +129,8 @@
                     data: {
                         _token: $('input[name="_token"]').val(),
                         mulai: mulai,
-                        akhir: akhir
+                        akhir: akhir,
+                        category_id: categoryId
                     },
                     success: function(response) {
                         $('#dataContainer').html(response);

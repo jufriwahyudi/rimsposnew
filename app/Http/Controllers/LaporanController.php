@@ -375,96 +375,213 @@ class LaporanController extends Controller
     // Laporan stok terjual harian
     public function harian()
     {
-        return view('laporan.harian');
+        $storeId = session('store_id');
+        $categories = $storeId 
+            ? \App\Models\ProductCategory::where('store_id', $storeId)->where('is_active', true)->orderBy('name')->get()
+            : collect();
+
+        return view('laporan.harian', compact('categories'));
     }
 
     public function getharian(Request $request)
     {
         $mulai = $request->mulai ?? now()->toDateString();
         $akhir = $request->akhir ?? now()->toDateString();
+        $categoryId = $request->category_id;
+        $storeId = session('store_id');
 
-        $store = \App\Models\Store::find(session('store_id'));
+        $store = $storeId ? \App\Models\Store::find($storeId) : null;
         $isFnB = $store && $store->business_type === 'fnb';
 
-        $rows = SaleItem::with(['variant.product', 'fnbDetail', 'batches', 'sale'])
-            ->whereHas('sale', function ($q) use ($mulai, $akhir) {
+        $query = SaleItem::with(['variant.product.category', 'fnbDetail', 'batches', 'sale'])
+            ->whereHas('sale', function ($q) use ($mulai, $akhir, $storeId) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
                     ->where('status', 'paid')
+                    ->when($storeId, fn($sq) => $sq->where('store_id', $storeId))
                     ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
             })
-            ->whereIn('status', ['sold', 'exchanged_in'])
-            ->get()
-            ->groupBy('product_variant_id')
-            ->map(function ($items, $variantId) use ($isFnB) {
-                $first = $items->first();
-                $totalQty = $items->sum('qty');
-                $totalSubtotal = $items->sum('subtotal');
-                $totalDiscount = $items->sum('discount_amount');
-                $totalModal = 0;
+            ->whereIn('status', ['sold', 'exchanged_in']);
 
-                if ($isFnB) {
-                    foreach ($items as $item) {
-                        $variant = $item->variant;
-                        $tenantId = $variant && $variant->product ? $variant->product->tenant_id : null;
-                        $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
-                        if ($tenantId) {
-                            $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
-                            $costPrice = ($item->price - $commissionAmount) + $costPriceManual;
-                        } else {
-                            $costPrice = $costPriceManual;
-                        }
-                        $totalModal += ($item->qty * $costPrice);
-                    }
+        if (!empty($categoryId)) {
+            $query->whereHas('variant.product', function ($p) use ($categoryId) {
+                $p->where('category_id', $categoryId);
+            });
+        }
+
+        $rawItems = $query->get();
+
+        foreach ($rawItems as $item) {
+            $variant = $item->variant;
+            if ($isFnB) {
+                $tenantId = $variant && $variant->product ? $variant->product->tenant_id : null;
+                $costPriceManual = $item->cost_price ?? ($variant->cost_price_manual ?? 0);
+                if ($tenantId) {
+                    $commissionAmount = $item->commission_amount ?? ($variant ? $variant->calculateCommission($item->price) : 0);
+                    $costPrice = ($item->price - $commissionAmount) + $costPriceManual;
                 } else {
-                    foreach ($items as $item) {
-                        foreach ($item->batches as $batch) {
-                            $totalModal += ($batch->qty * $batch->cost_price);
-                        }
-                    }
+                    $costPrice = $costPriceManual;
                 }
+                $item->calculated_modal = $item->qty * $costPrice;
+            } else {
+                $itemModal = 0;
+                foreach ($item->batches as $batch) {
+                    $itemModal += ($batch->qty * $batch->cost_price);
+                }
+                $item->calculated_modal = $itemModal;
+            }
+        }
+
+        // 1. Grouped by Product
+        $rowsProduct = $rawItems->groupBy(function ($item) {
+            return $item->variant && $item->variant->product_id
+                ? $item->variant->product_id
+                : ('custom_' . ($item->product_name ?? 'Item'));
+        })->map(function ($group) {
+            $first = $group->first();
+            $product = optional($first->variant)->product;
+            $category = optional($product)->category;
+
+            $totalQty = $group->sum('qty');
+            $totalSubtotal = $group->sum('subtotal');
+            $totalDiscount = $group->sum('discount_amount');
+            $totalModal = $group->sum('calculated_modal');
+            $totalLaba = $totalSubtotal - $totalModal;
+            $marginPct = $totalSubtotal > 0 ? round(($totalLaba / $totalSubtotal) * 100, 1) : 0;
+            $jumlahTrx = $group->pluck('sale_id')->unique()->count();
+
+            return (object) [
+                'product_id' => $product->id ?? null,
+                'kode_produk' => $product->kode_produk ?? ($first->sku ?? '-'),
+                'product_name' => $product->nama_produk ?? ($first->product_name ?? '-'),
+                'category_name' => $category->name ?? 'Tanpa Kategori',
+                'total_qty' => $totalQty,
+                'total_diskon' => $totalDiscount,
+                'total_subtotal' => $totalSubtotal,
+                'total_modal' => $totalModal,
+                'laba_rugi' => $totalLaba,
+                'margin_pct' => $marginPct,
+                'jumlah_trx' => $jumlahTrx,
+            ];
+        })->sortByDesc('total_subtotal')->values();
+
+        // 2. Grouped by Category
+        $allSubtotal = $rawItems->sum('subtotal');
+        $rowsCategory = $rawItems->groupBy(function ($item) {
+            $category = optional(optional($item->variant)->product)->category;
+            return $category ? $category->id : 0;
+        })->map(function ($group) use ($allSubtotal) {
+            $first = $group->first();
+            $category = optional(optional($first->variant)->product)->category;
+
+            $totalQty = $group->sum('qty');
+            $totalSubtotal = $group->sum('subtotal');
+            $totalDiscount = $group->sum('discount_amount');
+            $totalModal = $group->sum('calculated_modal');
+            $totalLaba = $totalSubtotal - $totalModal;
+            $kontribusiPct = $allSubtotal > 0 ? round(($totalSubtotal / $allSubtotal) * 100, 1) : 0;
+            $jumlahTrx = $group->pluck('sale_id')->unique()->count();
+            $jumlahProduk = $group->pluck('variant.product_id')->filter()->unique()->count();
+
+            return (object) [
+                'category_id' => $category->id ?? 0,
+                'category_name' => $category ? $category->name : 'Tanpa Kategori',
+                'jumlah_produk' => $jumlahProduk ?: 1,
+                'total_qty' => $totalQty,
+                'total_diskon' => $totalDiscount,
+                'total_subtotal' => $totalSubtotal,
+                'total_modal' => $totalModal,
+                'laba_rugi' => $totalLaba,
+                'kontribusi_pct' => $kontribusiPct,
+                'jumlah_trx' => $jumlahTrx,
+            ];
+        })->sortByDesc('total_subtotal')->values();
+
+        // 3. Grouped by Variant (existing detail)
+        $rowsVariant = $rawItems->groupBy('product_variant_id')
+            ->map(function ($group) {
+                $first = $group->first();
+                $totalQty = $group->sum('qty');
+                $totalSubtotal = $group->sum('subtotal');
+                $totalDiscount = $group->sum('discount_amount');
+                $totalModal = $group->sum('calculated_modal');
+                $totalLaba = $totalSubtotal - $totalModal;
+                $jumlahTrx = $group->pluck('sale_id')->unique()->count();
 
                 return (object) [
                     'sku' => $first->sku,
-                    'product_name' => $first->variant ? $first->variant->product->nama_produk : ($first->product_name ?? '-'),
+                    'product_name' => optional(optional($first->variant)->product)->nama_produk ?? ($first->product_name ?? '-'),
                     'variant_label' => optional($first->variant)->variant_label ?? '',
+                    'category_name' => optional(optional(optional($first->variant)->product)->category)->name ?? '-',
                     'harga_jual' => $first->price,
                     'total_qty' => $totalQty,
                     'total_diskon' => $totalDiscount,
                     'total_subtotal' => $totalSubtotal,
                     'total_modal' => $totalModal,
-                    'laba_rugi' => $totalSubtotal - $totalModal,
-                    'jumlah_trx' => $items->count(),
+                    'laba_rugi' => $totalLaba,
+                    'jumlah_trx' => $jumlahTrx,
                 ];
             })
             ->sortByDesc('total_qty')
             ->values();
 
-        $sales = \App\Models\Sale::whereNull('ref_sale_id')
+        $rows = $rowsProduct; // Backward compatibility
+
+        $salesQuery = \App\Models\Sale::whereNull('ref_sale_id')
             ->whereDoesntHave('refunds')
             ->where('status', 'paid')
-            ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59'])
-            ->get();
+            ->when($storeId, fn($sq) => $sq->where('store_id', $storeId))
+            ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
 
+        if (!empty($categoryId)) {
+            $salesQuery->whereHas('items.variant.product', function ($p) use ($categoryId) {
+                $p->where('category_id', $categoryId);
+            });
+        }
+
+        $sales = $salesQuery->get();
         $totalTransDiscount = $sales->sum('trans_discount');
         $totalPointDiscount = $sales->sum('point_discount_amount');
         $totalVoucherDiscount = $sales->sum('voucher_discount_amount');
 
+        $selectedCategory = !empty($categoryId) ? \App\Models\ProductCategory::find($categoryId) : null;
+
+        $viewData = compact(
+            'rows',
+            'rowsProduct',
+            'rowsCategory',
+            'rowsVariant',
+            'mulai',
+            'akhir',
+            'categoryId',
+            'selectedCategory',
+            'totalTransDiscount',
+            'totalPointDiscount',
+            'totalVoucherDiscount'
+        );
+
         if ($request->ajax()) {
-            return view('laporan.harian_table', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount', 'totalVoucherDiscount'));
+            return view('laporan.harian_table', $viewData);
         }
 
-        return view('laporan.harian', compact('rows', 'mulai', 'akhir', 'totalTransDiscount', 'totalPointDiscount', 'totalVoucherDiscount'));
+        $categories = $storeId 
+            ? \App\Models\ProductCategory::where('store_id', $storeId)->where('is_active', true)->orderBy('name')->get()
+            : collect();
+
+        return view('laporan.harian', array_merge($viewData, compact('categories')));
     }
 
     public function exportHarian(Request $request)
     {
         $mulai = $request->mulai ?? now()->toDateString();
         $akhir = $request->akhir ?? now()->toDateString();
+        $categoryId = $request->category_id;
+        $viewType = $request->view ?? 'all';
 
+        $suffix = $viewType !== 'all' ? "_{$viewType}" : '';
         return Excel::download(
-            new \App\Exports\LaporanHarianExport($mulai, $akhir),
-            'Laporan_Harian_' . $mulai . '_to_' . $akhir . '.xlsx'
+            new \App\Exports\LaporanHarianExport($mulai, $akhir, $categoryId, $viewType),
+            'Laporan_Harian' . $suffix . '_' . $mulai . '_to_' . $akhir . '.xlsx'
         );
     }
 
