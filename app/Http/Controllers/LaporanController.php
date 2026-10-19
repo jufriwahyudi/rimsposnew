@@ -390,16 +390,18 @@ class LaporanController extends Controller
         $categoryId = $request->category_id;
         $storeId = session('store_id');
 
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($mulai, $akhir);
+
         $store = $storeId ? \App\Models\Store::find($storeId) : null;
         $isFnB = $store && $store->business_type === 'fnb';
 
         $query = SaleItem::with(['variant.product.category', 'fnbDetail', 'batches', 'sale'])
-            ->whereHas('sale', function ($q) use ($mulai, $akhir, $storeId) {
+            ->whereHas('sale', function ($q) use ($startDateTime, $endDateTime, $storeId) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
                     ->where('status', 'paid')
                     ->when($storeId, fn($sq) => $sq->where('store_id', $storeId))
-                    ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
+                    ->whereBetween('sale_date', [$startDateTime, $endDateTime]);
             })
             ->whereIn('status', ['sold', 'exchanged_in']);
 
@@ -531,7 +533,7 @@ class LaporanController extends Controller
             ->whereDoesntHave('refunds')
             ->where('status', 'paid')
             ->when($storeId, fn($sq) => $sq->where('store_id', $storeId))
-            ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
+            ->whereBetween('sale_date', [$startDateTime, $endDateTime]);
 
         if (!empty($categoryId)) {
             $salesQuery->whereHas('items.variant.product', function ($p) use ($categoryId) {
@@ -578,10 +580,14 @@ class LaporanController extends Controller
         $categoryId = $request->category_id;
         $viewType = $request->view ?? 'all';
 
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($mulai, $akhir);
+
         $suffix = $viewType !== 'all' ? "_{$viewType}" : '';
+        $fileMulai = str_replace([':', ' '], ['-', '_'], $mulai);
+        $fileAkhir = str_replace([':', ' '], ['-', '_'], $akhir);
         return Excel::download(
-            new \App\Exports\LaporanHarianExport($mulai, $akhir, $categoryId, $viewType),
-            'Laporan_Harian' . $suffix . '_' . $mulai . '_to_' . $akhir . '.xlsx'
+            new \App\Exports\LaporanHarianExport($startDateTime, $endDateTime, $categoryId, $viewType),
+            'Laporan_Harian' . $suffix . '_' . $fileMulai . '_to_' . $fileAkhir . '.xlsx'
         );
     }
 

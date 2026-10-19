@@ -327,6 +327,7 @@ class StoreController extends Controller
         }
 
         $store->update($data);
+        \Illuminate\Support\Facades\Cache::forget("store_{$store->id}_consignment");
 
         return response()->json(['success' => true, 'message' => 'Toko berhasil diperbarui.']);
     }

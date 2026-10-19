@@ -39,11 +39,11 @@
                             @csrf
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-5 col-sm-12">
-                                    <label for="datefilter" class="form-label fw-semibold small mb-1">Periode Tanggal</label>
+                                    <label for="datefilter" class="form-label fw-semibold small mb-1">Periode Tanggal & Jam</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-light"><i class="bx bx-calendar"></i></span>
                                         <input type="text" name="date_filter" id="datefilter" class="form-control"
-                                            required placeholder="Pilih tanggal">
+                                            required placeholder="Pilih tanggal dan jam">
                                     </div>
                                 </div>
                                 <div class="col-md-4 col-sm-12">
@@ -83,33 +83,62 @@
     <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script>
         $(function() {
-            var start = moment();
-            var end = moment();
+            var start = moment().startOf('day');
+            var end = moment().endOf('day');
 
             $('#datefilter').daterangepicker({
                 startDate: start,
                 endDate: end,
+                timePicker: true,
+                timePicker24Hour: true,
+                timePickerIncrement: 1,
+                alwaysShowCalendars: true,
+                ranges: {
+                    'Hari Ini': [moment().startOf('day'), moment().endOf('day')],
+                    'Kemarin': [moment().subtract(1, 'days').startOf('day'), moment().subtract(1, 'days').endOf('day')],
+                    '7 Hari Terakhir': [moment().subtract(6, 'days').startOf('day'), moment().endOf('day')],
+                    '30 Hari Terakhir': [moment().subtract(29, 'days').startOf('day'), moment().endOf('day')],
+                    'Bulan Ini': [moment().startOf('month').startOf('day'), moment().endOf('month').endOf('day')],
+                    'Bulan Lalu': [moment().subtract(1, 'month').startOf('month').startOf('day'), moment().subtract(1, 'month').endOf('month').endOf('day')]
+                },
                 locale: {
-                    format: 'MM/DD/YYYY'
+                    format: 'YYYY-MM-DD HH:mm',
+                    separator: ' - ',
+                    applyLabel: 'Terapkan',
+                    cancelLabel: 'Batal',
+                    customRangeLabel: 'Pilih Manual',
+                    daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+                    monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                                 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+                    firstDay: 1
                 }
             });
 
             // Set default value in input
-            $('#datefilter').val(start.format('MM/DD/YYYY') + ' - ' + end.format('MM/DD/YYYY'));
+            $('#datefilter').val(start.format('YYYY-MM-DD HH:mm') + ' - ' + end.format('YYYY-MM-DD HH:mm'));
+
+            $('#datefilter').on('apply.daterangepicker', function(ev, picker) {
+                $(this).val(picker.startDate.format('YYYY-MM-DD HH:mm') + ' - ' + picker.endDate.format('YYYY-MM-DD HH:mm'));
+            });
 
             // Auto-load data hari ini
-            loadData(start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD'));
+            loadData(start.format('YYYY-MM-DD HH:mm'), end.format('YYYY-MM-DD HH:mm'));
+
+            $('#searchForm').on('submit', function(e) {
+                e.preventDefault();
+                $('#searchBtn').trigger('click');
+            });
 
             // Handle button search
             $('#searchBtn').click(function() {
                 var datefilter = $('#datefilter').val();
                 if (!datefilter) {
-                    alert('Silakan pilih tanggal terlebih dahulu');
+                    alert('Silakan pilih periode tanggal dan jam terlebih dahulu');
                     return;
                 }
                 var dates = datefilter.split(' - ');
-                var mulai = moment(dates[0], 'MM/DD/YYYY').format('YYYY-MM-DD');
-                var akhir = moment(dates[1], 'MM/DD/YYYY').format('YYYY-MM-DD');
+                var mulai = dates[0] ? dates[0].trim() : '';
+                var akhir = dates[1] ? dates[1].trim() : mulai;
                 loadData(mulai, akhir);
             });
 

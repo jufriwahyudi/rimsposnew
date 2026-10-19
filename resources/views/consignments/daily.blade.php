@@ -30,15 +30,17 @@
                 </div>
             </div>
             <div class="col-6 col-md-3">
-                <div class="card shadow-sm border-0 rounded-3 p-3 text-center border-start border-success border-4">
-                    <small class="text-muted text-uppercase fw-semibold" style="font-size: 11px;">Total Terjual (Laku)</small>
-                    <h3 class="fw-bold text-success mb-0 mt-1">{{ number_format($totalLakuToday, 0, ',', '.') }} <small class="fs-6 fw-normal text-muted">pcs</small></h3>
+                <div class="card shadow-sm border-0 rounded-3 p-3 text-center border-start border-info border-4">
+                    <small class="text-muted text-uppercase fw-semibold" style="font-size: 11px;">Live Terjual di Kasir POS</small>
+                    <h3 class="fw-bold text-info mb-0 mt-1">{{ number_format($totalPosSoldToday, 0, ',', '.') }} <small class="fs-6 fw-normal text-muted">pcs</small></h3>
+                    <small class="text-muted" style="font-size: 10px;">Omzet Kasir: Rp {{ number_format($totalPosAmountToday, 0, ',', '.') }}</small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="card shadow-sm border-0 rounded-3 p-3 text-center border-start border-danger border-4">
                     <small class="text-muted text-uppercase fw-semibold" style="font-size: 11px;">Total Hak Penitip Dibayar</small>
                     <h3 class="fw-bold text-danger mb-0 mt-1">Rp {{ number_format($totalPayoutToday, 0, ',', '.') }}</h3>
+                    <small class="text-muted" style="font-size: 10px;">Laku Fisik: {{ number_format($totalLakuToday, 0, ',', '.') }} pcs</small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
@@ -48,6 +50,97 @@
                 </div>
             </div>
         </div>
+
+        {{-- Live Pool Monitoring Widget (Per Tombol Kasir POS) --}}
+        @if(!empty($poolSummary))
+        <div class="card shadow-sm border-0 rounded-3 mb-4" style="border-top: 4px solid #0284c7 !important;">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="material-icons-outlined me-1 align-middle text-primary">hub</i>
+                        Live Monitoring Pool: Penjualan Kasir POS vs Titipan Meja
+                    </h6>
+                    <small class="text-muted">Memantau pergerakan kue di meja berdasarkan transaksi tombol kasir POS secara real-time.</small>
+                </div>
+                <div>
+                    <span class="badge bg-light-primary text-primary px-3 py-2 fw-semibold">
+                        <i class="material-icons-outlined align-middle me-1" style="font-size: 14px;">point_of_sale</i>
+                        Live Struk Kasir: {{ number_format($totalPosSoldToday, 0, ',', '.') }} pcs (Rp {{ number_format($totalPosAmountToday, 0, ',', '.') }})
+                    </span>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-3">
+                    @foreach($poolSummary as $pool)
+                    <div class="col-12 col-lg-6">
+                        <div class="border rounded-3 p-3 bg-light-subtle h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <span class="badge bg-primary px-2 py-1 mb-1" style="font-size: 10px;">Tombol Kasir POS</span>
+                                    <h6 class="fw-bold text-dark mb-0">{{ $pool['variant_name'] }}</h6>
+                                    <small class="text-muted">Harga Kasir: Rp {{ number_format($pool['harga_jual'], 0, ',', '.') }}</small>
+                                </div>
+                                <div>
+                                    @if($pool['audit_status'] === 'MATCH')
+                                        <span class="badge bg-success px-2 py-1"><i class="material-icons-outlined align-middle" style="font-size: 12px;">check</i> KLOP (100%)</span>
+                                    @elseif($pool['audit_status'] === 'UNDER')
+                                        <span class="badge bg-danger px-2 py-1"><i class="material-icons-outlined align-middle" style="font-size: 12px;">warning</i> Selisih {{ $pool['variance_qty'] }} pcs</span>
+                                    @elseif($pool['audit_status'] === 'OVER')
+                                        <span class="badge bg-info px-2 py-1"><i class="material-icons-outlined align-middle" style="font-size: 12px;">info</i> Surplus +{{ $pool['variance_qty'] }} pcs</span>
+                                    @else
+                                        <span class="badge bg-warning text-dark px-2 py-1"><i class="material-icons-outlined align-middle" style="font-size: 12px;">sync</i> Monitoring Live</span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="row g-2 text-center my-2">
+                                <div class="col-3">
+                                    <div class="bg-white p-2 rounded border">
+                                        <small class="text-muted d-block" style="font-size: 10px;">Titip Pagi</small>
+                                        <strong class="text-dark">{{ $pool['total_titip'] }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="bg-white p-2 rounded border border-primary">
+                                        <small class="text-primary fw-semibold d-block" style="font-size: 10px;">Live Kasir</small>
+                                        <strong class="text-primary">{{ $pool['pos_sold_qty'] }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="bg-white p-2 rounded border">
+                                        <small class="text-muted d-block" style="font-size: 10px;">Est. Sisa</small>
+                                        <strong class="text-warning">{{ $pool['estimasi_sisa'] }}</strong>
+                                    </div>
+                                </div>
+                                <div class="col-3">
+                                    <div class="bg-white p-2 rounded border">
+                                        <small class="text-muted d-block" style="font-size: 10px;">Laku Fisik</small>
+                                        <strong class="text-success">{{ $pool['total_laku_fisik'] }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center small text-muted pt-2 border-top">
+                                <span>Kontributor: {{ count($pool['items_detail']) }} jenis kue</span>
+                                <a href="javascript:void(0)" class="text-decoration-none fw-semibold" onclick="togglePoolDetail({{ $pool['variant_id'] }})">
+                                    Lihat Rincian <i class="material-icons-outlined align-middle" style="font-size: 14px;">expand_more</i>
+                                </a>
+                            </div>
+                            <div id="poolDetail_{{ $pool['variant_id'] }}" style="display: none;" class="mt-2 pt-2 border-top small bg-white p-2 rounded">
+                                @foreach($pool['items_detail'] as $det)
+                                    <div class="d-flex justify-content-between py-1 border-bottom">
+                                        <span><strong>{{ $det['penitip'] }}</strong>: {{ $det['item'] }}</span>
+                                        <span>Titip: {{ $det['titip'] }} | Sisa: {{ $det['sisa'] }} | Laku: <strong class="text-success">{{ $det['laku'] }}</strong></span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        @endif
 
         {{-- Session Table --}}
         <div class="card shadow-sm border-0 rounded-3">
@@ -119,7 +212,7 @@
                                         </td>
                                         <td class="text-end pe-3">
                                             @if($session->status === 'open')
-                                                <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark shadow-sm" onclick="openSettlementModal({{ json_encode($session->load('items.consignorItem')) }})">
+                                                <button type="button" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark shadow-sm" onclick="openSettlementModal({{ json_encode($session) }})">
                                                     <i class="material-icons-outlined me-1 align-middle" style="font-size: 14px;">payments</i> Rekonsiliasi Sore
                                                 </button>
                                             @elseif($session->status === 'settled' && $session->settlement)
@@ -249,6 +342,40 @@
                         </table>
                     </div>
 
+                    {{-- Live Cross-Audit Box (Pool Kasir POS) --}}
+                    <div class="card border rounded-3 p-3 bg-light mb-3" id="settleAuditBox">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold small text-dark">
+                                <i class="material-icons-outlined me-1 align-middle text-primary" style="font-size: 16px;">verified_user</i>
+                                Cross-Audit Penjualan Kasir POS:
+                            </span>
+                            <span id="settleAuditStatusBadge" class="badge bg-secondary px-2 py-1">Memeriksa...</span>
+                        </div>
+                        <div class="row g-2 text-center small">
+                            <div class="col-4">
+                                <div class="bg-white p-2 rounded border">
+                                    <span class="text-muted d-block" style="font-size: 11px;">Laku Fisik (Sesi Ini)</span>
+                                    <strong class="text-dark fs-6" id="auditLakuFisik">0</strong> pcs
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="bg-white p-2 rounded border border-primary">
+                                    <span class="text-primary d-block" style="font-size: 11px;">Terjual di POS Kasir</span>
+                                    <strong class="text-primary fs-6" id="auditPosSold">0</strong> pcs
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="bg-white p-2 rounded border" id="auditVarianceContainer">
+                                    <span class="text-muted d-block" style="font-size: 11px;">Status Selisih</span>
+                                    <strong class="fs-6" id="auditVarianceText">0 pcs</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2 small text-muted" id="auditNoteText">
+                            *Audit membandingkan total fisik laku sesi ini dengan transaksi tombol kasir POS terkait.
+                        </div>
+                    </div>
+
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Metode Pembayaran</label>
@@ -279,6 +406,14 @@
 @push('scripts')
 <script>
     const csrfToken = '{{ csrf_token() }}';
+    const posSalesData = @json($posSales ?? []);
+
+    function togglePoolDetail(variantId) {
+        const el = document.getElementById('poolDetail_' + variantId);
+        if (el) {
+            el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+        }
+    }
 
     function openMorningIntakeModal() {
         document.getElementById('formMorningIntake').reset();
@@ -399,6 +534,7 @@
                     <input type="hidden" class="ditem-id" value="${item.id}">
                     <input type="hidden" class="ditem-titip" value="${item.qty_titip}">
                     <input type="hidden" class="ditem-setor" value="${item.harga_setor}">
+                    <input type="hidden" class="ditem-variant" value="${item.product_variant_id}">
                 </td>
                 <td class="text-center fw-bold text-muted">${item.qty_titip}</td>
                 <td>
@@ -419,11 +555,17 @@
         const rows = document.querySelectorAll('#settlementItemsTbody tr');
         let totalLaku = 0;
         let totalPayout = 0;
+        const sessionVariants = new Set();
 
         rows.forEach(tr => {
             const titip = parseInt(tr.querySelector('.ditem-titip').value) || 0;
             const setor = parseFloat(tr.querySelector('.ditem-setor').value) || 0;
             const sisaInput = tr.querySelector('.ditem-sisa');
+            const vInput = tr.querySelector('.ditem-variant');
+            if (vInput && vInput.value) {
+                sessionVariants.add(vInput.value);
+            }
+
             let sisa = parseInt(sisaInput.value) || 0;
 
             if (sisa > titip) {
@@ -443,6 +585,43 @@
 
         document.getElementById('settleTotalLaku').textContent = totalLaku;
         document.getElementById('settleTotalPayout').textContent = 'Rp ' + Number(totalPayout).toLocaleString('id-ID');
+
+        // Cross-Audit POS Kasir Calculation
+        let totalPosQty = 0;
+        sessionVariants.forEach(vId => {
+            if (posSalesData && posSalesData[vId]) {
+                totalPosQty += parseInt(posSalesData[vId].total_qty) || 0;
+            }
+        });
+
+        const variance = totalPosQty - totalLaku;
+        document.getElementById('auditLakuFisik').textContent = totalLaku;
+        document.getElementById('auditPosSold').textContent = totalPosQty;
+
+        const badge = document.getElementById('settleAuditStatusBadge');
+        const varText = document.getElementById('auditVarianceText');
+        const noteText = document.getElementById('auditNoteText');
+
+        if (variance === 0) {
+            badge.className = 'badge bg-success px-2 py-1';
+            badge.textContent = 'KLOP (100% Sesuai)';
+            varText.className = 'fs-6 text-success';
+            varText.textContent = '0 pcs (Klop)';
+            noteText.textContent = '✅ Sempurna: Total fisik laku persis sama dengan jumlah transaksi di tombol kasir POS.';
+        } else if (variance < 0) {
+            const selisih = Math.abs(variance);
+            badge.className = 'badge bg-danger px-2 py-1';
+            badge.textContent = `SELISIH KASIR (-${selisih} pcs)`;
+            varText.className = 'fs-6 text-danger';
+            varText.textContent = `Kurang ${selisih} pcs`;
+            noteText.textContent = `⚠️ Perhatian: Kue fisik laku ${totalLaku} pcs, tapi kasir POS baru mencatat ${totalPosQty} pcs (${selisih} pcs belum terinput kasir / potensi bocor).`;
+        } else {
+            badge.className = 'badge bg-info px-2 py-1';
+            badge.textContent = `SURPLUS POS (+${variance} pcs)`;
+            varText.className = 'fs-6 text-info';
+            varText.textContent = `Surplus +${variance} pcs`;
+            noteText.textContent = `ℹ️ Info: Penjualan di kasir POS (${totalPosQty} pcs) lebih tinggi dari laku sesi ini (${totalLaku} pcs). Wajar jika ada penitip lain yang menggunakan tombol yang sama.`;
+        }
     }
 
     document.getElementById('formSettlement').addEventListener('submit', function(e) {

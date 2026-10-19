@@ -23,9 +23,7 @@
             @if (isset($menucache))
                 @php
                     $activeStoreId = session('store_id');
-                    $isConsignmentActive = $activeStoreId ? \Illuminate\Support\Facades\Cache::remember("store_{$activeStoreId}_consignment", 60, function() use ($activeStoreId) {
-                        return (bool) \Illuminate\Support\Facades\DB::table('stores')->where('id', $activeStoreId)->value('addon_consignment');
-                    }) : false;
+                    $isConsignmentActive = $activeStoreId ? (bool) \Illuminate\Support\Facades\DB::table('stores')->where('id', $activeStoreId)->value('addon_consignment') : false;
                 @endphp
                 @foreach ($menucache as $menu)
                     @if (($menu->nama === 'Barang Titipan' || str_contains($menu->routename, 'consignment')) && !$isConsignmentActive)

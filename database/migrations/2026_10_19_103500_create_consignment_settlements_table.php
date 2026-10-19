@@ -20,8 +20,13 @@ return new class extends Migration
             $table->unsignedBigInteger('user_id')->index()->comment('Kasir yang memproses pembayaran');
             $table->string('settlement_number', 50)->unique();
             $table->date('settlement_date')->index();
-            $table->decimal('total_amount', 15, 2)->default(0);
+            $table->decimal('total_amount', 15, 2)->default(0)->comment('Total uang dibayarkan ke penitip');
             $table->string('payment_method', 30)->default('CASH');
+            $table->integer('total_pos_qty')->default(0)->comment('Total pcs terjual di kasir POS');
+            $table->decimal('total_pos_amount', 15, 2)->default(0)->comment('Total uang kas masuk di POS');
+            $table->integer('variance_qty')->default(0)->comment('Selisih pcs: POS - Fisik');
+            $table->decimal('variance_amount', 15, 2)->default(0)->comment('Selisih nominal rupiah');
+            $table->string('audit_status', 30)->default('MATCH')->comment('MATCH, UNDER, OVER');
             $table->text('catatan')->nullable();
             $table->timestamps();
 

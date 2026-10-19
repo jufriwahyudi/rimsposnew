@@ -78,13 +78,16 @@ class LaporanHarianVariantSheet implements
         $store = $storeId ? Store::find($storeId) : null;
         $isFnB = $store && $store->business_type === 'fnb';
 
+        $startDateTime = str_contains($this->mulai, ':') ? (substr_count($this->mulai, ':') === 1 ? $this->mulai . ':00' : $this->mulai) : ($this->mulai . ' 00:00:00');
+        $endDateTime = str_contains($this->akhir, ':') ? (substr_count($this->akhir, ':') === 1 ? $this->akhir . ':59' : $this->akhir) : ($this->akhir . ' 23:59:59');
+
         $query = SaleItem::with(['variant.product', 'fnbDetail', 'batches', 'sale'])
-            ->whereHas('sale', function ($q) use ($storeId) {
+            ->whereHas('sale', function ($q) use ($storeId, $startDateTime, $endDateTime) {
                 $q->whereNull('ref_sale_id')
                     ->whereDoesntHave('refunds')
                     ->where('status', 'paid')
                     ->when($storeId, fn($sq) => $sq->where('store_id', $storeId))
-                    ->whereBetween('sale_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59']);
+                    ->whereBetween('sale_date', [$startDateTime, $endDateTime]);
             })
             ->whereIn('status', ['sold', 'exchanged_in']);
 
@@ -166,7 +169,7 @@ class LaporanHarianVariantSheet implements
             ->whereDoesntHave('refunds')
             ->where('status', 'paid')
             ->when($storeId, fn($sq) => $sq->where('store_id', $storeId))
-            ->whereBetween('sale_date', [$this->mulai . ' 00:00:00', $this->akhir . ' 23:59:59']);
+            ->whereBetween('sale_date', [$startDateTime, $endDateTime]);
 
         if (!empty($this->categoryId)) {
             $salesQuery->whereHas('items.variant.product', function ($p) {

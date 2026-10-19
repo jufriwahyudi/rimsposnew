@@ -19,12 +19,21 @@ class ConsignmentSettlement extends Model
         'settlement_date',
         'total_amount',
         'payment_method',
+        'total_pos_qty',
+        'total_pos_amount',
+        'variance_qty',
+        'variance_amount',
+        'audit_status',
         'catatan',
     ];
 
     protected $casts = [
-        'settlement_date' => 'date',
-        'total_amount' => 'float',
+        'settlement_date'  => 'date',
+        'total_amount'     => 'float',
+        'total_pos_qty'    => 'integer',
+        'total_pos_amount' => 'float',
+        'variance_qty'     => 'integer',
+        'variance_amount'  => 'float',
     ];
 
     public function store()

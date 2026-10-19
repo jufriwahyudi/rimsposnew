@@ -107,6 +107,20 @@
             <td>Metode Bayar</td>
             <td class="text-end fw-bold">{{ $settlement->payment_method }}</td>
         </tr>
+        @if($settlement->audit_status)
+        <tr>
+            <td>Audit POS Kasir</td>
+            <td class="text-end fw-bold">
+                @if($settlement->audit_status === 'MATCH')
+                    KLOP (POS: {{ $settlement->total_pos_qty }})
+                @elseif($settlement->audit_status === 'UNDER')
+                    SELISIH (POS: {{ $settlement->total_pos_qty }} | Var: {{ $settlement->variance_qty }})
+                @else
+                    SURPLUS (POS: {{ $settlement->total_pos_qty }} | +{{ $settlement->variance_qty }})
+                @endif
+            </td>
+        </tr>
+        @endif
     </table>
 
     <div class="divider-double"></div>

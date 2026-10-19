@@ -307,8 +307,8 @@ class ProdukController extends Controller
             'units',
             'variants' => function ($q) {
                 $q->with([
-                    'variantAttributes.attribute', 
-                    'variantAttributes.value', 
+                    'variantAttributes.attribute',
+                    'variantAttributes.value',
                     'barcodeActive',
                     'batches' => function ($b) {
                         $b->where('qty_sisa', '>', 0)
@@ -472,7 +472,7 @@ class ProdukController extends Controller
                             'stock_batch_id'      => $batch->id,
                             'qty'                 => -$takeQty,
                             'cost'                => $batch->harga_beli,
-                            'total_value'         => -($takeQty * $batch->harga_beli),
+                            'total_value'         => - ($takeQty * $batch->harga_beli),
                         ]);
 
                         $remaining -= $takeQty;
@@ -682,7 +682,7 @@ class ProdukController extends Controller
             $hasOpnames = \App\Models\StockOpnameItem::whereIn('product_variant_id', $variantIds)->exists();
             $hasBatches = \App\Models\StockBatch::whereIn('product_variant_id', $variantIds)
                 ->where(function ($q) {
-                    $q->where('qty_masuk', '>', 0)
+                    $q->where('qty_awal', '>', 0)
                         ->orWhere('qty_sisa', '>', 0)
                         ->orWhereHas('movements');
                 })->exists();
@@ -936,7 +936,7 @@ class ProdukController extends Controller
 
         try {
             $variant = ProductVariant::with('product')->findOrFail($request->variant_id);
-            
+
             $variantData = [
                 'variant_name' => $request->variant_name ?? '',
                 'harga_jual'   => $request->harga_jual,

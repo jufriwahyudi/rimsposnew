@@ -482,6 +482,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::delete('/consignors/{consignor}', [\App\Http\Controllers\ConsignmentController::class, 'destroyConsignor'])->name('consignors.destroy');
 
         Route::post('/consignors/{consignor}/items', [\App\Http\Controllers\ConsignmentController::class, 'storeConsignorItem'])->name('consignors.items.store');
+        Route::put('/items/{item}', [\App\Http\Controllers\ConsignmentController::class, 'updateConsignorItem'])->name('items.update');
         Route::delete('/items/{item}', [\App\Http\Controllers\ConsignmentController::class, 'destroyConsignorItem'])->name('items.destroy');
 
         Route::get('/daily', [\App\Http\Controllers\ConsignmentController::class, 'daily'])->name('daily');

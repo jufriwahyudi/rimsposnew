@@ -104,9 +104,14 @@
                                                 Setor: <span class="text-success fw-semibold">Rp {{ number_format($item->harga_setor, 0, ',', '.') }}</span> | Jual: Rp {{ number_format($item->harga_jual, 0, ',', '.') }}
                                             </div>
                                         </div>
-                                        <button class="btn btn-link text-danger p-0" title="Hapus item" onclick="deleteItem({{ $item->id }}, '{{ $item->nama_item }}')">
-                                            <i class="material-icons-outlined" style="font-size: 16px;">close</i>
-                                        </button>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button class="btn btn-link text-secondary p-0 hover-primary" title="Edit item titipan" onclick="editItem({{ json_encode($item) }}, '{{ $consignor->nama_penitip }}')">
+                                                <i class="material-icons-outlined" style="font-size: 16px;">edit</i>
+                                            </button>
+                                            <button class="btn btn-link text-danger p-0" title="Hapus item" onclick="deleteItem({{ $item->id }}, '{{ $item->nama_item }}')">
+                                                <i class="material-icons-outlined" style="font-size: 16px;">close</i>
+                                            </button>
+                                        </div>
                                     </li>
                                     @endforeach
                                 </ul>
@@ -196,6 +201,7 @@
             <form id="formItem">
                 <div class="modal-body p-4">
                     <input type="hidden" id="itemConsignorId">
+                    <input type="hidden" id="editItemId">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Nama Item / Kue <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="item_nama" required placeholder="Contoh: Risol Mayo">
@@ -219,14 +225,22 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Pemetaan Tombol POS Kasir (Opsional)</label>
-                        <select class="form-select" id="item_product_variant_id">
-                            <option value="">-- Tanpa Mapping (Otomatis) --</option>
+                        <label class="form-label fw-semibold">Tombol Produk POS Kasir Terkait <span class="text-danger">*</span></label>
+                        @if($variants->isEmpty())
+                        <div class="alert alert-warning py-2 px-3 small mb-2 border-0 rounded-3">
+                            <i class="material-icons-outlined align-middle me-1" style="font-size: 16px;">warning</i>
+                            Belum ada produk di Master Produk Toko. Silakan buat produk kasir terlebih dahulu di menu <a href="{{ route('produk.index') }}" target="_blank" class="fw-bold text-dark text-decoration-underline">Produk &gt; Pengaturan Produk</a> (misal: "Kue Basah Kantin").
+                        </div>
+                        @endif
+                        <select class="form-select" id="item_product_variant_id" required onchange="onVariantSelected(this)">
+                            <option value="" disabled selected>-- Pilih Tombol Produk Kasir (Wajib) --</option>
                             @foreach($variants as $variant)
-                            <option value="{{ $variant->id }}">{{ $variant->product->nama_produk ?? 'Produk' }} - {{ $variant->variant_name }} (Rp {{ number_format($variant->price, 0, ',', '.') }})</option>
+                            <option value="{{ $variant->id }}" data-price="{{ (int) $variant->harga_jual }}" data-name="{{ $variant->variant_name }}">
+                                {{ $variant->product->nama_produk ?? 'Produk' }} - {{ $variant->variant_name }} (Rp {{ number_format($variant->harga_jual, 0, ',', '.') }})
+                            </option>
                             @endforeach
                         </select>
-                        <small class="text-muted" style="font-size: 11px;">Pilih tombol kategori POS (misal: "Kue Basah") untuk menyelaraskan laporan kasir.</small>
+                        <small class="text-muted" style="font-size: 11px;">Tombol kasir yang ditekan kasir di layar POS saat ada mahasiswa membeli item ini.</small>
                     </div>
                 </div>
                 <div class="modal-footer border-top bg-light">
@@ -316,16 +330,39 @@
             });
     }
 
+    function onVariantSelected(selectEl) {
+        const selected = selectEl.options[selectEl.selectedIndex];
+        const price = selected.getAttribute('data-price');
+        const hargaJualInput = document.getElementById('item_harga_jual');
+        if (price) {
+            hargaJualInput.value = price;
+        }
+    }
+
     function openAddItemModal(consignorId, consignorName) {
+        document.getElementById('editItemId').value = '';
         document.getElementById('itemConsignorId').value = consignorId;
         document.getElementById('formItem').reset();
         document.getElementById('modalItemTitle').textContent = `Tambah Menu Titipan: ${consignorName}`;
         new bootstrap.Modal(document.getElementById('modalItem')).show();
     }
 
+    function editItem(item, consignorName) {
+        document.getElementById('editItemId').value = item.id;
+        document.getElementById('itemConsignorId').value = item.consignor_id;
+        document.getElementById('item_nama').value = item.nama_item;
+        document.getElementById('item_harga_setor').value = Math.round(item.harga_setor);
+        document.getElementById('item_harga_jual').value = Math.round(item.harga_jual);
+        document.getElementById('item_product_variant_id').value = item.product_variant_id || '';
+        document.getElementById('modalItemTitle').textContent = `Edit Menu Titipan: ${item.nama_item}`;
+        new bootstrap.Modal(document.getElementById('modalItem')).show();
+    }
+
     document.getElementById('formItem').addEventListener('submit', function(e) {
         e.preventDefault();
         const consignorId = document.getElementById('itemConsignorId').value;
+        const editItemId = document.getElementById('editItemId').value;
+
         const payload = {
             nama_item: document.getElementById('item_nama').value,
             harga_setor: document.getElementById('item_harga_setor').value,
@@ -334,8 +371,11 @@
             _token: csrfToken
         };
 
-        fetch(`/consignments/consignors/${consignorId}/items`, {
-                method: 'POST',
+        const url = editItemId ? `/consignments/items/${editItemId}` : `/consignments/consignors/${consignorId}/items`;
+        const method = editItemId ? 'PUT' : 'POST';
+
+        fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken
@@ -345,7 +385,7 @@
             .then(res => res.json())
             .then(data => {
                 if (data.success) location.reload();
-                else alert(data.message);
+                else alert(data.message || 'Terjadi kesalahan.');
             })
             .catch(err => alert('Gagal menyimpan menu titipan.'));
     });

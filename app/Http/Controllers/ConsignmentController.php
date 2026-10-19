@@ -164,14 +164,17 @@ class ConsignmentController extends Controller
         $request->validate([
             'nama_item'          => 'required|string|max:150',
             'kode_display'       => 'nullable|string|max:50',
-            'product_variant_id' => 'nullable|exists:product_variants,id',
+            'product_variant_id' => 'required|exists:product_variants,id',
             'harga_setor'        => 'required|numeric|min:0',
             'harga_jual'         => 'required|numeric|min:0',
+        ], [
+            'product_variant_id.required' => 'Wajib memilih tombol produk POS Kasir terkait.',
+            'product_variant_id.exists'   => 'Produk POS Kasir yang dipilih tidak valid.',
         ]);
 
         $item = ConsignorItem::create([
             'consignor_id'       => $consignor->id,
-            'product_variant_id' => $request->product_variant_id ?: null,
+            'product_variant_id' => $request->product_variant_id,
             'nama_item'          => $request->nama_item,
             'kode_display'       => $request->kode_display,
             'harga_setor'        => (float) $request->harga_setor,
@@ -182,6 +185,52 @@ class ConsignmentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Menu/item titipan berhasil ditambahkan.',
+            'data'    => $item
+        ]);
+    }
+
+    /**
+     * Update template item of Consignor.
+     */
+    public function updateConsignorItem(Request $request, ConsignorItem $item)
+    {
+        $storeId = $this->getStoreId();
+        if ($item->consignor->store_id !== $storeId) {
+            abort(403);
+        }
+
+        $request->validate([
+            'nama_item'          => 'required|string|max:150',
+            'kode_display'       => 'nullable|string|max:50',
+            'product_variant_id' => 'required|exists:product_variants,id',
+            'harga_setor'        => 'required|numeric|min:0',
+            'harga_jual'         => 'required|numeric|min:0',
+        ], [
+            'product_variant_id.required' => 'Wajib memilih tombol produk POS Kasir terkait.',
+            'product_variant_id.exists'   => 'Produk POS Kasir yang dipilih tidak valid.',
+        ]);
+
+        $item->update([
+            'product_variant_id' => $request->product_variant_id,
+            'nama_item'          => $request->nama_item,
+            'kode_display'       => $request->kode_display,
+            'harga_setor'        => (float) $request->harga_setor,
+            'harga_jual'         => (float) $request->harga_jual,
+        ]);
+
+        // Jika ada sesi yang masih OPEN hari ini untuk item ini, update juga harga & mapping-nya
+        // agar rekonsiliasi sore menggunakan nilai terbaru yang disepakati
+        DailyConsignmentItem::where('consignor_item_id', $item->id)
+            ->whereHas('dailyConsignment', fn($q) => $q->where('status', 'open'))
+            ->update([
+                'product_variant_id' => $item->product_variant_id,
+                'harga_setor'        => $item->harga_setor,
+                'harga_jual'         => $item->harga_jual,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Menu titipan berhasil diperbarui.',
             'data'    => $item
         ]);
     }
@@ -205,6 +254,37 @@ class ConsignmentController extends Controller
     }
 
     /**
+     * Get POS Sales aggregated by product_variant_id for store and date.
+     */
+    private function getPosSalesByVariant(int $storeId, string $date, array $variantIds): array
+    {
+        if (empty($variantIds)) {
+            return [];
+        }
+
+        $sales = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sales.store_id', $storeId)
+            ->where(function ($q) use ($date) {
+                $q->whereDate('sales.sale_date', $date)
+                  ->orWhereDate('sales.created_at', $date);
+            })
+            ->where('sales.status', '!=', 'void')
+            ->whereIn('sales.payment_status', ['lunas', 'paid', 'hutang'])
+            ->whereIn('sale_items.product_variant_id', $variantIds)
+            ->groupBy('sale_items.product_variant_id')
+            ->select(
+                'sale_items.product_variant_id',
+                DB::raw('SUM(sale_items.qty) as total_qty'),
+                DB::raw('SUM(sale_items.subtotal) as total_amount')
+            )
+            ->get()
+            ->keyBy('product_variant_id');
+
+        return $sales->toArray();
+    }
+
+    /**
      * Main Daily Consignment Page (Pagi: Terima Titipan | Sore: Rekonsiliasi & Bayar).
      */
     public function daily(Request $request)
@@ -215,7 +295,7 @@ class ConsignmentController extends Controller
         // Daily consignments on selected date
         $sessions = DailyConsignment::where('store_id', $storeId)
             ->whereDate('tanggal', $date)
-            ->with(['consignor', 'items.consignorItem', 'settlement', 'settledBy'])
+            ->with(['consignor', 'items.consignorItem', 'items.variant.product', 'settlement', 'settledBy'])
             ->orderByDesc('id')
             ->get();
 
@@ -223,7 +303,7 @@ class ConsignmentController extends Controller
         $consignors = Consignor::where('store_id', $storeId)
             ->where('is_active', true)
             ->where('tipe', 'daily')
-            ->with(['items.variant'])
+            ->with(['items.variant.product'])
             ->orderBy('nama_penitip')
             ->get();
 
@@ -240,6 +320,64 @@ class ConsignmentController extends Controller
         $totalPayoutToday = $sessions->where('status', 'settled')->sum('total_payout');
         $totalMarginToday = $sessions->where('status', 'settled')->sum('total_kantin_margin');
 
+        // Fetch all items from all sessions today to build Pool Grouping per POS Button
+        $allDailyItems = DailyConsignmentItem::whereHas('dailyConsignment', function ($q) use ($storeId, $date) {
+            $q->where('store_id', $storeId)->whereDate('tanggal', $date);
+        })->with(['consignorItem', 'variant.product', 'dailyConsignment.consignor'])->get();
+
+        $activeVariantIds = $allDailyItems->pluck('product_variant_id')->unique()->filter()->values()->all();
+        $posSales = $this->getPosSalesByVariant($storeId, $date, $activeVariantIds);
+
+        // Build Pool Grouping summary
+        $poolSummary = [];
+        $totalPosSoldToday = 0;
+        $totalPosAmountToday = 0;
+
+        foreach ($allDailyItems->groupBy('product_variant_id') as $varId => $itemsInPool) {
+            $firstItem = $itemsInPool->first();
+            $variant = $firstItem->variant;
+            $posData = $posSales[$varId] ?? null;
+            $posQty = $posData ? (int) $posData->total_qty : 0;
+            $posAmount = $posData ? (float) $posData->total_amount : 0;
+
+            $totalTitipPool = $itemsInPool->sum('qty_titip');
+            $totalSisaPool = $itemsInPool->sum('qty_sisa');
+            $totalLakuPool = $itemsInPool->sum('qty_laku');
+            $allSettled = $itemsInPool->every(fn($item) => $item->dailyConsignment->status === 'settled');
+
+            $varianceQty = $posQty - $totalLakuPool;
+            $varianceAmount = $varianceQty * ($variant->harga_jual ?? 0);
+
+            $poolSummary[$varId] = [
+                'variant_id'        => $varId,
+                'variant_name'      => $variant ? ($variant->product->nama_produk ?? 'Produk') . ' - ' . $variant->variant_name : 'Varian #' . $varId,
+                'harga_jual'        => $variant->harga_jual ?? 0,
+                'total_titip'       => $totalTitipPool,
+                'total_sisa'        => $totalSisaPool,
+                'total_laku_fisik'  => $totalLakuPool,
+                'pos_sold_qty'      => $posQty,
+                'pos_sold_amount'   => $posAmount,
+                'estimasi_sisa'     => max(0, $totalTitipPool - $posQty),
+                'all_settled'       => $allSettled,
+                'variance_qty'      => $varianceQty,
+                'variance_amount'   => $varianceAmount,
+                'audit_status'      => $allSettled ? ($varianceQty === 0 ? 'MATCH' : ($varianceQty < 0 ? 'UNDER' : 'OVER')) : 'LIVE',
+                'items_detail'      => $itemsInPool->map(function ($it) {
+                    return [
+                        'penitip'  => $it->dailyConsignment->consignor->nama_penitip ?? 'Penitip',
+                        'item'     => $it->consignorItem->nama_item ?? '-',
+                        'titip'    => $it->qty_titip,
+                        'sisa'     => $it->qty_sisa,
+                        'laku'     => $it->qty_laku,
+                        'status'   => $it->dailyConsignment->status,
+                    ];
+                })->values()->all(),
+            ];
+
+            $totalPosSoldToday += $posQty;
+            $totalPosAmountToday += $posAmount;
+        }
+
         return view('consignments.daily', compact(
             'sessions',
             'consignors',
@@ -248,7 +386,11 @@ class ConsignmentController extends Controller
             'totalTitipToday',
             'totalLakuToday',
             'totalPayoutToday',
-            'totalMarginToday'
+            'totalMarginToday',
+            'poolSummary',
+            'totalPosSoldToday',
+            'totalPosAmountToday',
+            'posSales'
         ));
     }
 
@@ -404,7 +546,23 @@ class ConsignmentController extends Controller
             }
 
             // Generate Settlement Number
-            $settlementNumber = 'SETL-' . date('Ymd') . '-' . str_pad($daily->id, 4, '0', STR_PAD_LEFT);
+            // Calculate POS Comparison & Variance for this session
+            $sessionVariantIds = $daily->items->pluck('product_variant_id')->unique()->filter()->values()->all();
+            $posSalesData = $this->getPosSalesByVariant($storeId, Carbon::parse($daily->tanggal)->toDateString(), $sessionVariantIds);
+
+            $totalPosQty = 0;
+            $totalPosAmount = 0;
+            foreach ($sessionVariantIds as $vId) {
+                if (isset($posSalesData[$vId])) {
+                    $totalPosQty += (int) $posSalesData[$vId]->total_qty;
+                    $totalPosAmount += (float) $posSalesData[$vId]->total_amount;
+                }
+            }
+
+            $varianceQty = $totalPosQty - $totalLaku;
+            $sampleHargaJual = $daily->items->first()->harga_jual ?? 0;
+            $varianceAmount = $varianceQty * $sampleHargaJual;
+            $auditStatus = ($varianceQty === 0) ? 'MATCH' : (($varianceQty < 0) ? 'UNDER' : 'OVER');
 
             // Create Settlement Record
             $settlement = ConsignmentSettlement::create([
@@ -417,6 +575,11 @@ class ConsignmentController extends Controller
                 'settlement_date'      => now()->toDateString(),
                 'total_amount'         => $totalPayout,
                 'payment_method'       => $request->payment_method,
+                'total_pos_qty'        => $totalPosQty,
+                'total_pos_amount'     => $totalPosAmount,
+                'variance_qty'         => $varianceQty,
+                'variance_amount'      => $varianceAmount,
+                'audit_status'         => $auditStatus,
                 'catatan'              => $request->catatan,
             ]);
 

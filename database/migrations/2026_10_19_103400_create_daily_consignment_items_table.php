@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('daily_consignment_id')->index();
             $table->unsignedBigInteger('consignor_item_id')->index();
-            $table->unsignedBigInteger('product_variant_id')->nullable()->index();
+            $table->unsignedBigInteger('product_variant_id')->index();
             $table->integer('qty_titip')->default(0);
             $table->integer('qty_sisa')->default(0);
             $table->integer('qty_laku')->default(0);
