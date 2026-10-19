@@ -13,8 +13,8 @@ Artisan::command('inspire', function () {
 // Kirim pengingat FCM H-7 masa aktif langganan toko (setiap hari jam 08:00)
 Schedule::command('subscription:send-warnings')->dailyAt('08:00')->withoutOverlapping();
 
-// Generate digital daily newspaper for stores at 23:59 WIB daily
-Schedule::command('newspaper:generate')->dailyAt('23:59')->withoutOverlapping()->runInBackground();
+// Generate digital daily newspaper for stores at 04:00 WIB daily for yesterday (H-1)
+Schedule::command('newspaper:generate --date=yesterday')->dailyAt('04:00')->withoutOverlapping()->runInBackground();
 
 // Reset kuota harian menu FnB pada 00:01 setiap hari
 Artisan::command('pos:reset-daily-quota', function () {

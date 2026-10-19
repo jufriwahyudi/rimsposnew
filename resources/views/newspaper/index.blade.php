@@ -33,7 +33,7 @@
                 </div>
                 <h5 class="fw-semibold text-dark">Belum Ada Edisi Koran</h5>
                 <p class="text-muted mx-auto" style="max-width: 400px;">
-                    Sistem otomatis menyusun Koran Toko Digital setiap malam pukul 23:59 setelah toko tutup.
+                    Sistem otomatis menyusun Koran Toko Digital setiap pagi pukul 04:00 WIB setelah seluruh transaksi hari kemarin selesai direkap.
                 </p>
             </div>
         @else
@@ -50,6 +50,11 @@
                                         </span>
                                         @if($item->status === 'success')
                                             <span class="badge bg-light-success text-success fw-semibold px-2 py-1">Edisi Siap</span>
+                                            @if($item->ai_provider === 'fallback')
+                                                <span class="badge bg-light-secondary text-secondary fw-semibold px-2 py-1">Edisi Cepat</span>
+                                            @elseif($item->ai_provider)
+                                                <span class="badge bg-light-info text-info fw-semibold px-2 py-1">AI {{ ucfirst($item->ai_provider) }}</span>
+                                            @endif
                                         @elseif($item->status === 'pending')
                                             <span class="badge bg-light-warning text-warning fw-semibold px-2 py-1">Sedang Disiapkan</span>
                                         @else

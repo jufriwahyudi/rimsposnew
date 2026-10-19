@@ -15,8 +15,10 @@ class DigitalNewspaper extends Model
         'store_id',
         'report_date',
         'status',
+        'ai_provider',
         'headline',
         'content_html',
+        'sections_json',
         'raw_payload',
         'generated_at',
         'error_message',
@@ -25,6 +27,7 @@ class DigitalNewspaper extends Model
     protected $casts = [
         'report_date' => 'date',
         'raw_payload' => 'array',
+        'sections_json' => 'array',
         'generated_at' => 'datetime',
     ];
 

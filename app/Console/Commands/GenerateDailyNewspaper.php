@@ -31,7 +31,14 @@ class GenerateDailyNewspaper extends Command
      */
     public function handle(DataAggregatorService $aggregator, GeminiService $gemini)
     {
-        $date = $this->option('date') ?: Carbon::today()->toDateString();
+        $dateOption = $this->option('date');
+        if ($dateOption === 'yesterday') {
+            $date = Carbon::yesterday()->toDateString();
+        } elseif ($dateOption) {
+            $date = Carbon::parse($dateOption)->toDateString();
+        } else {
+            $date = now()->hour < 6 ? Carbon::yesterday()->toDateString() : Carbon::today()->toDateString();
+        }
         $storeIdOption = $this->option('store');
 
         $this->info("Starting digital newspaper generation for date: {$date}");
@@ -73,13 +80,15 @@ class GenerateDailyNewspaper extends Command
                     'raw_payload' => $aggregatedData
                 ]);
 
-                // 2. Generate daily newspaper using DeepSeek v4
+                // 2. Generate daily newspaper using DeepSeek / Gemini / Fallback
                 $result = $gemini->generateDailyNewspaperWithDeepSeek($aggregatedData);
 
                 // 3. Update status to success
                 $newspaper->update([
                     'headline' => $result['headline'],
                     'content_html' => $result['content_html'],
+                    'sections_json' => $result['sections_json'] ?? null,
+                    'ai_provider' => $result['ai_provider'] ?? 'fallback',
                     'status' => 'success',
                 ]);
 

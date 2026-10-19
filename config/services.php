@@ -49,7 +49,7 @@ return [
 
     'deepseek' => [
         'key' => env('DEEPSEEK_API_KEY'),
-        'model' => env('DEEPSEEK_MODEL', 'deepseek-v4'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-flash'),
         'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
     ],
 

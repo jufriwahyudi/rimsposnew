@@ -120,10 +120,18 @@
             <!-- Newspaper Header -->
             <div class="newspaper-header">
                 <div class="newspaper-title">KORAN TOKO DIGITAL</div>
-                <div class="newspaper-meta d-flex justify-content-between px-2">
-                    <span>Edisi: {{ $newspaper->store->name ?? 'Toko' }}</span>
-                    <span>{{ $newspaper->report_date->translatedFormat('l, d F Y') }}</span>
-                    <span>ID: #{{ $newspaper->id }}</span>
+                <div class="newspaper-meta d-flex justify-content-between align-items-center px-2 flex-wrap gap-2">
+                    <span><strong>Edisi:</strong> {{ $newspaper->store->name ?? 'Toko' }} ({{ strtoupper($newspaper->store->business_type ?? 'RETAIL') }})</span>
+                    <span><i class="far fa-calendar-alt me-1"></i> {{ $newspaper->report_date->translatedFormat('l, d F Y') }}</span>
+                    <span>
+                        @if($newspaper->ai_provider === 'deepseek')
+                            <span class="badge bg-primary text-white px-2 py-1"><i class="fas fa-brain me-1"></i> AI DeepSeek</span>
+                        @elseif($newspaper->ai_provider === 'gemini')
+                            <span class="badge bg-info text-white px-2 py-1"><i class="fas fa-robot me-1"></i> AI Gemini</span>
+                        @else
+                            <span class="badge bg-secondary text-white px-2 py-1"><i class="fas fa-bolt me-1"></i> Edisi Cepat Otomatis</span>
+                        @endif
+                    </span>
                 </div>
             </div>
 
@@ -131,6 +139,37 @@
             <h1 class="newspaper-headline">
                 "{{ $newspaper->headline ?: 'Rangkuman Harian Kinerja Operasional Toko' }}"
             </h1>
+
+            @php
+                $payload = $newspaper->raw_payload ?? [];
+                $summary = $payload['summary'] ?? [];
+                $netRevenue = $summary['net_revenue'] ?? $summary['total_revenue'] ?? null;
+                $txCount = $summary['total_transactions'] ?? null;
+                $avgBill = $summary['avg_transaction_value'] ?? null;
+                $vsYest = $summary['revenue_vs_yesterday_pct'] ?? null;
+            @endphp
+            @if($netRevenue !== null)
+            <div class="row g-2 mb-4 text-center py-2 border-top border-bottom rounded" style="background-color: #f7f4ec;">
+                <div class="col-6 col-md-3 border-end">
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">OMSET BERSIH</small>
+                    <strong class="fs-6">Rp {{ number_format($netRevenue, 0, ',', '.') }}</strong>
+                </div>
+                <div class="col-6 col-md-3 border-end">
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">TOTAL TRANSAKSI</small>
+                    <strong class="fs-6">{{ number_format($txCount, 0, ',', '.') }} Struk</strong>
+                </div>
+                <div class="col-6 col-md-3 border-end">
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">RATA-RATA / STRUK</small>
+                    <strong class="fs-6">Rp {{ number_format($avgBill, 0, ',', '.') }}</strong>
+                </div>
+                <div class="col-6 col-md-3">
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">VS KEMARIN</small>
+                    <strong class="fs-6 {{ ($vsYest ?? 0) >= 0 ? 'text-success' : 'text-danger' }}">
+                        {{ ($vsYest ?? 0) >= 0 ? '+' : '' }}{{ $vsYest ?? 0 }}%
+                    </strong>
+                </div>
+            </div>
+            @endif
 
             <!-- Newspaper Body -->
             <div class="newspaper-body">
