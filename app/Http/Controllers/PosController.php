@@ -3049,17 +3049,29 @@ class PosController extends Controller
 
         $station = $request->input('station'); // 'kitchen', 'bar', 'tenant_sate', etc.
 
+        $isMultiPrinter = (bool) ($store->addon_multi_printer);
+
         if ($isChecklist) {
             $filteredItems = $sale->items
                 ->filter(fn ($i) => ! in_array($i->status, ['voided', 'exchanged_out']))
-                ->filter(function ($item) use ($station) {
+                ->filter(function ($item) use ($station, $isMultiPrinter) {
+                    $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
+                    $cat = $item->product?->category ?: $item->variant?->product?->category;
+                    // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori
+                    $itemStation = $tenant?->printer?->code ?: ($cat?->printer?->code ?: $cat?->station);
+
+                    // Jika toko mengaktifkan multi-printer, hormati opsi "-- Tidak dicetak --" (jika null jangan dicetak)
+                    if ($isMultiPrinter) {
+                        if (! $itemStation) {
+                            return false;
+                        }
+                    } else {
+                        $itemStation = $itemStation ?: 'kitchen';
+                    }
+
                     if (! $station || $station === 'all') {
                         return true;
                     }
-                    $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
-                    $cat = $item->product?->category ?: $item->variant?->product?->category;
-                    // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori / 'kitchen'
-                    $itemStation = $tenant?->printer?->code ?: ($cat?->printer?->code ?: ($cat?->station ?: 'kitchen'));
 
                     return strtolower($itemStation) === strtolower($station);
                 });
@@ -3226,17 +3238,28 @@ class PosController extends Controller
             'items.fnbDetail',
         ])->where('store_id', $storeId)->findOrFail($id);
 
-        DB::transaction(function () use ($sale, $station) {
+        $store = Store::find($storeId);
+        $isMultiPrinter = (bool) ($store?->addon_multi_printer);
+
+        DB::transaction(function () use ($sale, $station, $isMultiPrinter) {
             foreach ($sale->items as $item) {
+                $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
+                $cat = $item->product?->category ?: $item->variant?->product?->category;
+                $itemStation = $tenant?->printer?->code ?: ($cat?->printer?->code ?: $cat?->station);
+
+                if ($isMultiPrinter) {
+                    if (! $itemStation) {
+                        continue;
+                    }
+                } else {
+                    $itemStation = $itemStation ?: 'kitchen';
+                }
+
                 if (! $station || $station === 'all') {
                     if ($item->kitchen_printed_qty < $item->qty) {
                         $item->update(['kitchen_printed_qty' => $item->qty]);
                     }
                 } else {
-                    $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
-                    $cat = $item->product?->category ?: $item->variant?->product?->category;
-                    // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori / 'kitchen'
-                    $itemStation = $tenant?->printer?->code ?: ($cat?->printer?->code ?: ($cat?->station ?: 'kitchen'));
                     if (strtolower($itemStation) === strtolower($station)) {
                         if ($item->kitchen_printed_qty < $item->qty) {
                             $item->update(['kitchen_printed_qty' => $item->qty]);
@@ -3305,7 +3328,10 @@ class PosController extends Controller
             ->limit(100)
             ->get();
 
-        $data = $sales->map(function ($sale) {
+        $store = Store::find($storeId);
+        $isMultiPrinter = (bool) ($store?->addon_multi_printer);
+
+        $data = $sales->map(function ($sale) use ($isMultiPrinter) {
             $stationsMap = [];
 
             foreach ($sale->items as $item) {
@@ -3315,8 +3341,17 @@ class PosController extends Controller
 
                 $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
                 $cat = $item->product?->category ?: $item->variant?->product?->category;
-                // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori / 'kitchen'
-                $stationCode = $tenant?->printer?->code ?: ($cat?->printer?->code ?: ($cat?->station ?: 'kitchen'));
+                // Prioritas 1: Printer Tenant, Prioritas 2: Printer Kategori, Prioritas 3: Station Kategori
+                $stationCode = $tenant?->printer?->code ?: ($cat?->printer?->code ?: $cat?->station);
+
+                if ($isMultiPrinter) {
+                    if (! $stationCode) {
+                        continue;
+                    }
+                } else {
+                    $stationCode = $stationCode ?: 'kitchen';
+                }
+
                 $stationName = $tenant?->printer?->name ?: ($cat?->printer?->name ?: (ucfirst(str_replace('_', ' ', $stationCode))));
 
                 if (! isset($stationsMap[$stationCode])) {
