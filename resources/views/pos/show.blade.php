@@ -113,7 +113,7 @@
                         ])>
                             <td>#{{ $item->id }}</td>
                             <td>
-                                {{ $item->variant ? $item->variant->product->nama_produk : $item->product_name }}
+                                {{ $item->variant?->product?->nama_produk ?? $item->product_name }}
 
                                 {{-- Info hasil exchange --}}
                                 @if ($item->status === 'exchanged_in' && $item->ref_sale_item_id)
@@ -410,7 +410,7 @@
                             @foreach ($variants as $v)
                                 <option value="{{ $v->id }}" {{ $v->stok_store <= 0 ? 'disabled' : '' }}
                                     data-harga="{{ $v->harga_jual }}">
-                                    {{ $v->product->nama_produk }} ({{ $v->sku }})
+                                    {{ $v->product?->nama_produk ?? $v->variant_name ?? 'Produk' }} ({{ $v->sku }})
                                     Rp.{{ number_format($v->harga_jual) }} Stok: {{ $v->stok_store }}
                                 </option>
                             @endforeach

@@ -525,6 +525,7 @@ class PosController extends Controller
     public function show(Sale $sale)
     {
         $sale->load([
+            'items.variant.product',
             'items.variant.variantAttributes.value',
             'items.batches',
             'refunds',
@@ -537,7 +538,12 @@ class PosController extends Controller
         $store = $storeId ? Store::find($storeId) : null;
         $isFnB = $store && $store->business_type === 'fnb';
 
-        $variants = $isFnB ? collect() : ProductVariant::with('product')->get();
+        $variants = $isFnB
+            ? collect()
+            : ProductVariant::with('product')
+                ->whereHas('product')
+                ->where('is_active', 'Y')
+                ->get();
         $akunkas = Rekening::where('store_id', $storeId)->get();
         $akunkasir = 0;
 
