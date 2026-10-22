@@ -3594,7 +3594,16 @@ class PosController extends Controller
             return response()->json(['message' => 'store_id diperlukan'], 422);
         }
 
-        $hasAccess = auth()->user()
+        $currentUser = auth()->user();
+        $isWaiter = $currentUser && $currentUser->roles->contains(function ($ru) {
+            return $ru->roles && $ru->roles->role_type === 'WAITER';
+        });
+
+        if ($isWaiter) {
+            return response()->json(['message' => 'Akun Waiter tidak diizinkan untuk membatalkan/void transaksi.'], 403);
+        }
+
+        $hasAccess = $currentUser
             ->stores()
             ->where('stores.id', $storeId)
             ->exists();
