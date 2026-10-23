@@ -87,6 +87,7 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
         Route::post('/items/{id}/status',           [\App\Http\Controllers\Api\TenantOrderApiController::class, 'updateItemStatus']);
         Route::get('/orders/{id}/receipt',          [\App\Http\Controllers\Api\TenantOrderApiController::class, 'receipt']);
         Route::get('/history',                      [\App\Http\Controllers\Api\TenantOrderApiController::class, 'history']);
+        Route::get('/sales-history',                [\App\Http\Controllers\Api\TenantOrderApiController::class, 'salesHistory']);
     });
 
     // ── Midtrans Dynamic QRIS ────────────────────────────────────────────────

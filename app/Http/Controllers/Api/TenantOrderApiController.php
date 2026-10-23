@@ -407,6 +407,168 @@ class TenantOrderApiController extends Controller
     }
 
     /**
+     * GET /api/tenant/sales-history
+     *
+     * Detailed sales history for authenticated tenant with date range filtering,
+     * pagination, search, financial metrics (gross sales, commissions, net payout),
+     * and menu breakdown.
+     */
+    public function salesHistory(Request $request)
+    {
+        $user = $request->user();
+        $tenantId = $this->getTenantId($user);
+
+        if (!$tenantId) {
+            return response()->json(['message' => 'Akses ditolak.'], 403);
+        }
+
+        $from = $request->input('from', Carbon::today()->format('Y-m-d'));
+        $to = $request->input('to', Carbon::today()->format('Y-m-d'));
+        $search = trim($request->input('search', ''));
+        $paymentStatus = $request->input('payment_status', 'all');
+        $storeId = $request->input('store_id');
+        $perPage = (int) $request->input('per_page', 20);
+
+        // 1. Overall Summary across the entire filtered period
+        $summaryItems = SaleItem::with(['variant.product'])
+            ->whereNotIn('status', ['voided', 'refunded'])
+            ->whereHas('variant.product', function ($q) use ($tenantId) {
+                $q->where('tenant_id', $tenantId);
+            })
+            ->whereHas('sale', function ($q) use ($from, $to, $storeId, $paymentStatus, $search) {
+                $q->whereNotIn('status', ['void', 'cancelled'])
+                  ->whereBetween('sale_date', [$from . ' 00:00:00', $to . ' 23:59:59']);
+                if ($storeId) {
+                    $q->where('store_id', $storeId);
+                }
+                if ($paymentStatus && $paymentStatus !== 'all') {
+                    $q->where('status', $paymentStatus);
+                }
+                if ($search !== '') {
+                    $q->where(function ($sq) use ($search) {
+                        $sq->where('invoice_number', 'like', "%{$search}%")
+                          ->orWhere('customer_name', 'like', "%{$search}%")
+                          ->orWhere('table_number', 'like', "%{$search}%");
+                    });
+                }
+            })
+            ->get();
+
+        $totalOrders = $summaryItems->pluck('sale_id')->unique()->count();
+        $totalPortions = (int) $summaryItems->sum('qty');
+        $grossSales = 0;
+        $totalCommission = 0;
+
+        foreach ($summaryItems as $item) {
+            $subtotal = $item->price * $item->qty;
+            $commAmount = $item->commission_amount ?? ($item->variant ? $item->variant->calculateCommission($item->price) : 0);
+            $commission = $commAmount * $item->qty;
+            $grossSales += $subtotal;
+            $totalCommission += $commission;
+        }
+        $netPayout = $grossSales - $totalCommission;
+
+        // Menu breakdown for the selected period
+        $menuBreakdown = $summaryItems->groupBy('product_name')->map(function ($group, $name) {
+            return [
+                'menu_name'     => $name,
+                'total_qty'     => (int) $group->sum('qty'),
+                'total_revenue' => (int) $group->sum(fn($i) => $i->price * $i->qty),
+            ];
+        })->values()->sortByDesc('total_qty')->values();
+
+        // 2. Paginated Sales List
+        $salesQuery = Sale::with([
+            'items' => function ($q) use ($tenantId) {
+                $q->whereNotIn('status', ['voided', 'refunded'])
+                  ->whereHas('variant.product', fn($pq) => $pq->where('tenant_id', $tenantId))
+                  ->with(['variant.product', 'fnbDetail']);
+            },
+            'store'
+        ])
+        ->whereNotIn('status', ['void', 'cancelled'])
+        ->whereBetween('sale_date', [$from . ' 00:00:00', $to . ' 23:59:59'])
+        ->whereHas('items.variant.product', function ($q) use ($tenantId) {
+            $q->where('tenant_id', $tenantId);
+        });
+
+        if ($storeId) {
+            $salesQuery->where('store_id', $storeId);
+        }
+
+        if ($paymentStatus && $paymentStatus !== 'all') {
+            $salesQuery->where('status', $paymentStatus);
+        }
+
+        if ($search !== '') {
+            $salesQuery->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhere('customer_name', 'like', "%{$search}%")
+                  ->orWhere('table_number', 'like', "%{$search}%");
+            });
+        }
+
+        $paginatedSales = $salesQuery->orderBy('sale_date', 'desc')->paginate($perPage);
+
+        $salesData = collect($paginatedSales->items())->map(function ($sale) use ($tenantId) {
+            $items = $sale->items->filter(function ($item) use ($tenantId) {
+                return ($item->variant?->product?->tenant_id ?? $item->product?->tenant_id) == $tenantId;
+            });
+
+            $tenantTotal = (int) $items->sum(fn($i) => $i->price * $i->qty);
+            $tenantPortions = (int) $items->sum('qty');
+
+            return [
+                'id'              => $sale->id,
+                'invoice_number'  => $sale->invoice_number,
+                'sale_date'       => $sale->sale_date ? $sale->sale_date->format('Y-m-d H:i:s') : ($sale->created_at ? $sale->created_at->format('Y-m-d H:i:s') : null),
+                'table_number'    => $sale->table_number ?? 'Takeaway',
+                'customer_name'   => $sale->customer_name ?? 'Umum',
+                'payment_status'  => $sale->status,
+                'tenant_total'    => $tenantTotal,
+                'tenant_portions' => $tenantPortions,
+                'items'           => $items->map(function ($item) {
+                    return [
+                        'id'         => $item->id,
+                        'name'       => $item->product_name,
+                        'variant'    => $item->variant?->name,
+                        'qty'        => (int) $item->qty,
+                        'price'      => (int) $item->price,
+                        'subtotal'   => (int) ($item->price * $item->qty),
+                        'notes'      => $item->notes ?? '',
+                        'kds_status' => $item->kds_status ?? 'pending',
+                    ];
+                })->values()->toArray(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'tenant'  => [
+                'id'   => $tenantId,
+                'name' => $user->tenant?->nama_tenant ?? 'Tenant',
+            ],
+            'summary' => [
+                'from'             => $from,
+                'to'               => $to,
+                'total_orders'     => $totalOrders,
+                'total_portions'   => $totalPortions,
+                'gross_sales'      => (int) $grossSales,
+                'total_commission' => (int) $totalCommission,
+                'net_payout'       => (int) $netPayout,
+            ],
+            'sales' => [
+                'current_page' => $paginatedSales->currentPage(),
+                'last_page'    => $paginatedSales->lastPage(),
+                'per_page'     => $paginatedSales->perPage(),
+                'total'        => $paginatedSales->total(),
+                'data'         => $salesData,
+            ],
+            'menu_breakdown' => $menuBreakdown,
+        ]);
+    }
+
+    /**
      * Helper to sync order to Firestore if applicable.
      */
     protected function trySyncFirestore(Sale $sale)
