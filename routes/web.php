@@ -432,6 +432,8 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     #export excel laporan stok
     Route::get('/laporan-stok/excel', [LaporanController::class, 'exportExcel'])
         ->name('laporan.stok.excel');
+    Route::get('/laporan-stok/alert/excel', [LaporanController::class, 'exportAlertExcel'])
+        ->name('laporan.stok.alert.excel');
 
     #export pdf penerimaan kas
     Route::get('/cetakkaspdf/{tanggal?}/{user_id?}', [LaporanController::class, 'cetakPenerimaanKas'])->name('laporan.cetak_penerimaan_kas');

@@ -19,6 +19,7 @@ use App\Models\Member;
 use App\Models\Store;
 use App\Exports\LaporanBiayaExport;
 use App\Exports\LaporanStokExport;
+use App\Exports\LaporanStokAlertExport;
 use App\Exports\LaporanPenjualanExport;
 use App\Exports\LaporanPenjualanNSEExport;
 use App\Exports\LaporanLabaRugiExport;
@@ -267,7 +268,11 @@ class LaporanController extends Controller
 
     public function stok(Request $request)
     {
-        $tanggal = $request->tanggal ?? now()->toDateString();
+        $tanggal    = $request->tanggal ?? now()->toDateString();
+        $threshold  = max(0, (int) $request->input('threshold', 5));
+        $alertType  = $request->input('alert_type', 'all');
+        $posisiStok = $request->input('posisi_stok', 'total');
+        $activeTab  = $request->input('tab', 'posisi');
 
         $products = Product::query()
             ->with([
@@ -314,9 +319,94 @@ class LaporanController extends Controller
             ])
             ->orderBy('nama_produk')
             ->get();
-        // dd(json_encode($products, JSON_PRETTY_PRINT));
 
-        return view('laporan.stok', compact('products', 'tanggal'));
+        // Hitung alert & kumpulkan item alert
+        $totalTracked = 0;
+        $totalHabis   = 0;
+        $totalMenipis = 0;
+        $alertItems   = collect();
+
+        foreach ($products as $product) {
+            $varianCount = $product->variants->count();
+
+            foreach ($product->variants as $variant) {
+                if (!$variant->track_stock) {
+                    continue;
+                }
+
+                $totalTracked++;
+
+                $stokWarehouse = (int) data_get($variant, 'stock_warehouse', 0);
+                $stokStore     = (int) data_get($variant, 'stock_store', 0);
+                $stokTotal     = $stokWarehouse + $stokStore;
+
+                $checkedStock = match ($posisiStok) {
+                    'warehouse' => $stokWarehouse,
+                    'store'     => $stokStore,
+                    default     => $stokTotal,
+                };
+
+                $status = null;
+                if ($checkedStock <= 0) {
+                    $totalHabis++;
+                    $status = 'out_of_stock';
+                } elseif ($checkedStock <= $threshold) {
+                    $totalMenipis++;
+                    $status = 'low_stock';
+                }
+
+                if ($status !== null) {
+                    $matchesType = ($alertType === 'all')
+                        || ($alertType === 'out_of_stock' && $status === 'out_of_stock')
+                        || ($alertType === 'low_stock' && $status === 'low_stock');
+
+                    if ($matchesType) {
+                        $label = $variant->variant_label ?: 'Tidak ada varian';
+                        if ($varianCount === 1) {
+                            $displayName = $product->nama_produk
+                                . (($label !== 'Tidak ada varian' && $label !== 'Default') ? ' — ' . $label : '');
+                        } else {
+                            $displayName = $product->nama_produk . ' — ' . $label;
+                        }
+
+                        $alertItems->push((object) [
+                            'product_id'     => $product->id,
+                            'product_name'   => $product->nama_produk,
+                            'variant_id'     => $variant->id,
+                            'display_name'   => $displayName,
+                            'sku'            => $variant->sku,
+                            'barcode'        => $variant->barcode ?? '-',
+                            'stok_warehouse' => $stokWarehouse,
+                            'stok_store'     => $stokStore,
+                            'stok_total'     => $stokTotal,
+                            'checked_stock'  => $checkedStock,
+                            'status'         => $status,
+                            'modal'          => (float) ($variant->modalPerTanggal($tanggal) ?? 0),
+                            'harga_jual'     => (float) ($variant->harga_jual ?? 0),
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // Urutkan item alert: Habis (<= 0) teratas, lalu stok paling sedikit
+        $alertItems = $alertItems->sortBy(function ($item) {
+            $prefix = $item->status === 'out_of_stock' ? '0_' : '1_';
+            return $prefix . str_pad((string) max(0, $item->checked_stock), 10, '0', STR_PAD_LEFT);
+        })->values();
+
+        return view('laporan.stok', compact(
+            'products',
+            'tanggal',
+            'threshold',
+            'alertType',
+            'posisiStok',
+            'activeTab',
+            'totalTracked',
+            'totalHabis',
+            'totalMenipis',
+            'alertItems'
+        ));
     }
 
     public function searchstock(Request $request)
@@ -981,6 +1071,19 @@ class LaporanController extends Controller
         return Excel::download(
             new LaporanStokExport($tanggal),
             'Laporan_Stok_' . $tanggal . '.xlsx'
+        );
+    }
+
+    public function exportAlertExcel(Request $request)
+    {
+        $tanggal    = $request->tanggal ?? now()->toDateString();
+        $threshold  = max(0, (int) $request->input('threshold', 5));
+        $alertType  = $request->input('alert_type', 'all');
+        $posisiStok = $request->input('posisi_stok', 'total');
+
+        return Excel::download(
+            new LaporanStokAlertExport($tanggal, $threshold, $alertType, $posisiStok),
+            'Laporan_Stok_Alert_' . $tanggal . '.xlsx'
         );
     }
 
