@@ -3388,6 +3388,7 @@ class PosController extends Controller
             // Evaluasi status cetak masing-masing stasiun
             $log = $sale->printed_stations_log ?? [];
             $hasUnprintedStation = false;
+            $isPaid = strtolower($sale->status) === 'paid';
 
             foreach ($stationsMap as $code => &$st) {
                 $printedTime = $log[$code] ?? null;
@@ -3401,8 +3402,16 @@ class PosController extends Controller
                     }
                 }
 
-                $st['printed_at'] = $printedTime;
-                $st['is_printed'] = ! empty($printedTime);
+                // Jika transaksi sudah lunas (PAID) dan stasiun belum tercatat,
+                // transaksi pembayaran langsung memang tidak dicetak ke stasiun bar/dapur/tenant,
+                // sehingga dianggap terselesaikan agar tidak memicu status gagal cetak di monitor.
+                if (! $printedTime && $isPaid) {
+                    $st['printed_at'] = $sale->updated_at?->toDateTimeString() ?: $sale->created_at?->toDateTimeString();
+                    $st['is_printed'] = true;
+                } else {
+                    $st['printed_at'] = $printedTime;
+                    $st['is_printed'] = ! empty($printedTime);
+                }
 
                 if (! $st['is_printed']) {
                     $hasUnprintedStation = true;
