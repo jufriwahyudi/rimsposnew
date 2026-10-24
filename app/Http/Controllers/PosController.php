@@ -2282,6 +2282,8 @@ class PosController extends Controller
                 } catch (\Throwable $e) {
                     \Log::error('Tenant notification error on mobile checkout: '.$e->getMessage());
                 }
+            } else {
+                \Log::info("Tenant notification SKIPPED for Sale #{$sale->id} ({$sale->invoice_number}) - Meja {$sale->table_number} (Pelunasan pembayaran, bukan pesanan baru).");
             }
 
             return response()->json([
