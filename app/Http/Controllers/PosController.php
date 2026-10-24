@@ -1487,7 +1487,11 @@ class PosController extends Controller
         }
 
         try {
-            $sale = DB::transaction(function () use ($request, $storeId, $buktiBayarPath) {
+            $isAppendOnly = false;
+            $existingSaleId = null;
+            $paymentMethod = 'cash';
+
+            $sale = DB::transaction(function () use ($request, $storeId, $buktiBayarPath, &$isAppendOnly, &$existingSaleId, &$paymentMethod) {
 
                 // Support both JSON body and multipart/form-data
                 $cart = $request->input('cart');
@@ -2269,11 +2273,15 @@ class PosController extends Controller
                 return $sale;
             });
 
-            // Kirim push notifikasi ke perangkat tenant jika ada pesanan miliknya
-            try {
-                app(TenantNotificationService::class)->notifyTenantsForSale($sale);
-            } catch (\Throwable $e) {
-                \Log::error('Tenant notification error on mobile checkout: '.$e->getMessage());
+            // Kirim push notifikasi ke perangkat tenant jika ada pesanan miliknya.
+            // Jangan kirim notifikasi pesanan baru jika ini adalah pelunasan tagihan hold yang sudah ada (bukan pesanan baru).
+            $isSettlingExistingHold = ! empty($existingSaleId) && $paymentMethod !== 'hold' && empty($isAppendOnly);
+            if (! $isSettlingExistingHold) {
+                try {
+                    app(TenantNotificationService::class)->notifyTenantsForSale($sale);
+                } catch (\Throwable $e) {
+                    \Log::error('Tenant notification error on mobile checkout: '.$e->getMessage());
+                }
             }
 
             return response()->json([
