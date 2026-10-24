@@ -137,6 +137,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
         Route::resource('expense-categories', ExpenseCategoryController::class)->except(['create', 'show']);
         Route::resource('rekening', RekeningController::class)->except(['create', 'show']);
         Route::resource('vendors', VendorController::class)->except(['create', 'show']);
+        Route::get('tenants/activity-logs', [TenantController::class, 'activityLogs'])->name('tenants.logs');
         Route::resource('tenants', TenantController::class)->except(['create', 'show']);
         Route::resource('sales-persons', SalesPersonController::class);
         Route::post('discounts/quick-presets', [DiscountController::class, 'updateQuickPresets'])->name('discounts.quick-presets');

@@ -28,9 +28,14 @@
                             <small class="text-muted">{{ session('store_name') }}</small>
                         </div>
                     </div>
-                    <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalTenant">
-                        <i class="material-icons-outlined" style="font-size:16px;vertical-align:middle">add</i> Tambah Tenant
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="{{ route('tenants.logs') }}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1">
+                            <i class="material-icons-outlined" style="font-size:16px;">receipt_long</i> Live Monitor Log
+                        </a>
+                        <button class="btn btn-success btn-sm d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalTenant">
+                            <i class="material-icons-outlined" style="font-size:16px;">add</i> Tambah Tenant
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">

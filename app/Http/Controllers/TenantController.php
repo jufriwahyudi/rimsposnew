@@ -105,4 +105,105 @@ class TenantController extends Controller
             'message' => 'Tenant berhasil dihapus.'
         ]);
     }
+
+    /**
+     * GET /settings/tenants/activity-logs
+     * Menampilkan UI monitor realtime untuk aktivitas dan notifikasi tenant.
+     */
+    public function activityLogs(Request $request)
+    {
+        $rawLogs = $this->getRecentTenantLogs(200);
+
+        $sentCount = count(array_filter($rawLogs, fn($l) => str_contains($l['type'], 'TERKIRIM')));
+        $skippedCount = count(array_filter($rawLogs, fn($l) => str_contains($l['type'], 'DI-SKIP')));
+        $errorCount = count(array_filter($rawLogs, fn($l) => str_contains($l['type'], 'GAGAL')));
+
+        $stats = [
+            'sent'    => $sentCount,
+            'skipped' => $skippedCount,
+            'error'   => $errorCount,
+            'total'   => count($rawLogs),
+        ];
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'logs'    => $rawLogs,
+                'stats'   => $stats,
+            ]);
+        }
+
+        return view('tenants.logs', compact('rawLogs', 'stats'));
+    }
+
+    /**
+     * Membaca dan mem-parsing log tenant terbaru dari storage/logs/laravel.log.
+     */
+    protected function getRecentTenantLogs(int $maxLines = 200): array
+    {
+        $logFile = storage_path('logs/laravel.log');
+        if (! file_exists($logFile)) {
+            return [];
+        }
+
+        try {
+            $file = new \SplFileObject($logFile, 'r');
+            $file->seek(PHP_INT_MAX);
+            $totalLines = $file->key();
+
+            // Scan hingga 3000 baris terakhir dari file log
+            $startLine = max(0, $totalLines - 3000);
+            $file->seek($startLine);
+
+            $parsed = [];
+            while (! $file->eof()) {
+                $line = trim((string) $file->fgets());
+                if (empty($line)) {
+                    continue;
+                }
+
+                if (stripos($line, 'tenant') === false) {
+                    continue;
+                }
+
+                if (preg_match('/^\[(.*?)\]\s+\w+\.(\w+):\s+(.*)$/', $line, $m)) {
+                    $time = $m[1];
+                    $level = strtoupper($m[2]);
+                    $msg = $m[3];
+
+                    $type = 'INFO';
+                    $badge = 'bg-info';
+                    $icon = 'info';
+
+                    if (stripos($msg, 'SKIPPED') !== false) {
+                        $type = 'DI-SKIP (Pelunasan Kasir)';
+                        $badge = 'bg-warning text-dark';
+                        $icon = 'block';
+                    } elseif (stripos($msg, 'Sent tenant order') !== false) {
+                        $type = 'TERKIRIM (Pesanan Baru)';
+                        $badge = 'bg-success text-white';
+                        $icon = 'check_circle';
+                    } elseif ($level === 'ERROR' || stripos($msg, 'failed') !== false || stripos($msg, 'error') !== false) {
+                        $type = 'GAGAL / ERROR';
+                        $badge = 'bg-danger text-white';
+                        $icon = 'error';
+                    }
+
+                    $parsed[] = [
+                        'time'    => $time,
+                        'level'   => $level,
+                        'type'    => $type,
+                        'badge'   => $badge,
+                        'icon'    => $icon,
+                        'message' => $msg,
+                    ];
+                }
+            }
+
+            return array_slice(array_reverse($parsed), 0, $maxLines);
+        } catch (\Throwable $e) {
+            \Log::error('Error reading tenant activity logs: ' . $e->getMessage());
+            return [];
+        }
+    }
 }
