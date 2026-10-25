@@ -5338,4 +5338,60 @@ class PosController extends Controller
             'message' => 'Semua menu berhasil di-reset menjadi Tersedia (Tanpa Batas)',
         ]);
     }
+
+    /**
+     * POST /pos/menu-availability/tenant-toggle
+     * POST /api/pos/menu-availability/tenant-toggle
+     * Set all product variants under a specific tenant to available or unavailable (habis / tutup).
+     */
+    public function apiSetTenantMenuAvailability(Request $request)
+    {
+        $storeId = session('store_id') ?: $request->input('store_id');
+        if (! $storeId) {
+            return response()->json(['message' => 'store_id diperlukan'], 422);
+        }
+
+        $request->validate([
+            'tenant_id' => 'required|exists:tenants,id',
+            'is_available' => 'required|boolean',
+        ]);
+
+        $user = auth()->user();
+        $tenantId = $request->input('tenant_id');
+
+        if ($user && $user->tenant_id && $user->tenant_id != $tenantId) {
+            return response()->json([
+                'message' => 'Anda hanya berhak mengatur ketersediaan menu milik tenant Anda sendiri',
+            ], 403);
+        }
+
+        $isAvailable = $request->boolean('is_available');
+
+        $query = ProductVariant::where('store_id', $storeId)
+            ->where('is_active', 'Y')
+            ->whereHas('product', fn ($q) => $q->where('tenant_id', $tenantId));
+
+        if ($isAvailable) {
+            $query->update([
+                'is_available' => true,
+                'daily_quota' => null,
+                'quota_date' => now()->toDateString(),
+            ]);
+        } else {
+            $query->update([
+                'is_available' => false,
+                'daily_quota' => 0,
+                'quota_date' => now()->toDateString(),
+            ]);
+        }
+
+        $tenant = Tenant::find($tenantId);
+        $statusText = $isAvailable ? 'dibuka kembali (Semua menu Tersedia)' : 'ditutup (Semua menu Ditandai Habis)';
+
+        return response()->json([
+            'success' => true,
+            'message' => "Tenant '{$tenant?->nama_tenant}' berhasil {$statusText}",
+            'is_available' => $isAvailable,
+        ]);
+    }
 }

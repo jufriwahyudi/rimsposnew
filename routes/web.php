@@ -275,6 +275,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/pos/menu-availability', [PosController::class, 'apiGetMenuAvailability'])->name('pos.menu-availability');
     Route::post('/pos/menu-availability/update', [PosController::class, 'apiUpdateMenuAvailability'])->name('pos.menu-availability.update');
     Route::post('/pos/menu-availability/reset-all', [PosController::class, 'apiResetAllMenuAvailability'])->name('pos.menu-availability.reset-all');
+    Route::post('/pos/menu-availability/tenant-toggle', [PosController::class, 'apiSetTenantMenuAvailability'])->name('pos.menu-availability.tenant-toggle');
     Route::get('/pos/service-orders', [PosController::class, 'apiServiceOrders'])->name('pos.service-orders');
     Route::get('/pos/staff', [PosController::class, 'apiStaff'])->name('pos.staff');
     Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');

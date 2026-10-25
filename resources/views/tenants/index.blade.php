@@ -87,20 +87,33 @@
                                             @endif
                                         </td>
                                         <td class="text-center">
-                                            <button class="btn btn-sm btn-warning btn-edit-tenant" 
-                                                data-id="{{ $tenant->id }}"
-                                                data-kode_tenant="{{ $tenant->kode_tenant }}" 
-                                                data-nama_tenant="{{ $tenant->nama_tenant }}"
-                                                data-printer_id="{{ $tenant->printer_id ?? '' }}"
-                                                data-telepon="{{ $tenant->telepon }}" 
-                                                data-alamat="{{ $tenant->alamat }}"
-                                                data-commission_rate="{{ $tenant->commission_rate }}"
-                                                data-stts="{{ $tenant->stts }}">
-                                                <i class="material-icons-outlined" style="font-size:15px">edit</i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger btn-delete-tenant" data-id="{{ $tenant->id }}">
-                                                <i class="material-icons-outlined" style="font-size:15px">delete</i>
-                                            </button>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="toggleTenantMenus({{ $tenant->id }}, '{{ addslashes($tenant->nama_tenant) }}', false)" 
+                                                    title="Tutup Stand (Set Seluruh Menu Habis / 86)">
+                                                    <i class="material-icons-outlined" style="font-size:15px">block</i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-success" 
+                                                    onclick="toggleTenantMenus({{ $tenant->id }}, '{{ addslashes($tenant->nama_tenant) }}', true)" 
+                                                    title="Buka Stand (Set Seluruh Menu Tersedia)">
+                                                    <i class="material-icons-outlined" style="font-size:15px">check_circle</i>
+                                                </button>
+                                                <button class="btn btn-sm btn-warning btn-edit-tenant" 
+                                                    data-id="{{ $tenant->id }}"
+                                                    data-kode_tenant="{{ $tenant->kode_tenant }}" 
+                                                    data-nama_tenant="{{ $tenant->nama_tenant }}"
+                                                    data-printer_id="{{ $tenant->printer_id ?? '' }}"
+                                                    data-telepon="{{ $tenant->telepon }}" 
+                                                    data-alamat="{{ $tenant->alamat }}"
+                                                    data-commission_rate="{{ $tenant->commission_rate }}"
+                                                    data-stts="{{ $tenant->stts }}"
+                                                    title="Edit Data Tenant">
+                                                    <i class="material-icons-outlined" style="font-size:15px">edit</i>
+                                                </button>
+                                                <button class="btn btn-sm btn-danger btn-delete-tenant" data-id="{{ $tenant->id }}" title="Hapus Tenant">
+                                                    <i class="material-icons-outlined" style="font-size:15px">delete</i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty
@@ -305,5 +318,79 @@
                 })
                 .catch(() => alert('Koneksi gagal, coba lagi.'));
         });
+
+        // Toggle ketersediaan menu per tenant (Tutup/Buka Stand)
+        window.toggleTenantMenus = function(tenantId, tenantName, isAvailable) {
+            const actionText = isAvailable 
+                ? 'membuka kembali dan mengaktifkan seluruh menu' 
+                : 'menutup stand dan menandai seluruh produk menjadi HABIS (86)';
+            const btnColor = isAvailable ? '#198754' : '#dc3545';
+            const confirmText = isAvailable ? 'Ya, Buka Semua Menu' : 'Ya, Tutup & Set Habis';
+
+            const confirmAction = () => {
+                fetch('/pos/menu-availability/tenant-toggle', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tenant_id: tenantId,
+                        is_available: isAvailable ? 1 : 0
+                    })
+                })
+                .then(async r => {
+                    const res = await r.json();
+                    if (r.ok && res.success) {
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil',
+                                text: res.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            alert(res.message);
+                        }
+                    } else {
+                        const errMsg = res.message || 'Terjadi kesalahan.';
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire('Gagal', errMsg, 'error');
+                        } else {
+                            alert(errMsg);
+                        }
+                    }
+                })
+                .catch(() => {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire('Error', 'Koneksi gagal, coba lagi.', 'error');
+                    } else {
+                        alert('Koneksi gagal, coba lagi.');
+                    }
+                });
+            };
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: isAvailable ? 'Buka Menu Tenant?' : 'Tutup Tenant (Gak Jualan)?',
+                    html: `Apakah Anda yakin ingin <b>${actionText}</b> untuk tenant <b>${tenantName}</b>?<br><small class="text-muted">Perubahan langsung aktif di POS Web, POS Mobile, dan QR Self-Service.</small>`,
+                    icon: isAvailable ? 'question' : 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: btnColor,
+                    confirmButtonText: confirmText,
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        confirmAction();
+                    }
+                });
+            } else {
+                if (confirm(`Apakah Anda yakin ingin ${actionText} untuk tenant ${tenantName}?`)) {
+                    confirmAction();
+                }
+            }
+        };
     </script>
 @endpush

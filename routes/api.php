@@ -36,6 +36,7 @@ Route::middleware(['auth:sanctum', 'check.subscription'])->group(function () {
     Route::get('/pos/menu-availability',         [PosController::class, 'apiGetMenuAvailability']);
     Route::post('/pos/menu-availability/update', [PosController::class, 'apiUpdateMenuAvailability']);
     Route::post('/pos/menu-availability/reset-all', [PosController::class, 'apiResetAllMenuAvailability']);
+    Route::post('/pos/menu-availability/tenant-toggle', [PosController::class, 'apiSetTenantMenuAvailability']);
     Route::post('/pos/voice-search',         [PosController::class, 'apiVoiceSearch']);
     Route::post('/pos/product/register-barcode', [PosController::class, 'apiRegisterBarcode']);
     Route::get('/pos/rekening',              [PosController::class, 'apiRekening']);

@@ -32,6 +32,25 @@
                     </div>
                 </div>
 
+                {{-- BANNER AKSI CEPAT TENANT TUTUP / BUKA --}}
+                <div id="tenantActionBanner" class="alert alert-secondary py-2 px-3 mb-3 d-none align-items-center justify-content-between rounded-3 border-start border-4 border-primary">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-shop fs-4 text-primary me-2"></i>
+                        <div>
+                            <span class="small text-muted d-block" style="font-size: 11px;">Aksi Cepat Tenant:</span>
+                            <strong id="selectedTenantNameText" class="text-dark">Nama Tenant</strong>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-semibold" onclick="toggleSelectedTenantAvailability(false)" title="Tandai seluruh menu tenant ini habis / tidak jualan">
+                            <i class="bi bi-slash-circle me-1"></i> Tutup Tenant (Set Semua Habis)
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm fw-semibold" onclick="toggleSelectedTenantAvailability(true)" title="Aktifkan kembali seluruh menu tenant ini">
+                            <i class="bi bi-check2-circle me-1"></i> Buka Tenant (Buka Semua Menu)
+                        </button>
+                    </div>
+                </div>
+
                 <div class="table-responsive" style="max-height: 420px;">
                     <table class="table table-hover table-bordered align-middle mb-0">
                         <thead class="table-light sticky-top">
@@ -88,6 +107,7 @@
                     cachedMenuVariants = res.data;
                     populateTenantFilter(res.data);
                     renderMenuAvailability(cachedMenuVariants);
+                    updateTenantBanner();
                 } else {
                     $('#menuAvailabilityList').html('<tr><td colspan="5" class="text-center py-4 text-danger">Gagal memuat ketersediaan menu.</td></tr>');
                 }
@@ -259,6 +279,64 @@
                     loadMenuAvailability();
                 }).fail(function(err) {
                     Swal.fire('Gagal', err.responseJSON?.message || 'Gagal reset', 'error');
+                });
+            }
+        });
+    }
+
+    function updateTenantBanner() {
+        const tenantId = $('#filterTenantAvailability').val();
+        const tenantName = $('#filterTenantAvailability option:selected').text();
+        const banner = $('#tenantActionBanner');
+        if (tenantId) {
+            $('#selectedTenantNameText').text(tenantName);
+            banner.removeClass('d-none').addClass('d-flex');
+        } else {
+            banner.removeClass('d-flex').addClass('d-none');
+        }
+    }
+
+    function toggleSelectedTenantAvailability(isAvailable) {
+        const tenantId = $('#filterTenantAvailability').val();
+        const tenantName = $('#filterTenantAvailability option:selected').text();
+        if (!tenantId) {
+            Swal.fire('Pilih Tenant', 'Silakan pilih tenant terlebih dahulu pada dropdown.', 'info');
+            return;
+        }
+
+        const actionText = isAvailable 
+            ? 'membuka kembali dan mengaktifkan seluruh menu' 
+            : 'menutup stand dan menandai seluruh produk menjadi HABIS (86)';
+        const btnColor = isAvailable ? '#198754' : '#dc3545';
+        const confirmText = isAvailable ? 'Ya, Buka Semua Menu' : 'Ya, Tutup & Set Habis';
+
+        Swal.fire({
+            title: isAvailable ? 'Buka Tenant?' : 'Tutup Tenant (Gak Jualan)?',
+            html: `Apakah Anda yakin ingin <b>${actionText}</b> untuk tenant <b>${tenantName}</b>?`,
+            icon: isAvailable ? 'question' : 'warning',
+            showCancelButton: true,
+            confirmButtonColor: btnColor,
+            confirmButtonText: confirmText,
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const storeId = '{{ session("store_id") }}';
+                $.post(`{{ url("/pos/menu-availability/tenant-toggle") }}`, {
+                    _token: '{{ csrf_token() }}',
+                    store_id: storeId,
+                    tenant_id: tenantId,
+                    is_available: isAvailable ? 1 : 0
+                }).done(function(res) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: res.message,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                    loadMenuAvailability();
+                }).fail(function(err) {
+                    Swal.fire('Gagal', err.responseJSON?.message || 'Gagal mengubah status tenant', 'error');
                 });
             }
         });
