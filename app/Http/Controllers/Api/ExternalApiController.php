@@ -111,7 +111,7 @@ class ExternalApiController extends Controller
         $query = Product::where('store_id', $store->id)
             ->with([
                 'category:id,name,slug',
-                'units:id,product_id,unit_name,conversion_factor,price',
+                'units:id,product_id,name,multiplier,price',
                 'variants' => function ($q) use ($store) {
                     $q->where('store_id', $store->id)
                       ->where('is_active', true);
@@ -152,8 +152,8 @@ class ExternalApiController extends Controller
                 'units'        => $product->units->map(function ($u) {
                     return [
                         'id'                => $u->id,
-                        'unit_name'         => $u->unit_name,
-                        'conversion_factor' => (float) $u->conversion_factor,
+                        'unit_name'         => $u->name,
+                        'conversion_factor' => (float) $u->multiplier,
                         'price'             => (float) $u->price,
                     ];
                 }),
@@ -236,8 +236,8 @@ class ExternalApiController extends Controller
                 'units'        => $product->units->map(function ($u) {
                     return [
                         'id'                => $u->id,
-                        'unit_name'         => $u->unit_name,
-                        'conversion_factor' => (float) $u->conversion_factor,
+                        'unit_name'         => $u->name,
+                        'conversion_factor' => (float) $u->multiplier,
                         'price'             => (float) $u->price,
                     ];
                 }),
