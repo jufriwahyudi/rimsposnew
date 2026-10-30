@@ -247,7 +247,7 @@ const POS = {
         // baca tanggal dan customer name dari cart untuk ditampilkan di input
         const transactionDateInput = document.getElementById('transactionDate');
         if (transactionDateInput) {
-            transactionDateInput.value = this.cart.transaction_date || new Date().toISOString().split('T')[0];
+            transactionDateInput.value = this.cart.transaction_date || new Date().toLocaleDateString('en-CA');
         }
 
         const customerIdSelect = $('#customerId');
@@ -830,7 +830,7 @@ const POS = {
                         reverseButtons: true
                     }).then(result => {
                         // reset transaction date & customer name for next transaction
-                        this.cart.transaction_date = new Date().toISOString().split('T')[0];
+                        this.cart.transaction_date = new Date().toLocaleDateString('en-CA');
                         $('#transactionDate').val(this.cart.transaction_date);
                         
                         const customerIdSelect = $('#customerId');
@@ -1109,7 +1109,7 @@ const POS = {
                     },
                     reverseButtons: true
                 }).then(result => {
-                    this.cart.transaction_date = new Date().toISOString().split('T')[0];
+                    this.cart.transaction_date = new Date().toLocaleDateString('en-CA');
                     $('#transactionDate').val(this.cart.transaction_date);
 
                     const customerIdSelect = $('#customerId');

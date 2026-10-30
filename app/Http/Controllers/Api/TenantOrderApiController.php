@@ -59,7 +59,7 @@ class TenantOrderApiController extends Controller
         // Fetch sales with hold or paid status that have items for this tenant
         $query = Sale::with([
             'items' => function ($q) {
-                $q->with(['variant.product', 'fnbDetail']);
+                $q->with(['variant.product', 'product', 'fnbDetail']);
             },
             'store'
         ]);
@@ -68,14 +68,28 @@ class TenantOrderApiController extends Controller
             $query->where('store_id', $storeId);
         }
 
+        $today = Carbon::today();
+
         // Filter active hold sales or today's paid sales (exclude void or cancelled)
         $query->whereNotIn('status', ['void', 'cancelled'])
-            ->where(function ($q) {
+            ->where(function ($q) use ($today, $tenantId) {
                 $q->where('status', 'hold')
-                  ->orWhere(function ($q2) {
-                      $q2->where('status', 'paid')
-                         ->whereDate('sale_date', Carbon::today());
-                  });
+                    ->orWhere(function ($q2) use ($today, $tenantId) {
+                        $q2->where('status', 'paid')
+                            ->where(function ($q3) use ($today, $tenantId) {
+                                $q3->whereDate('sale_date', $today)
+                                    ->orWhereDate('created_at', $today)
+                                    ->orWhereDate('updated_at', $today)
+                                    ->orWhereHas('items', function ($qi) use ($today, $tenantId) {
+                                        $qi->whereDate('created_at', $today)
+                                            ->whereNotIn('status', ['voided', 'refunded'])
+                                            ->where(function ($qt) use ($tenantId) {
+                                                $qt->whereHas('variant.product', fn($qp) => $qp->where('tenant_id', $tenantId))
+                                                    ->orWhereHas('product', fn($qp) => $qp->where('tenant_id', $tenantId));
+                                            });
+                                    });
+                            });
+                    });
             });
 
         $sales = $query->orderBy('created_at', 'desc')->get();
@@ -110,6 +124,9 @@ class TenantOrderApiController extends Controller
                 $orderStatus = 'ready';
             }
 
+            $latestItemTime = $filteredItems->max('created_at') ?: $sale->created_at;
+            $orderTime = $latestItemTime ? Carbon::parse($latestItemTime) : $sale->created_at;
+
             return [
                 'id'             => $sale->id,
                 'invoice_number' => $sale->invoice_number,
@@ -117,8 +134,8 @@ class TenantOrderApiController extends Controller
                 'customer_name'  => $sale->customer_name ?? 'Umum',
                 'sale_status'    => $sale->status,
                 'order_status'   => $orderStatus,
-                'time_ago'       => $sale->created_at ? $sale->created_at->diffForHumans() : '-',
-                'created_at'     => $sale->created_at ? $sale->created_at->format('Y-m-d H:i:s') : null,
+                'time_ago'       => $orderTime ? $orderTime->diffForHumans() : '-',
+                'created_at'     => $orderTime ? $orderTime->format('Y-m-d H:i:s') : null,
                 'items_count'    => $filteredItems->sum('qty'),
                 'items'          => $filteredItems->map(function ($item) {
                     return [
@@ -303,12 +320,16 @@ class TenantOrderApiController extends Controller
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 
-        $sale = Sale::with(['store', 'user', 'items.variant.product'])->findOrFail($saleId);
+        $sale = Sale::with(['store', 'user', 'items.variant.product', 'items.product'])->findOrFail($saleId);
         $store = $sale->store;
         $tenant = Tenant::find($tenantId);
 
         $tenantItems = $sale->items->filter(function ($item) use ($tenantId) {
-            return $item->variant?->product?->tenant_id == $tenantId;
+            if (in_array($item->status, ['voided', 'refunded'])) {
+                return false;
+            }
+            $itemTenant = $item->variant?->product?->tenant_id ?? $item->product?->tenant_id;
+            return $itemTenant == $tenantId;
         });
 
         if ($tenantItems->isEmpty()) {
@@ -370,15 +391,33 @@ class TenantOrderApiController extends Controller
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 
+        $storeId = $request->input('store_id');
+        if (!$storeId) {
+            $firstStore = $user->stores()->first();
+            $storeId = $firstStore?->id;
+        }
+
         $today = Carbon::today();
-        $items = SaleItem::with(['sale', 'variant.product'])
+        $items = SaleItem::with(['sale', 'variant.product', 'product', 'fnbDetail'])
             ->whereNotIn('status', ['voided', 'refunded'])
-            ->whereHas('variant.product', function ($q) use ($tenantId) {
-                $q->where('tenant_id', $tenantId);
+            ->where(function ($q) use ($tenantId) {
+                $q->whereHas('variant.product', function ($q2) use ($tenantId) {
+                    $q2->where('tenant_id', $tenantId);
+                })->orWhereHas('product', function ($q2) use ($tenantId) {
+                    $q2->where('tenant_id', $tenantId);
+                });
             })
-            ->whereHas('sale', function ($q) use ($today) {
-                $q->whereNotIn('status', ['void', 'cancelled'])
-                    ->whereDate('sale_date', $today);
+            ->whereHas('sale', function ($q) use ($storeId) {
+                $q->whereNotIn('status', ['void', 'cancelled']);
+                if ($storeId) {
+                    $q->where('store_id', $storeId);
+                }
+            })
+            ->where(function ($q) use ($today) {
+                $q->whereDate('created_at', $today)
+                    ->orWhereHas('sale', function ($sq) use ($today) {
+                        $sq->whereDate('sale_date', $today);
+                    });
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -424,20 +463,39 @@ class TenantOrderApiController extends Controller
 
         $from = $request->input('from', Carbon::today()->format('Y-m-d'));
         $to = $request->input('to', Carbon::today()->format('Y-m-d'));
+        $startRange = $from . ' 00:00:00';
+        $endRange = $to . ' 23:59:59';
         $search = trim($request->input('search', ''));
         $paymentStatus = $request->input('payment_status', 'all');
         $storeId = $request->input('store_id');
+        if (!$storeId) {
+            $firstStore = $user->stores()->first();
+            $storeId = $firstStore?->id;
+        }
         $perPage = (int) $request->input('per_page', 20);
 
+        $tenantItemScope = function ($q) use ($tenantId) {
+            $q->whereHas('variant.product', function ($q2) use ($tenantId) {
+                $q2->where('tenant_id', $tenantId);
+            })->orWhereHas('product', function ($q2) use ($tenantId) {
+                $q2->where('tenant_id', $tenantId);
+            });
+        };
+
+        $itemDateScope = function ($q) use ($startRange, $endRange) {
+            $q->whereBetween('created_at', [$startRange, $endRange])
+                ->orWhereHas('sale', function ($sq) use ($startRange, $endRange) {
+                    $sq->whereBetween('sale_date', [$startRange, $endRange]);
+                });
+        };
+
         // 1. Overall Summary across the entire filtered period
-        $summaryItems = SaleItem::with(['variant.product'])
+        $summaryItems = SaleItem::with(['variant.product', 'product', 'fnbDetail'])
             ->whereNotIn('status', ['voided', 'refunded'])
-            ->whereHas('variant.product', function ($q) use ($tenantId) {
-                $q->where('tenant_id', $tenantId);
-            })
-            ->whereHas('sale', function ($q) use ($from, $to, $storeId, $paymentStatus, $search) {
-                $q->whereNotIn('status', ['void', 'cancelled'])
-                  ->whereBetween('sale_date', [$from . ' 00:00:00', $to . ' 23:59:59']);
+            ->where($tenantItemScope)
+            ->where($itemDateScope)
+            ->whereHas('sale', function ($q) use ($storeId, $paymentStatus, $search) {
+                $q->whereNotIn('status', ['void', 'cancelled']);
                 if ($storeId) {
                     $q->where('store_id', $storeId);
                 }
@@ -447,8 +505,8 @@ class TenantOrderApiController extends Controller
                 if ($search !== '') {
                     $q->where(function ($sq) use ($search) {
                         $sq->where('invoice_number', 'like', "%{$search}%")
-                          ->orWhere('customer_name', 'like', "%{$search}%")
-                          ->orWhere('table_number', 'like', "%{$search}%");
+                            ->orWhere('customer_name', 'like', "%{$search}%")
+                            ->orWhere('table_number', 'like', "%{$search}%");
                     });
                 }
             })
@@ -479,18 +537,20 @@ class TenantOrderApiController extends Controller
 
         // 2. Paginated Sales List
         $salesQuery = Sale::with([
-            'items' => function ($q) use ($tenantId) {
+            'items' => function ($q) use ($tenantItemScope, $itemDateScope) {
                 $q->whereNotIn('status', ['voided', 'refunded'])
-                  ->whereHas('variant.product', fn($pq) => $pq->where('tenant_id', $tenantId))
-                  ->with(['variant.product', 'fnbDetail']);
+                    ->where($tenantItemScope)
+                    ->where($itemDateScope)
+                    ->with(['variant.product', 'product', 'fnbDetail']);
             },
             'store'
         ])
-        ->whereNotIn('status', ['void', 'cancelled'])
-        ->whereBetween('sale_date', [$from . ' 00:00:00', $to . ' 23:59:59'])
-        ->whereHas('items.variant.product', function ($q) use ($tenantId) {
-            $q->where('tenant_id', $tenantId);
-        });
+            ->whereNotIn('status', ['void', 'cancelled'])
+            ->whereHas('items', function ($q) use ($tenantItemScope, $itemDateScope) {
+                $q->whereNotIn('status', ['voided', 'refunded'])
+                    ->where($tenantItemScope)
+                    ->where($itemDateScope);
+            });
 
         if ($storeId) {
             $salesQuery->where('store_id', $storeId);
@@ -503,12 +563,12 @@ class TenantOrderApiController extends Controller
         if ($search !== '') {
             $salesQuery->where(function ($q) use ($search) {
                 $q->where('invoice_number', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%")
-                  ->orWhere('table_number', 'like', "%{$search}%");
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('table_number', 'like', "%{$search}%");
             });
         }
 
-        $paginatedSales = $salesQuery->orderBy('sale_date', 'desc')->paginate($perPage);
+        $paginatedSales = $salesQuery->orderBy('updated_at', 'desc')->orderBy('sale_date', 'desc')->paginate($perPage);
 
         $salesData = collect($paginatedSales->items())->map(function ($sale) use ($tenantId) {
             $items = $sale->items->filter(function ($item) use ($tenantId) {
@@ -517,11 +577,15 @@ class TenantOrderApiController extends Controller
 
             $tenantTotal = (int) $items->sum(fn($i) => $i->price * $i->qty);
             $tenantPortions = (int) $items->sum('qty');
+            $latestItemTime = $items->max('created_at');
+            $displayDate = $latestItemTime
+                ? Carbon::parse($latestItemTime)->format('Y-m-d H:i:s')
+                : ($sale->sale_date ? $sale->sale_date->format('Y-m-d H:i:s') : ($sale->created_at ? $sale->created_at->format('Y-m-d H:i:s') : null));
 
             return [
                 'id'              => $sale->id,
                 'invoice_number'  => $sale->invoice_number,
-                'sale_date'       => $sale->sale_date ? $sale->sale_date->format('Y-m-d H:i:s') : ($sale->created_at ? $sale->created_at->format('Y-m-d H:i:s') : null),
+                'sale_date'       => $displayDate,
                 'table_number'    => $sale->table_number ?? 'Takeaway',
                 'customer_name'   => $sale->customer_name ?? 'Umum',
                 'payment_status'  => $sale->status,
@@ -531,7 +595,7 @@ class TenantOrderApiController extends Controller
                     return [
                         'id'         => $item->id,
                         'name'       => $item->product_name,
-                        'variant'    => $item->variant?->name,
+                        'variant'    => $item->variant?->variant_name,
                         'qty'        => (int) $item->qty,
                         'price'      => (int) $item->price,
                         'subtotal'   => (int) ($item->price * $item->qty),
