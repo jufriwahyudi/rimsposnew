@@ -74,9 +74,9 @@ class PosController extends Controller
         }
 
         $customers = Customer::where('store_id', $storeId)
-            ->when($search, fn($q) => $q->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', '%' . $search . '%')
-                    ->orWhere('phone', 'LIKE', '%' . $search . '%');
+            ->when($search, fn ($q) => $q->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', '%'.$search.'%')
+                    ->orWhere('phone', 'LIKE', '%'.$search.'%');
             }))
             ->orderBy('name')
             ->limit(10)
@@ -226,9 +226,9 @@ class PosController extends Controller
 
         $members = Member::where('business_id', $businessId)
             ->where('is_active', true)
-            ->when($search, fn($q) => $q->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', '%' . $search . '%')
-                    ->orWhere('phone', 'LIKE', '%' . $search . '%');
+            ->when($search, fn ($q) => $q->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', '%'.$search.'%')
+                    ->orWhere('phone', 'LIKE', '%'.$search.'%');
             }))
             ->orderBy('name')
             ->limit(10)
@@ -430,13 +430,13 @@ class PosController extends Controller
 
         if ($request->filled('from_date') && $request->filled('to_date')) {
             $query->whereBetween('sale_date', [
-                $request->from_date . ' 00:00:00',
-                $request->to_date . ' 23:59:59',
+                $request->from_date.' 00:00:00',
+                $request->to_date.' 23:59:59',
             ]);
         } elseif ($request->filled('from_date')) {
-            $query->where('sale_date', '>=', $request->from_date . ' 00:00:00');
+            $query->where('sale_date', '>=', $request->from_date.' 00:00:00');
         } elseif ($request->filled('to_date')) {
-            $query->where('sale_date', '<=', $request->to_date . ' 23:59:59');
+            $query->where('sale_date', '<=', $request->to_date.' 23:59:59');
         }
 
         if ($request->filled('payment_method')) {
@@ -464,17 +464,17 @@ class PosController extends Controller
 
             ->editColumn(
                 'sale_date',
-                fn($s) => $s->sale_date->format('d-m-Y H:i')
+                fn ($s) => $s->sale_date->format('d-m-Y H:i')
             )
 
             ->addColumn(
                 'kasir',
-                fn($s) => $s->cashier?->name ?? '-'
+                fn ($s) => $s->cashier?->name ?? '-'
             )
 
             ->editColumn(
                 'grand_total',
-                fn($s) => number_format($s->grand_total, 0, ',', '.')
+                fn ($s) => number_format($s->grand_total, 0, ',', '.')
             )
 
             ->addColumn('payment_method', function ($s) {
@@ -492,7 +492,7 @@ class PosController extends Controller
                     'lunas' => '<span class="badge bg-success">Lunas</span>',
                     'hutang' => '<span class="badge bg-danger">Hutang</span>',
                     'unpaid' => '<span class="badge bg-warning text-dark">Belum Bayar</span>',
-                    default => '<span class="badge bg-secondary">' . ucfirst($ps) . '</span>',
+                    default => '<span class="badge bg-secondary">'.ucfirst($ps).'</span>',
                 };
             })
 
@@ -505,14 +505,14 @@ class PosController extends Controller
                     'void' => '<span class="badge bg-danger">VOID</span>',
                     'hold' => '<span class="badge bg-warning text-dark">HOLD</span>',
                     'paid' => '<span class="badge bg-success">PAID</span>',
-                    default => '<span class="badge bg-secondary">' . strtoupper($s->status ?? '-') . '</span>',
+                    default => '<span class="badge bg-secondary">'.strtoupper($s->status ?? '-').'</span>',
                 };
             })
 
             ->addColumn('action', function ($s) {
                 return '
                     <button class="btn btn-sm btn-primary"
-                        onclick="Sales.showDetail(' . $s->id . ')">
+                        onclick="Sales.showDetail('.$s->id.')">
                         Detail
                     </button>
                 ';
@@ -541,9 +541,9 @@ class PosController extends Controller
         $variants = $isFnB
             ? collect()
             : ProductVariant::with('product')
-            ->whereHas('product')
-            ->where('is_active', 'Y')
-            ->get();
+                ->whereHas('product')
+                ->where('is_active', 'Y')
+                ->get();
         $akunkas = Rekening::where('store_id', $storeId)->get();
         $akunkasir = 0;
 
@@ -580,7 +580,7 @@ class PosController extends Controller
         $remaining = $sale->grand_total - $alreadyPaid;
 
         if ($amount > $remaining + 0.01) {
-            return redirect()->back()->with('error', 'Jumlah melebihi sisa hutang (Rp ' . number_format($remaining, 0, ',', '.') . ')');
+            return redirect()->back()->with('error', 'Jumlah melebihi sisa hutang (Rp '.number_format($remaining, 0, ',', '.').')');
         }
 
         $effectiveAmount = min($amount, $remaining);
@@ -604,7 +604,7 @@ class PosController extends Controller
                     'direction' => 'in',
                     'transaction_date' => now(),
                     'user_id' => auth()->id(),
-                    'notes' => 'Bayar Hutang #' . $sale->invoice_number,
+                    'notes' => 'Bayar Hutang #'.$sale->invoice_number,
                     'bukti_bayar' => $buktiBayarPath,
                 ]);
 
@@ -623,7 +623,7 @@ class PosController extends Controller
                 Storage::disk('public')->delete($buktiBayarPath);
             }
 
-            return redirect()->back()->with('error', 'Gagal memproses pembayaran: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Gagal memproses pembayaran: '.$e->getMessage());
         }
     }
 
@@ -805,7 +805,7 @@ class PosController extends Controller
         // Call Gemini Service to parse the voice command
         $gemini = app(GeminiService::class);
         $parsed = $gemini->parseVoiceCommand($text);
-        Log::info('Voice command parsed: ' . json_encode($parsed));
+        Log::info('Voice command parsed: '.json_encode($parsed));
 
         $searchTerm = $parsed['product_name'] ?? '';
         $quantity = $parsed['quantity'] ?? 1;
@@ -984,7 +984,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal mendaftarkan barcode: ' . $e->getMessage(),
+                'message' => 'Gagal mendaftarkan barcode: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -1012,7 +1012,7 @@ class PosController extends Controller
                 if (empty($rawClientDate) || (! $canCustomDate && $rawClientDate === $yesterdayStr)) {
                     $transactionDate = now();
                 } else {
-                    $transactionDate = $rawClientDate . ' ' . now()->format('H:i:s');
+                    $transactionDate = $rawClientDate.' '.now()->format('H:i:s');
                 }
                 $customerName = $cart['customer_name'] ?? 'Umum';
                 $customerId = $cart['customer_id'] ?? null;
@@ -1034,7 +1034,7 @@ class PosController extends Controller
                         $clientSubtotal = (float) $cart['subtotal'];
                         if (abs($clientSubtotal - $realItemsSubtotal) > 1) {
                             \Illuminate\Support\Facades\Log::warning("POS Web Mismatch Rejection [Store " . session('store_id') . "]: Subtotal client = {$clientSubtotal}, real = {$realItemsSubtotal}, User = " . auth()->id());
-                            throw new \Exception("Subtotal belanja tidak sesuai dengan rincian item (Layar: Rp " . number_format($clientSubtotal, 0, ',', '.') . ", Rincian: Rp " . number_format($realItemsSubtotal, 0, ',', '.') . "). Silakan muat ulang keranjang.");
+                            throw new \Exception("Subtotal belanja tidak sesuai dengan rincian item (Layar: Rp ".number_format($clientSubtotal, 0, ',', '.').", Rincian: Rp ".number_format($realItemsSubtotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
                         }
                     }
 
@@ -1046,7 +1046,7 @@ class PosController extends Controller
                         $clientTotal = (float) $cart['total'];
                         if (abs($clientTotal - $expectedTotal) > 1) {
                             \Illuminate\Support\Facades\Log::warning("POS Web Mismatch Rejection [Store " . session('store_id') . "]: Total client = {$clientTotal}, expected = {$expectedTotal}, User = " . auth()->id());
-                            throw new \Exception("Total pembayaran tidak sesuai dengan perhitungan sistem (Layar: Rp " . number_format($clientTotal, 0, ',', '.') . ", Sistem: Rp " . number_format($expectedTotal, 0, ',', '.') . "). Silakan muat ulang keranjang.");
+                            throw new \Exception("Total pembayaran tidak sesuai dengan perhitungan sistem (Layar: Rp ".number_format($clientTotal, 0, ',', '.').", Sistem: Rp ".number_format($expectedTotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
                         }
                     }
 
@@ -1351,7 +1351,7 @@ class PosController extends Controller
                         'transaction_date' => $transactionDate,
                         'user_id' => auth()->id(),
                         'cash_register_id' => $cashRegisterId,
-                        'notes' => 'Penjualan POS (Cash) #' . $sale->invoice_number,
+                        'notes' => 'Penjualan POS (Cash) #'.$sale->invoice_number,
                     ]);
                 }
 
@@ -1371,7 +1371,7 @@ class PosController extends Controller
                         'transaction_date' => $transactionDate,
                         'user_id' => auth()->id(),
                         'cash_register_id' => $cashRegisterId,
-                        'notes' => 'Penjualan POS (Transfer) #' . $sale->invoice_number,
+                        'notes' => 'Penjualan POS (Transfer) #'.$sale->invoice_number,
                     ]);
                 }
 
@@ -1397,7 +1397,7 @@ class PosController extends Controller
                         'transaction_date' => $transactionDate,
                         'user_id' => auth()->id(),
                         'cash_register_id' => $cashRegisterId,
-                        'notes' => 'Penjualan POS (QRIS Dinamis Midtrans) #' . $sale->invoice_number,
+                        'notes' => 'Penjualan POS (QRIS Dinamis Midtrans) #'.$sale->invoice_number,
                     ]);
 
                     if (!empty($cart['qris_order_id'])) {
@@ -1421,7 +1421,7 @@ class PosController extends Controller
                         'transaction_date' => $transactionDate,
                         'user_id' => auth()->id(),
                         'cash_register_id' => $cashRegisterId,
-                        'notes' => 'Penjualan POS (Gratis) #' . $sale->invoice_number,
+                        'notes' => 'Penjualan POS (Gratis) #'.$sale->invoice_number,
                     ]);
                 }
 
@@ -1442,7 +1442,7 @@ class PosController extends Controller
                         'direction' => 'in',
                         'transaction_date' => $transactionDate,
                         'user_id' => auth()->id(),
-                        'notes' => 'Tip dari pelanggan #' . $sale->invoice_number,
+                        'notes' => 'Tip dari pelanggan #'.$sale->invoice_number,
                     ]);
                 }
 
@@ -1459,7 +1459,7 @@ class PosController extends Controller
             try {
                 app(TenantNotificationService::class)->notifyTenantsForSale($sale);
             } catch (\Throwable $e) {
-                \Log::error('Tenant notification error on web checkout: ' . $e->getMessage());
+                \Log::error('Tenant notification error on web checkout: '.$e->getMessage());
             }
 
             return response()->json([
@@ -1469,7 +1469,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Transaksi gagal: ' . $e->getMessage(),
+                'message' => 'Transaksi gagal: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -1515,7 +1515,7 @@ class PosController extends Controller
                 $rawClientDate = $cart['transaction_date'] ?? null;
                 $yesterdayStr = Carbon::yesterday()->toDateString();
                 $transactionDate = (! empty($rawClientDate) && $rawClientDate !== $yesterdayStr)
-                    ? $rawClientDate . ' ' . now()->format('H:i:s')
+                    ? $rawClientDate.' '.now()->format('H:i:s')
                     : now();
                 $customerName = $cart['customer_name'] ?? 'Umum';
                 $customerPhone = $cart['customer_phone'] ?? null;
@@ -1585,7 +1585,7 @@ class PosController extends Controller
                         $clientSubtotal = (float) $cart['subtotal'];
                         if (abs($clientSubtotal - $realItemsSubtotal) > 1) {
                             \Illuminate\Support\Facades\Log::warning("POS Mobile Mismatch Rejection [Store {$storeId}]: Subtotal client = {$clientSubtotal}, real = {$realItemsSubtotal}, User = " . auth()->id());
-                            throw new \Exception("Subtotal belanja tidak sesuai dengan rincian item (Layar: Rp " . number_format($clientSubtotal, 0, ',', '.') . ", Rincian: Rp " . number_format($realItemsSubtotal, 0, ',', '.') . "). Silakan muat ulang keranjang.");
+                            throw new \Exception("Subtotal belanja tidak sesuai dengan rincian item (Layar: Rp ".number_format($clientSubtotal, 0, ',', '.').", Rincian: Rp ".number_format($realItemsSubtotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
                         }
                     }
 
@@ -1599,7 +1599,7 @@ class PosController extends Controller
                         $clientTotal = (float) $cart['total'];
                         if (abs($clientTotal - $expectedTotal) > 1) {
                             \Illuminate\Support\Facades\Log::warning("POS Mobile Mismatch Rejection [Store {$storeId}]: Total client = {$clientTotal}, expected = {$expectedTotal}, User = " . auth()->id());
-                            throw new \Exception("Total pembayaran tidak sesuai dengan perhitungan sistem (Layar: Rp " . number_format($clientTotal, 0, ',', '.') . ", Sistem: Rp " . number_format($expectedTotal, 0, ',', '.') . "). Silakan muat ulang keranjang.");
+                            throw new \Exception("Total pembayaran tidak sesuai dengan perhitungan sistem (Layar: Rp ".number_format($clientTotal, 0, ',', '.').", Sistem: Rp ".number_format($expectedTotal, 0, ',', '.')."). Silakan muat ulang keranjang.");
                         }
                     }
 
@@ -1674,7 +1674,7 @@ class PosController extends Controller
                             ->where(function ($q) use ($rawTable, $cleanNum) {
                                 $q->where('table_number', $rawTable)
                                     ->orWhereRaw('LOWER(TRIM(table_number)) = ?', [strtolower($rawTable)])
-                                    ->orWhereRaw('LOWER(TRIM(table_number)) = ?', ['meja ' . strtolower($cleanNum)])
+                                    ->orWhereRaw('LOWER(TRIM(table_number)) = ?', ['meja '.strtolower($cleanNum)])
                                     ->orWhereRaw('LOWER(TRIM(table_number)) = ?', [strtolower($cleanNum)]);
                             })
                             ->latest()
@@ -1719,15 +1719,15 @@ class PosController extends Controller
                         if ($hasItemIds) {
                             // 1-to-1 item model: key existing items by item ID
                             $existingItems = $sale->items->keyBy('id');
-                            $incomingItemIds = $incomingItems->map(fn($i) => $i['sale_item_id'] ?? $i['id'] ?? null)->filter()->values()->all();
+                            $incomingItemIds = $incomingItems->map(fn ($i) => $i['sale_item_id'] ?? $i['id'] ?? null)->filter()->values()->all();
                             // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
-                            $removedItems = $sale->items->filter(fn($ei) => ! in_array($ei->id, $incomingItemIds));
+                            $removedItems = $sale->items->filter(fn ($ei) => ! in_array($ei->id, $incomingItemIds));
                         } else {
                             // Legacy fallback: key existing items by variant_id
                             $existingItems = $sale->items->keyBy('product_variant_id');
-                            $incomingByVariant = $incomingItems->keyBy(fn($i) => $i['variant_id'] ?? 0);
+                            $incomingByVariant = $incomingItems->keyBy(fn ($i) => $i['variant_id'] ?? 0);
                             // 1. Identify items to REMOVE (exist in DB but not in incoming cart)
-                            $removedItems = $existingItems->filter(fn($ei) => ! $incomingByVariant->has($ei->product_variant_id));
+                            $removedItems = $existingItems->filter(fn ($ei) => ! $incomingByVariant->has($ei->product_variant_id));
                         }
                     }
 
@@ -1762,7 +1762,7 @@ class PosController extends Controller
                                     'qty' => $batch->qty,
                                     'ref_type' => 'SaleHoldUpdateRevert',
                                     'ref_id' => $sale->id,
-                                    'notes' => 'Revert item ' . $removedItem->product_name . ' on hold update',
+                                    'notes' => 'Revert item '.$removedItem->product_name.' on hold update',
                                 ]);
                             }
                             $removedItem->batches()->delete();
@@ -1873,7 +1873,7 @@ class PosController extends Controller
                                             'qty' => $batch->qty,
                                             'ref_type' => 'SaleHoldUpdateRevert',
                                             'ref_id' => $sale->id,
-                                            'notes' => 'Revert stock batch for ' . $existing->product_name . ' on hold update',
+                                            'notes' => 'Revert stock batch for '.$existing->product_name.' on hold update',
                                         ]);
                                     }
                                     $existing->batches()->delete();
@@ -2231,7 +2231,7 @@ class PosController extends Controller
                             'transaction_date' => $transactionDate,
                             'user_id' => auth()->id(),
                             'cash_register_id' => $cashRegisterId,
-                            'notes' => 'POS Mobile (Cash) #' . $sale->invoice_number,
+                            'notes' => 'POS Mobile (Cash) #'.$sale->invoice_number,
                         ]);
                     }
 
@@ -2248,7 +2248,7 @@ class PosController extends Controller
                             'transaction_date' => $transactionDate,
                             'user_id' => auth()->id(),
                             'cash_register_id' => $cashRegisterId,
-                            'notes' => 'POS Mobile (Transfer) #' . $sale->invoice_number,
+                            'notes' => 'POS Mobile (Transfer) #'.$sale->invoice_number,
                             'bukti_bayar' => $buktiBayarPath,
                         ]);
                     }
@@ -2269,7 +2269,7 @@ class PosController extends Controller
                             'transaction_date' => $transactionDate,
                             'user_id' => auth()->id(),
                             'cash_register_id' => $cashRegisterId,
-                            'notes' => 'Tip POS Mobile #' . $sale->invoice_number,
+                            'notes' => 'Tip POS Mobile #'.$sale->invoice_number,
                         ]);
                     }
                 }
@@ -2294,7 +2294,7 @@ class PosController extends Controller
                 try {
                     app(TenantNotificationService::class)->notifyTenantsForSale($sale);
                 } catch (\Throwable $e) {
-                    \Log::error('Tenant notification error on mobile checkout: ' . $e->getMessage());
+                    \Log::error('Tenant notification error on mobile checkout: '.$e->getMessage());
                 }
             } else {
                 \Log::info("Tenant notification SKIPPED for Sale #{$sale->id} ({$sale->invoice_number}) - Meja {$sale->table_number} (Pelunasan pembayaran, bukan pesanan baru).");
@@ -2315,7 +2315,7 @@ class PosController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Transaksi gagal: ' . $e->getMessage(),
+                'message' => 'Transaksi gagal: '.$e->getMessage(),
             ], 422);
         }
     }
@@ -2602,7 +2602,7 @@ class PosController extends Controller
                 $subtotal = $targetSale->items->sum('subtotal');
 
                 $mergedDiscount = (float) ($targetSale->discount_total ?? 0)
-                    + (float) ($sourceSale->discount_total ?? 0);
+                                + (float) ($sourceSale->discount_total ?? 0);
                 $grandTotal = max(0, $subtotal - $mergedDiscount);
 
                 $targetSale->update([
@@ -2693,7 +2693,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal menggabungkan bill: ' . $e->getMessage(),
+                'message' => 'Gagal menggabungkan bill: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -2905,7 +2905,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal memisah bill: ' . $e->getMessage(),
+                'message' => 'Gagal memisah bill: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -3083,7 +3083,7 @@ class PosController extends Controller
 
         if ($isChecklist) {
             $filteredItems = $sale->items
-                ->filter(fn($i) => ! in_array($i->status, ['voided', 'exchanged_out']))
+                ->filter(fn ($i) => ! in_array($i->status, ['voided', 'exchanged_out']))
                 ->filter(function ($item) use ($station, $isMultiPrinter) {
                     $tenant = $item->product?->tenant ?: $item->variant?->product?->tenant;
                     $cat = $item->product?->category ?: $item->variant?->product?->category;
@@ -3138,7 +3138,7 @@ class PosController extends Controller
             } elseif ($station === 'kitchen') {
                 $checklistTitle = 'ORDER DAPUR / MAKANAN';
             } elseif ($station) {
-                $checklistTitle = 'ORDER: ' . strtoupper(str_replace('_', ' ', $station));
+                $checklistTitle = 'ORDER: '.strtoupper(str_replace('_', ' ', $station));
             } else {
                 $checklistTitle = 'ORDER KITCHEN / KDS';
             }
@@ -3148,16 +3148,16 @@ class PosController extends Controller
                 : true;
         } else {
             $items = $sale->items
-                ->filter(fn($i) => ! in_array($i->status, ['voided', 'exchanged_out']))
+                ->filter(fn ($i) => ! in_array($i->status, ['voided', 'exchanged_out']))
                 ->groupBy(function ($item) {
-                    $variantKey = $item->product_variant_id ?? ('null_' . $item->id);
+                    $variantKey = $item->product_variant_id ?? ('null_'.$item->id);
                     $notesKey = trim((string) $item->notes);
 
-                    return $variantKey . '||' . $notesKey;
+                    return $variantKey.'||'.$notesKey;
                 })
                 ->map(function ($group) {
                     $first = $group->first();
-                    $notes = $group->pluck('notes')->filter()->map(fn($n) => trim($n))->filter()->unique()->implode(', ');
+                    $notes = $group->pluck('notes')->filter()->map(fn ($n) => trim($n))->filter()->unique()->implode(', ');
 
                     return [
                         'name' => $first->display_name,
@@ -3174,7 +3174,7 @@ class PosController extends Controller
             $triggerBuzzer = false;
         }
 
-        $grossSubtotal = collect($items)->sum(fn($i) => ($i['qty'] ?? 0) * ($i['price'] ?? 0));
+        $grossSubtotal = collect($items)->sum(fn ($i) => ($i['qty'] ?? 0) * ($i['price'] ?? 0));
         if ($grossSubtotal <= 0) {
             $grossSubtotal = round($sale->subtotal + ($sale->discount_total ?? 0));
         }
@@ -3396,7 +3396,7 @@ class PosController extends Controller
                 }
 
                 $stationsMap[$stationCode]['total_qty'] += $item->qty;
-                $stationsMap[$stationCode]['items'][] = $item->qty . 'x ' . $item->product_name . ($item->notes ? ' (' . $item->notes . ')' : '');
+                $stationsMap[$stationCode]['items'][] = $item->qty.'x '.$item->product_name.($item->notes ? ' ('.$item->notes.')' : '');
             }
 
             // Evaluasi status cetak masing-masing stasiun
@@ -3616,7 +3616,7 @@ class PosController extends Controller
             return response()->json(['message' => 'Tukar barang berhasil']);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal tukar barang: ' . $e->getMessage(),
+                'message' => 'Gagal tukar barang: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -3709,7 +3709,7 @@ class PosController extends Controller
                 // 2. Update status sale
                 $saleUpdates = ['status' => 'void'];
                 if ($request->filled('reason')) {
-                    $saleUpdates['notes'] = ($sale->notes ? $sale->notes . ' | ' : '') . 'Void Reason: ' . $request->input('reason');
+                    $saleUpdates['notes'] = ($sale->notes ? $sale->notes.' | ' : '').'Void Reason: '.$request->input('reason');
                 }
                 $sale->update($saleUpdates);
 
@@ -3734,14 +3734,14 @@ class PosController extends Controller
                 try {
                     app(FirestoreService::class)->syncOrder($sale);
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Firestore sync on void failed: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::warning('Firestore sync on void failed: '.$e->getMessage());
                 }
             }
 
             return response()->json(['message' => 'Transaksi berhasil di-void']);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal void transaksi: ' . $e->getMessage(),
+                'message' => 'Gagal void transaksi: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -3784,7 +3784,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal mengkonfirmasi pesanan: ' . $e->getMessage(),
+                'message' => 'Gagal mengkonfirmasi pesanan: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -3879,7 +3879,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal menolak pesanan: ' . $e->getMessage(),
+                'message' => 'Gagal menolak pesanan: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -3926,7 +3926,7 @@ class PosController extends Controller
                 // 1. Buat sale refund
                 $refund = Sale::create([
                     'store_id' => $storeId,
-                    'invoice_number' => 'RF-' . $sale->invoice_number,
+                    'invoice_number' => 'RF-'.$sale->invoice_number,
                     'sale_date' => now(),
                     'sale_type' => $sale->sale_type,
                     'customer_id' => $sale->customer_id,
@@ -3934,7 +3934,7 @@ class PosController extends Controller
                     'user_id' => auth()->id(),
                     'subtotal' => -$sale->subtotal,
                     'discount_total' => -$sale->discount_total,
-                    'trans_discount' => - ($sale->trans_discount ?? 0),
+                    'trans_discount' => -($sale->trans_discount ?? 0),
                     'tax_total' => 0,
                     'grand_total' => -$sale->grand_total,
                     'paid_amount' => 0,
@@ -3987,7 +3987,7 @@ class PosController extends Controller
                     'direction' => 'out',
                     'transaction_date' => now(),
                     'user_id' => auth()->id(),
-                    'notes' => 'Refund POS Mobile #' . $sale->invoice_number,
+                    'notes' => 'Refund POS Mobile #'.$sale->invoice_number,
                 ]);
 
                 // Pembukuan jurnal
@@ -4003,7 +4003,7 @@ class PosController extends Controller
             return response()->json(['message' => 'Refund berhasil diproses']);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Gagal proses refund: ' . $e->getMessage(),
+                'message' => 'Gagal proses refund: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -4047,7 +4047,7 @@ class PosController extends Controller
 
         if ($amount > $remaining + 0.01) {
             return response()->json([
-                'message' => 'Jumlah melebihi sisa hutang (Rp ' . number_format($remaining, 0, ',', '.') . ')',
+                'message' => 'Jumlah melebihi sisa hutang (Rp '.number_format($remaining, 0, ',', '.').')',
             ], 422);
         }
 
@@ -4073,7 +4073,7 @@ class PosController extends Controller
                     'direction' => 'in',
                     'transaction_date' => now(),
                     'user_id' => auth()->id(),
-                    'notes' => 'Bayar Hutang #' . $sale->invoice_number,
+                    'notes' => 'Bayar Hutang #'.$sale->invoice_number,
                     'bukti_bayar' => $buktiBayarPath,
                 ]);
 
@@ -4104,7 +4104,7 @@ class PosController extends Controller
                 \Storage::disk('public')->delete($buktiBayarPath);
             }
 
-            return response()->json(['message' => 'Gagal: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'Gagal: '.$e->getMessage()], 500);
         }
     }
 
@@ -4131,7 +4131,7 @@ class PosController extends Controller
             ->findOrFail($id);
 
         $items = $sale->items->groupBy(function ($item) {
-            return $item->product_variant_id ?? ('null_' . $item->id);
+            return $item->product_variant_id ?? ('null_'.$item->id);
         })->map(function ($group) {
             $first = $group->first();
 
@@ -4195,7 +4195,7 @@ class PosController extends Controller
                     ->latest()
                     ->value('bukti_bayar');
 
-                return $path ? asset('storage/' . $path) : null;
+                return $path ? asset('storage/'.$path) : null;
             })(),
             'items' => $items,
             'payments' => $payments,
@@ -4399,13 +4399,13 @@ class PosController extends Controller
                 try {
                     app(FirestoreService::class)->syncOrder($sale);
                 } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Firestore sync on void failed: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::warning('Firestore sync on void failed: '.$e->getMessage());
                 }
             }
 
             return back()->with('success', 'Transaksi berhasil di-VOID');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal void transaksi: ' . $e->getMessage());
+            return back()->with('error', 'Gagal void transaksi: '.$e->getMessage());
         }
     }
 
@@ -4434,7 +4434,7 @@ class PosController extends Controller
         }
 
         if (! in_array($item->status, ['sold', 'exchanged_in'])) {
-            return back()->with('error', 'Item ini tidak dapat di-void (status: ' . $item->status . ').');
+            return back()->with('error', 'Item ini tidak dapat di-void (status: '.$item->status.').');
         }
 
         $voidQty = (int) $request->void_qty;
@@ -4555,14 +4555,14 @@ class PosController extends Controller
             $successMsg = 'Partial void berhasil. ';
 
             if ($sale->payment_status === 'lunas' || $sale->status === 'void') {
-                $successMsg .= 'Uang dikembalikan ke pelanggan sebesar Rp ' . number_format($refundAmount) . ' (catat cash out jika diperlukan).';
+                $successMsg .= 'Uang dikembalikan ke pelanggan sebesar Rp '.number_format($refundAmount).' (catat cash out jika diperlukan).';
             } elseif ($sale->payment_status === 'hutang') {
-                $successMsg .= 'Grand total dan sisa hutang sudah diperbarui. Total transaksi baru: Rp ' . number_format($sale->grand_total) . '.';
+                $successMsg .= 'Grand total dan sisa hutang sudah diperbarui. Total transaksi baru: Rp '.number_format($sale->grand_total).'.';
             }
 
             return back()->with('success', $successMsg);
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal partial void: ' . $e->getMessage());
+            return back()->with('error', 'Gagal partial void: '.$e->getMessage());
         }
     }
 
@@ -4578,7 +4578,7 @@ class PosController extends Controller
                 // 1️⃣ BUAT SALE REFUND
                 $refund = Sale::create([
                     'store_id' => session('store_id'),
-                    'invoice_number' => 'RF-' . $sale->invoice_number,
+                    'invoice_number' => 'RF-'.$sale->invoice_number,
                     'sale_date' => now(),
                     'sale_type' => $sale->sale_type,
 
@@ -4654,7 +4654,7 @@ class PosController extends Controller
                     'direction' => 'out',
                     'transaction_date' => now(),
                     'user_id' => auth()->id(),
-                    'notes' => 'Refund penjualan POS #' . $sale->invoice_number,
+                    'notes' => 'Refund penjualan POS #'.$sale->invoice_number,
                 ]);
 
                 // Pembukuan jurnal
@@ -4669,7 +4669,7 @@ class PosController extends Controller
 
             return back()->with('success', 'Refund berhasil diproses');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal proses refund: ' . $e->getMessage());
+            return back()->with('error', 'Gagal proses refund: '.$e->getMessage());
         }
     }
 
@@ -4945,8 +4945,8 @@ class PosController extends Controller
                 ];
             })->toArray(),
             'summary' => [
-                'subtotal' => ($sale->items->sum(fn($i) => $i->qty * $i->price) > 0)
-                    ? round($sale->items->sum(fn($i) => $i->qty * $i->price))
+                'subtotal' => ($sale->items->sum(fn ($i) => $i->qty * $i->price) > 0)
+                    ? round($sale->items->sum(fn ($i) => $i->qty * $i->price))
                     : round($sale->subtotal + ($sale->discount_total ?? 0)),
                 'discount' => round(($sale->discount_total ?? 0) + ($sale->trans_discount ?? 0)),
                 'item_discount' => round($sale->discount_total ?? 0),
@@ -5066,7 +5066,7 @@ class PosController extends Controller
                 'summary' => $data['summary'],
             ])->setPaper('a4', 'portrait');
 
-            return $pdf->stream('Invoice-' . $data['transaction']['invoice'] . '.pdf');
+            return $pdf->stream('Invoice-'.$data['transaction']['invoice'].'.pdf');
         }
 
         $view = ($store && $store->printer_type === '58mm') ? 'pos.receipt-58mm' : 'pos.receipt';
@@ -5081,7 +5081,7 @@ class PosController extends Controller
 
     protected function generateInvoice()
     {
-        return 'POS-' . now()->format('YmdHis');
+        return 'POS-'.now()->format('YmdHis');
     }
 
     protected function resolveItemName(array $item, ?int $productId = null, ?int $variantId = null, ?string $fallback = null): string
@@ -5108,7 +5108,7 @@ class PosController extends Controller
         }
 
         // 3. If variant already contains all significant words of the product name (e.g. "AYAM ORI" -> "AYAM DADA ORI")
-        $nameWords = array_filter(preg_split('/\s+/', strtolower($name)), fn($w) => strlen($w) >= 3);
+        $nameWords = array_filter(preg_split('/\s+/', strtolower($name)), fn ($w) => strlen($w) >= 3);
         $matched = 0;
         foreach ($nameWords as $w) {
             if (stripos($variant, $w) !== false) {
@@ -5338,7 +5338,7 @@ class PosController extends Controller
             ->where('is_active', 'Y');
 
         if ($filterTenantId) {
-            $query->whereHas('product', fn($q) => $q->where('tenant_id', $filterTenantId));
+            $query->whereHas('product', fn ($q) => $q->where('tenant_id', $filterTenantId));
         }
 
         $query->update([
@@ -5383,7 +5383,7 @@ class PosController extends Controller
 
         $query = ProductVariant::where('store_id', $storeId)
             ->where('is_active', 'Y')
-            ->whereHas('product', fn($q) => $q->where('tenant_id', $tenantId));
+            ->whereHas('product', fn ($q) => $q->where('tenant_id', $tenantId));
 
         if ($isAvailable) {
             $query->update([

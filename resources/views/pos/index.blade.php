@@ -590,7 +590,7 @@
      *
      * Making the form itself a flex column restores the height chain.
      */
-    .modal-dialog-scrollable .modal-content>form {
+    .modal-dialog-scrollable .modal-content > form {
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
@@ -603,38 +603,13 @@
 <script>
     window.AKUN_BANK = @json($akunkas);
     window.AKUN_KASIR = '{{ $akunkasir }}';
-    window.PRINTER_TYPE = '{{ $store->printer_type ?? '
-    80 mm ' }}';
-    window.ENABLE_CASH_REGISTER = {
-        {
-            $store - > enable_cash_register ? 'true' : 'false'
-        }
-    };
-    window.ACTIVE_REGISTER_ID = {
-        {
-            $activeRegister ? $activeRegister - > id : 'null'
-        }
-    };
-    window.IS_STALE_SHIFT = {
-        {
-            (!empty($registerFreshness) && $registerFreshness['is_stale']) ? 'true' : 'false'
-        }
-    };
-    window.MUST_CLOSE_SHIFT = {
-        {
-            (!empty($registerFreshness) && $registerFreshness['must_close']) ? 'true' : 'false'
-        }
-    };
-    window.HAS_MIDTRANS_QRIS = {
-        {
-            !empty($hasMidtrans) ? 'true' : 'false'
-        }
-    };
-    window.STORE_ID = {
-        {
-            $store - > id
-        }
-    };
+    window.PRINTER_TYPE = '{{ $store->printer_type ?? '80mm' }}';
+    window.ENABLE_CASH_REGISTER = {{ $store->enable_cash_register ? 'true' : 'false' }};
+    window.ACTIVE_REGISTER_ID = {{ $activeRegister ? $activeRegister->id : 'null' }};
+    window.IS_STALE_SHIFT = {{ (!empty($registerFreshness) && $registerFreshness['is_stale']) ? 'true' : 'false' }};
+    window.MUST_CLOSE_SHIFT = {{ (!empty($registerFreshness) && $registerFreshness['must_close']) ? 'true' : 'false' }};
+    window.HAS_MIDTRANS_QRIS = {{ !empty($hasMidtrans) ? 'true' : 'false' }};
+    window.STORE_ID = {{ $store->id }};
 </script>
 @endpush
 
@@ -1115,15 +1090,11 @@
         });
     }
 
-    {
-        {
-            --Midtrans Dynamic QRIS Payment Flow(Auto active when store has active gateway) --
-        }
-    }
-    @if(!empty($hasMidtrans))
+    {{-- Midtrans Dynamic QRIS Payment Flow (Auto active when store has active gateway) --}}
+    @if (!empty($hasMidtrans))
     document.addEventListener("DOMContentLoaded", () => {
         if (typeof window.POS !== 'undefined') {
-            window.POS.startQrisPaymentFlow = window.POS.startQrisPaymentFlow || async function() {
+            window.POS.startQrisPaymentFlow = window.POS.startQrisPaymentFlow || async function () {
                 const total = this.cart.total;
                 const storeId = window.STORE_ID;
 
@@ -1213,9 +1184,7 @@
                             pollingTimer = setInterval(async () => {
                                 try {
                                     const checkRes = await fetch('/api/pos/qris/status/' + encodeURIComponent(orderId), {
-                                        headers: {
-                                            'Accept': 'application/json'
-                                        }
+                                        headers: { 'Accept': 'application/json' }
                                     });
                                     const checkData = await checkRes.json();
 
@@ -1251,7 +1220,7 @@
                 }
             };
 
-            window.POS.finalizeQrisCheckout = window.POS.finalizeQrisCheckout || function(orderId, total) {
+            window.POS.finalizeQrisCheckout = window.POS.finalizeQrisCheckout || function (orderId, total) {
                 Object.assign(this.cart, {
                     payment_method: 'qris',
                     paid_amount: total,
@@ -1263,26 +1232,24 @@
                 });
 
                 fetch('/pos/checkout', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify({
-                            cart: this.cart
-                        })
-                    })
-                    .then(async r => {
-                        if (!r.ok) {
-                            const err = await r.json();
-                            throw new Error(err.message || 'Checkout gagal');
-                        }
-                        return r.json();
-                    })
-                    .then(res => {
-                        Swal.fire({
-                            title: 'Pembayaran QRIS Berhasil',
-                            html: `
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({ cart: this.cart })
+                })
+                .then(async r => {
+                    if (!r.ok) {
+                        const err = await r.json();
+                        throw new Error(err.message || 'Checkout gagal');
+                    }
+                    return r.json();
+                })
+                .then(res => {
+                    Swal.fire({
+                        title: 'Pembayaran QRIS Berhasil',
+                        html: `
                             <div style="font-size:14px;color:#6b7280">
                                 Invoice <b>${res.invoice}</b>
                             </div>
@@ -1290,34 +1257,32 @@
                                 Apakah ingin mencetak struk?
                             </div>
                         `,
-                            icon: 'success',
-                            showCancelButton: true,
-                            confirmButtonText: '🖨 Cetak',
-                            cancelButtonText: 'Tidak',
-                            customClass: {
-                                popup: 'pos-checkout'
-                            },
-                            reverseButtons: true
-                        }).then(result => {
-                            this.cart.transaction_date = new Date().toLocaleDateString('en-CA');
-                            $('#transactionDate').val(this.cart.transaction_date);
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: '🖨 Cetak',
+                        cancelButtonText: 'Tidak',
+                        customClass: { popup: 'pos-checkout' },
+                        reverseButtons: true
+                    }).then(result => {
+                        this.cart.transaction_date = new Date().toLocaleDateString('en-CA');
+                        $('#transactionDate').val(this.cart.transaction_date);
 
-                            const customerIdSelect = $('#customerId');
-                            if (customerIdSelect.length) {
-                                customerIdSelect.val('').trigger('change.select2');
-                            }
-                            if (result.isConfirmed) {
-                                const printUrl = `/sales/${res.sale_id}/receipt`;
-                                window.open(printUrl, '_blank');
-                            }
+                        const customerIdSelect = $('#customerId');
+                        if (customerIdSelect.length) {
+                            customerIdSelect.val('').trigger('change.select2');
+                        }
+                        if (result.isConfirmed) {
+                            const printUrl = `/sales/${res.sale_id}/receipt`;
+                            window.open(printUrl, '_blank');
+                        }
 
-                            this.closeTab(this.cart.id);
-                            document.getElementById('skuInput')?.focus();
-                        });
-                    })
-                    .catch(err => {
-                        Swal.fire('Checkout Error', err.message || 'Pembayaran berhasil diverifikasi tetapi gagal menyimpan penjualan', 'error');
+                        this.closeTab(this.cart.id);
+                        document.getElementById('skuInput')?.focus();
                     });
+                })
+                .catch(err => {
+                    Swal.fire('Checkout Error', err.message || 'Pembayaran berhasil diverifikasi tetapi gagal menyimpan penjualan', 'error');
+                });
             };
         }
 
@@ -1447,9 +1412,7 @@
                 qrisPollingInterval = setInterval(async () => {
                     try {
                         const checkRes = await fetch('/pos/qris/status/' + encodeURIComponent(currentQrisOrderId), {
-                            headers: {
-                                'Accept': 'application/json'
-                            }
+                            headers: { 'Accept': 'application/json' }
                         });
                         const checkData = await checkRes.json();
 
@@ -1589,10 +1552,7 @@
             }
         });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+        observer.observe(document.body, { childList: true, subtree: true });
     });
     @endif
 </script>

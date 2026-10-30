@@ -74,22 +74,22 @@ class TenantOrderApiController extends Controller
         $query->whereNotIn('status', ['void', 'cancelled'])
             ->where(function ($q) use ($today, $tenantId) {
                 $q->where('status', 'hold')
-                    ->orWhere(function ($q2) use ($today, $tenantId) {
-                        $q2->where('status', 'paid')
-                            ->where(function ($q3) use ($today, $tenantId) {
-                                $q3->whereDate('sale_date', $today)
-                                    ->orWhereDate('created_at', $today)
-                                    ->orWhereDate('updated_at', $today)
-                                    ->orWhereHas('items', function ($qi) use ($today, $tenantId) {
-                                        $qi->whereDate('created_at', $today)
-                                            ->whereNotIn('status', ['voided', 'refunded'])
-                                            ->where(function ($qt) use ($tenantId) {
-                                                $qt->whereHas('variant.product', fn($qp) => $qp->where('tenant_id', $tenantId))
-                                                    ->orWhereHas('product', fn($qp) => $qp->where('tenant_id', $tenantId));
-                                            });
-                                    });
-                            });
-                    });
+                  ->orWhere(function ($q2) use ($today, $tenantId) {
+                      $q2->where('status', 'paid')
+                         ->where(function ($q3) use ($today, $tenantId) {
+                             $q3->whereDate('sale_date', $today)
+                                ->orWhereDate('created_at', $today)
+                                ->orWhereDate('updated_at', $today)
+                                ->orWhereHas('items', function ($qi) use ($today, $tenantId) {
+                                    $qi->whereDate('created_at', $today)
+                                       ->whereNotIn('status', ['voided', 'refunded'])
+                                       ->where(function ($qt) use ($tenantId) {
+                                           $qt->whereHas('variant.product', fn($qp) => $qp->where('tenant_id', $tenantId))
+                                              ->orWhereHas('product', fn($qp) => $qp->where('tenant_id', $tenantId));
+                                       });
+                                });
+                         });
+                  });
             });
 
         $sales = $query->orderBy('created_at', 'desc')->get();
@@ -415,9 +415,9 @@ class TenantOrderApiController extends Controller
             })
             ->where(function ($q) use ($today) {
                 $q->whereDate('created_at', $today)
-                    ->orWhereHas('sale', function ($sq) use ($today) {
-                        $sq->whereDate('sale_date', $today);
-                    });
+                  ->orWhereHas('sale', function ($sq) use ($today) {
+                      $sq->whereDate('sale_date', $today);
+                  });
             })
             ->orderBy('created_at', 'desc')
             ->get();
@@ -484,9 +484,9 @@ class TenantOrderApiController extends Controller
 
         $itemDateScope = function ($q) use ($startRange, $endRange) {
             $q->whereBetween('created_at', [$startRange, $endRange])
-                ->orWhereHas('sale', function ($sq) use ($startRange, $endRange) {
-                    $sq->whereBetween('sale_date', [$startRange, $endRange]);
-                });
+              ->orWhereHas('sale', function ($sq) use ($startRange, $endRange) {
+                  $sq->whereBetween('sale_date', [$startRange, $endRange]);
+              });
         };
 
         // 1. Overall Summary across the entire filtered period
@@ -505,8 +505,8 @@ class TenantOrderApiController extends Controller
                 if ($search !== '') {
                     $q->where(function ($sq) use ($search) {
                         $sq->where('invoice_number', 'like', "%{$search}%")
-                            ->orWhere('customer_name', 'like', "%{$search}%")
-                            ->orWhere('table_number', 'like', "%{$search}%");
+                          ->orWhere('customer_name', 'like', "%{$search}%")
+                          ->orWhere('table_number', 'like', "%{$search}%");
                     });
                 }
             })
@@ -539,18 +539,18 @@ class TenantOrderApiController extends Controller
         $salesQuery = Sale::with([
             'items' => function ($q) use ($tenantItemScope, $itemDateScope) {
                 $q->whereNotIn('status', ['voided', 'refunded'])
-                    ->where($tenantItemScope)
-                    ->where($itemDateScope)
-                    ->with(['variant.product', 'product', 'fnbDetail']);
+                  ->where($tenantItemScope)
+                  ->where($itemDateScope)
+                  ->with(['variant.product', 'product', 'fnbDetail']);
             },
             'store'
         ])
-            ->whereNotIn('status', ['void', 'cancelled'])
-            ->whereHas('items', function ($q) use ($tenantItemScope, $itemDateScope) {
-                $q->whereNotIn('status', ['voided', 'refunded'])
-                    ->where($tenantItemScope)
-                    ->where($itemDateScope);
-            });
+        ->whereNotIn('status', ['void', 'cancelled'])
+        ->whereHas('items', function ($q) use ($tenantItemScope, $itemDateScope) {
+            $q->whereNotIn('status', ['voided', 'refunded'])
+              ->where($tenantItemScope)
+              ->where($itemDateScope);
+        });
 
         if ($storeId) {
             $salesQuery->where('store_id', $storeId);
@@ -563,8 +563,8 @@ class TenantOrderApiController extends Controller
         if ($search !== '') {
             $salesQuery->where(function ($q) use ($search) {
                 $q->where('invoice_number', 'like', "%{$search}%")
-                    ->orWhere('customer_name', 'like', "%{$search}%")
-                    ->orWhere('table_number', 'like', "%{$search}%");
+                  ->orWhere('customer_name', 'like', "%{$search}%")
+                  ->orWhere('table_number', 'like', "%{$search}%");
             });
         }
 
