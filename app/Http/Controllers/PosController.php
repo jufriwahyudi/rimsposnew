@@ -1006,9 +1006,11 @@ class PosController extends Controller
                 $tipAmount = (float) ($cart['tip_amount'] ?? 0);
                 $akunKasir = $cart['akun_kasir'] ?? null;
                 $akunBank = $cart['akun_bank'] ?? null;
+                $store = Store::find(session('store_id'));
+                $hasShiftFeature = (bool) ($store && $store->enable_cash_register);
                 $rawClientDate = $cart['transaction_date'] ?? null;
                 $yesterdayStr = Carbon::yesterday()->toDateString();
-                $canCustomDate = function_exists('isAdmin') && function_exists('isStore') && (isAdmin() || isStore());
+                $canCustomDate = ! $hasShiftFeature || (function_exists('isAdmin') && function_exists('isStore') && (isAdmin() || isStore()));
                 if (empty($rawClientDate) || (! $canCustomDate && $rawClientDate === $yesterdayStr)) {
                     $transactionDate = now();
                 } else {
@@ -1512,11 +1514,15 @@ class PosController extends Controller
                 $transferAmount = $cart['transfer_amount'] ?? 0;
                 $tipAmount = (float) ($cart['tip_amount'] ?? 0);
                 $akunBank = $cart['akun_bank'] ?? null;
+                $store = Store::find($storeId);
+                $hasShiftFeature = (bool) ($store && $store->enable_cash_register);
                 $rawClientDate = $cart['transaction_date'] ?? null;
                 $yesterdayStr = Carbon::yesterday()->toDateString();
-                $transactionDate = (! empty($rawClientDate) && $rawClientDate !== $yesterdayStr)
-                    ? $rawClientDate.' '.now()->format('H:i:s')
-                    : now();
+                if (empty($rawClientDate) || ($hasShiftFeature && $rawClientDate === $yesterdayStr)) {
+                    $transactionDate = now();
+                } else {
+                    $transactionDate = $rawClientDate.' '.now()->format('H:i:s');
+                }
                 $customerName = $cart['customer_name'] ?? 'Umum';
                 $customerPhone = $cart['customer_phone'] ?? null;
                 $customerId = null;
@@ -1966,9 +1972,9 @@ class PosController extends Controller
                         }
                         $sale->update($updateData);
                     } else {
-                        $resolvedSaleDate = ($paymentMethod !== 'hold' && $sale->sale_date && $sale->sale_date->lt(Carbon::today()))
+                        $resolvedSaleDate = ($hasShiftFeature && $paymentMethod !== 'hold' && $sale->sale_date && $sale->sale_date->lt(Carbon::today()))
                             ? $transactionDate
-                            : $sale->sale_date;
+                            : (! $hasShiftFeature && ! empty($rawClientDate) ? $transactionDate : $sale->sale_date);
 
                         $sale->update([
                             'table_number' => $cart['table_number'] ?? $sale->table_number,
