@@ -37,6 +37,9 @@ class LaporanPenjualanExport implements
 
     public function headings(): array
     {
+        $store = \App\Models\Store::find(session('store_id'));
+        $isFnB = $store && $store->business_type === 'fnb';
+
         return [
             ['Laporan Penjualan'],
             ['Periode: ' . $this->mulai . ' s/d ' . $this->akhir],
@@ -46,7 +49,7 @@ class LaporanPenjualanExport implements
                 'Invoice',
                 'Jenis',
                 'Tanggal',
-                'Pelanggan / Meja',
+                $isFnB ? 'Pelanggan / Meja' : 'Nama Pelanggan',
                 'Subtotal',
                 'Diskon',
                 'Total (Net)',
@@ -126,7 +129,7 @@ class LaporanPenjualanExport implements
             $this->totalLaba += $laba;
 
             $customerLabel = $sale->customer_name ?: ($sale->customer_id ?: '-');
-            if (!empty($sale->table_number)) {
+            if ($isFnB && !empty($sale->table_number)) {
                 $customerLabel .= " (Meja: {$sale->table_number})";
             }
 

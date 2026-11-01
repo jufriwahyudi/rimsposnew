@@ -134,11 +134,11 @@ class LaporanController extends Controller
 
         // Jika request dari AJAX, return partial view (hanya tabel)
         if ($request->ajax()) {
-            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
+            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'isFnB', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
         }
 
         // Jika request normal, return full page
-        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
+        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'isFnB', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
     }
 
     public function exportPenjualan(Request $request)

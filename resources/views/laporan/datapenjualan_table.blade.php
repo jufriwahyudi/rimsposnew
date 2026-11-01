@@ -17,7 +17,7 @@
                         <th class="text-center">No</th>
                         <th class="text-center">Invoice</th>
                         <th class="text-center">Tanggal</th>
-                        <th class="text-center">Pelanggan / Meja</th>
+                        <th class="text-center">{{ !empty($isFnB) ? 'Pelanggan / Meja' : 'Nama Pelanggan' }}</th>
                         <th class="text-center">Subtotal</th>
                         <th class="text-center">Diskon</th>
                         <th class="text-center">Total (Net)</th>
@@ -43,7 +43,7 @@
                         <td>{{ optional($row->sale_date)->format('Y-m-d H:i') ?? '-' }}</td>
                         <td>
                             <div>{{ $row->customer_name }}</div>
-                            @if (!empty($row->table_number))
+                            @if (!empty($isFnB) && !empty($row->table_number))
                             <span class="badge bg-light text-dark border">Meja: {{ $row->table_number }}</span>
                             @endif
                         </td>
