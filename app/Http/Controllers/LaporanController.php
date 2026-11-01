@@ -85,8 +85,18 @@ class LaporanController extends Controller
                 }
             }
 
-            $jumlah = $sale->grand_total ?? 0;
+            $jumlah = (float) ($sale->grand_total ?? 0);
             $laba = $jumlah - $cost;
+
+            $itemDiscount = (float) $sale->items->sum('discount_amount');
+            $transDiscount = (float) ($sale->trans_discount ?? 0);
+            $voucherDiscount = (float) ($sale->voucher_discount_amount ?? 0);
+            $pointDiscount = (float) ($sale->point_discount_amount ?? 0);
+            $diskon = $itemDiscount + $transDiscount + $voucherDiscount + $pointDiscount;
+            if ($diskon <= 0 && (float) ($sale->discount_total ?? 0) > 0) {
+                $diskon = (float) $sale->discount_total;
+            }
+            $subtotalKotor = (float) ($sale->subtotal ?? $jumlah) + $itemDiscount;
 
             $cash = CashTransaction::where('transaction_type', 'sale')
                 ->where('ref_id', $sale->id)
@@ -98,8 +108,13 @@ class LaporanController extends Controller
                 'no' => $i + 1,
                 'sale_type' => $sale->sale_type,
                 'sale_id' => $sale->id,
+                'invoice_number' => $sale->invoice_number ?? '-',
+                'table_number' => $sale->table_number ?? null,
                 'sale_date' => $sale->sale_date,
                 'customer_name' => $sale->customer_name ?: ($sale->customer_id ?: '-'),
+                'subtotal' => $subtotalKotor,
+                'diskon' => $diskon,
+                'discount_name' => $sale->discount_name ?? null,
                 'jumlah_penjualan' => $jumlah,
                 'modal' => $cost,
                 'laba_rugi' => $laba,
@@ -110,6 +125,8 @@ class LaporanController extends Controller
             ]);
         }
 
+        $totalSubtotal = $rows->sum('subtotal');
+        $totalDiskon = $rows->sum('diskon');
         $totalPenjualan = $rows->sum('jumlah_penjualan');
         $totalModal = $rows->sum('modal');
         $totalLabaRugi = $rows->sum('laba_rugi');
@@ -117,11 +134,11 @@ class LaporanController extends Controller
 
         // Jika request dari AJAX, return partial view (hanya tabel)
         if ($request->ajax()) {
-            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
+            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
         }
 
         // Jika request normal, return full page
-        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
+        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
     }
 
     public function exportPenjualan(Request $request)
@@ -466,7 +483,7 @@ class LaporanController extends Controller
     public function harian()
     {
         $storeId = session('store_id');
-        $categories = $storeId 
+        $categories = $storeId
             ? \App\Models\ProductCategory::where('store_id', $storeId)->where('is_active', true)->orderBy('name')->get()
             : collect();
 
@@ -656,7 +673,7 @@ class LaporanController extends Controller
             return view('laporan.harian_table', $viewData);
         }
 
-        $categories = $storeId 
+        $categories = $storeId
             ? \App\Models\ProductCategory::where('store_id', $storeId)->where('is_active', true)->orderBy('name')->get()
             : collect();
 
@@ -791,16 +808,31 @@ class LaporanController extends Controller
 
         if ($request->ajax()) {
             return view('laporan.penerimaan_kas_table', compact(
-                'cashRows', 'totalCashMasuk', 'totalCashKeluar', 'saldoCash',
-                'transferRows', 'totalTransferMasuk', 'totalTransferKeluar', 'saldoTransfer',
-                'mulai', 'akhir', 'userId'
+                'cashRows',
+                'totalCashMasuk',
+                'totalCashKeluar',
+                'saldoCash',
+                'transferRows',
+                'totalTransferMasuk',
+                'totalTransferKeluar',
+                'saldoTransfer',
+                'mulai',
+                'akhir',
+                'userId'
             ));
         }
 
         return view('laporan.penerimaan_kas_frontliner', compact(
-            'cashRows', 'totalCashMasuk', 'totalCashKeluar', 'saldoCash',
-            'transferRows', 'totalTransferMasuk', 'totalTransferKeluar', 'saldoTransfer',
-            'mulai', 'akhir'
+            'cashRows',
+            'totalCashMasuk',
+            'totalCashKeluar',
+            'saldoCash',
+            'transferRows',
+            'totalTransferMasuk',
+            'totalTransferKeluar',
+            'saldoTransfer',
+            'mulai',
+            'akhir'
         ));
     }
 
@@ -1259,14 +1291,24 @@ class LaporanController extends Controller
 
         if ($request->ajax()) {
             return view('laporan.datapenukaran_poin_table', compact(
-                'redemptions', 'mulai', 'akhir', 
-                'totalPointsSpent', 'totalPhysical', 'totalVoucherPercent', 'totalVoucherNominal'
+                'redemptions',
+                'mulai',
+                'akhir',
+                'totalPointsSpent',
+                'totalPhysical',
+                'totalVoucherPercent',
+                'totalVoucherNominal'
             ));
         }
 
         return view('laporan.penukaran_poin', compact(
-            'redemptions', 'mulai', 'akhir', 
-            'totalPointsSpent', 'totalPhysical', 'totalVoucherPercent', 'totalVoucherNominal'
+            'redemptions',
+            'mulai',
+            'akhir',
+            'totalPointsSpent',
+            'totalPhysical',
+            'totalVoucherPercent',
+            'totalVoucherNominal'
         ));
     }
 
@@ -1301,10 +1343,10 @@ class LaporanController extends Controller
         }
 
         if ($request->filled('search')) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('alamat', 'like', "%{$search}%");
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('alamat', 'like', "%{$search}%");
             });
         }
 
@@ -1359,10 +1401,10 @@ class LaporanController extends Controller
         }
 
         if ($request->filled('search')) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 

@@ -20,6 +20,8 @@ class LaporanPenjualanExport implements
     ShouldAutoSize,
     WithEvents
 {
+    protected $totalSubtotal = 0;
+    protected $totalDiskon = 0;
     protected $totalPenjualan = 0;
     protected $totalModal = 0;
     protected $totalLaba = 0;
@@ -41,10 +43,13 @@ class LaporanPenjualanExport implements
             [],
             [
                 'No',
+                'Invoice',
                 'Jenis',
                 'Tanggal',
-                'Nama Pelanggan',
-                'Total',
+                'Pelanggan / Meja',
+                'Subtotal',
+                'Diskon',
+                'Total (Net)',
                 'Modal',
                 'Laba / Rugi',
                 'Metode Pembayaran',
@@ -95,8 +100,18 @@ class LaporanPenjualanExport implements
                 }
             }
 
-            $jumlah = $sale->grand_total ?? 0;
+            $jumlah = (float) ($sale->grand_total ?? 0);
             $laba = $jumlah - $cost;
+
+            $itemDiscount = (float) $sale->items->sum('discount_amount');
+            $transDiscount = (float) ($sale->trans_discount ?? 0);
+            $voucherDiscount = (float) ($sale->voucher_discount_amount ?? 0);
+            $pointDiscount = (float) ($sale->point_discount_amount ?? 0);
+            $diskon = $itemDiscount + $transDiscount + $voucherDiscount + $pointDiscount;
+            if ($diskon <= 0 && (float) ($sale->discount_total ?? 0) > 0) {
+                $diskon = (float) $sale->discount_total;
+            }
+            $subtotalKotor = (float) ($sale->subtotal ?? $jumlah) + $itemDiscount;
 
             $cash = CashTransaction::where('transaction_type', 'sale')
                 ->where('ref_id', $sale->id)
@@ -104,15 +119,25 @@ class LaporanPenjualanExport implements
 
             $metode = $cash->payment_method ?? '-';
 
+            $this->totalSubtotal += $subtotalKotor;
+            $this->totalDiskon += $diskon;
             $this->totalPenjualan += $jumlah;
             $this->totalModal += $cost;
             $this->totalLaba += $laba;
 
+            $customerLabel = $sale->customer_name ?: ($sale->customer_id ?: '-');
+            if (!empty($sale->table_number)) {
+                $customerLabel .= " (Meja: {$sale->table_number})";
+            }
+
             $rows[] = [
                 $i + 1,
+                $sale->invoice_number ?? '-',
                 ucfirst($sale->sale_type ?? '-'),
                 optional($sale->sale_date)->format('Y-m-d H:i') ?? '-',
-                $sale->customer_name ?: ($sale->customer_id ?: '-'),
+                $customerLabel,
+                $subtotalKotor,
+                $diskon,
                 $jumlah,
                 $cost,
                 $laba,
@@ -129,7 +154,10 @@ class LaporanPenjualanExport implements
             '',
             '',
             '',
+            '',
             'TOTAL',
+            $this->totalSubtotal,
+            $this->totalDiskon,
             $this->totalPenjualan,
             $this->totalModal,
             $this->totalLaba,
@@ -157,16 +185,16 @@ class LaporanPenjualanExport implements
                 $sheet = $event->sheet->getDelegate();
 
                 // Merge title row
-                $sheet->mergeCells('A1:J1');
+                $sheet->mergeCells('A1:M1');
                 $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 // Merge periode row
-                $sheet->mergeCells('A2:J2');
+                $sheet->mergeCells('A2:M2');
                 $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
                 // Style baris total (heading 4 baris + data rows + 1 total)
                 $totalRow = 4 + $this->rowCount + 1;
-                $sheet->getStyle("A{$totalRow}:J{$totalRow}")->getFont()->setBold(true);
+                $sheet->getStyle("A{$totalRow}:M{$totalRow}")->getFont()->setBold(true);
             },
         ];
     }

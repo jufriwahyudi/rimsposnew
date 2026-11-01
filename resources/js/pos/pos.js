@@ -16,9 +16,18 @@ const POS = {
         this.activeTabId = Storage.loadActive();
 
         if (!Array.isArray(this.tabs)) this.tabs = [];
+
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        this.tabs.forEach(tab => {
+            if (tab && tab.transaction_date && tab.transaction_date < todayStr) {
+                tab.transaction_date = todayStr;
+            }
+        });
+
         if (this.tabs.length === 0) this.newTab();
         if (!this.activeTabId) this.activeTabId = this.tabs[0].id;
 
+        this.persist();
         this.bindEvents();
         this.render();
         this.renderTabs();
