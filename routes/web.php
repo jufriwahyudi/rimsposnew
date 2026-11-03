@@ -440,6 +440,13 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     #export pdf penerimaan kas
     Route::get('/cetakkaspdf/{tanggal?}/{user_id?}', [LaporanController::class, 'cetakPenerimaanKas'])->name('laporan.cetak_penerimaan_kas');
 
+    #LAPORAN KAS KELUAR (LIVE DB)
+    Route::get('/laporan/kas-keluar', [LaporanController::class, 'kasKeluar'])->name('laporan.kas_keluar');
+    Route::post('/laporan/kas-keluar/data', [LaporanController::class, 'getKasKeluarData'])->name('laporan.kas_keluar.data');
+    Route::get('/laporan/kas-keluar/shifts', [LaporanController::class, 'getKasKeluarShifts'])->name('laporan.kas_keluar.shifts');
+    Route::get('/laporan/kas-keluar/export', [LaporanController::class, 'exportKasKeluar'])->name('laporan.kas_keluar.export');
+    Route::get('/laporan/kas-keluar/cetak', [LaporanController::class, 'cetakKasKeluar'])->name('laporan.kas_keluar.cetak');
+
     #JADWAL
     Route::get('/jadwal/index', [JadwalController::class, 'index']);
     Route::get('/jadwal/list', [JadwalController::class, 'list'])->name('jadwal.list');

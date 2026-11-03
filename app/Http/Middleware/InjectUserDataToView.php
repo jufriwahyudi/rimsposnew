@@ -88,6 +88,23 @@ class InjectUserDataToView
                 }
             }
 
+            // Ensure Laporan Kas Keluar is present in Laporan menu
+            $laporanMenu = $menus->first(fn($m) => strtolower($m->nama) === 'laporan');
+            if ($laporanMenu) {
+                $hasKasKeluar = $laporanMenu->children->contains(fn($child) => $child->routename === 'laporan.kas_keluar');
+                if (!$hasKasKeluar) {
+                    $kasKeluarMenu = MenuList::where('routename', 'laporan.kas_keluar')->first() ?: (object)[
+                        'id' => 9992,
+                        'nama' => 'Kas Keluar (Live)',
+                        'routename' => 'laporan.kas_keluar',
+                        'icon' => 'arrow_right',
+                        'id_parent' => $laporanMenu->id,
+                        'children' => collect(),
+                    ];
+                    $laporanMenu->children->push($kasKeluarMenu);
+                }
+            }
+
             $rolelist = Cache::remember("role_list_{$userId}", 360, fn() => RoleUser::where('user_id', $userId)->with('roles')->get());
 
             view()->share('menucache', $menus);

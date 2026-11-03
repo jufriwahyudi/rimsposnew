@@ -1438,4 +1438,355 @@ class LaporanController extends Controller
             $filename . '.xlsx'
         );
     }
+
+    /**
+     * Helper to get Live Database connection (Read-Only)
+     */
+    protected function getLiveDbConnection()
+    {
+        return DB::connection('mysql_live');
+    }
+
+    /**
+     * Laporan Kas Keluar Store (Read Live DB)
+     */
+    public function kasKeluar(Request $request)
+    {
+        try {
+            $liveDb = $this->getLiveDbConnection();
+            $stores = $liveDb->table('stores')
+                ->select('id', 'name', 'code', 'city')
+                ->whereNull('deleted_at')
+                ->orderBy('name')
+                ->get();
+        } catch (\Throwable $e) {
+            $stores = collect();
+        }
+
+        // Default: store_id param or session store_id or 166 (Panglima Kupi Aceh)
+        $selectedStoreId = (int) ($request->store_id ?: (session('store_id') ?: 166));
+
+        $cashiers = collect();
+        $shifts = collect();
+
+        if ($stores->isNotEmpty()) {
+            try {
+                $liveDb = $this->getLiveDbConnection();
+
+                // Cashiers involved in this store
+                $cashiers = $liveDb->table('users as u')
+                    ->joinSub(
+                        $liveDb->table('cash_transactions')
+                            ->select('user_id')
+                            ->where('store_id', $selectedStoreId)
+                            ->where('transaction_type', 'cash_out')
+                            ->union(
+                                $liveDb->table('cash_registers')
+                                    ->select('user_id')
+                                    ->where('store_id', $selectedStoreId)
+                            ),
+                        'act',
+                        'act.user_id',
+                        '=',
+                        'u.id'
+                    )
+                    ->select('u.id', 'u.name')
+                    ->distinct()
+                    ->orderBy('u.name')
+                    ->get();
+
+                // Shifts for store
+                $shifts = $liveDb->table('cash_registers as cr')
+                    ->leftJoin('users as u', 'cr.user_id', '=', 'u.id')
+                    ->leftJoin('cash_transactions as ct', function ($join) {
+                        $join->on('ct.cash_register_id', '=', 'cr.id')
+                            ->where('ct.transaction_type', '=', 'cash_out');
+                    })
+                    ->where('cr.store_id', $selectedStoreId)
+                    ->select(
+                        'cr.id',
+                        'cr.opened_at',
+                        'cr.closed_at',
+                        'cr.status',
+                        'u.name as cashier_name',
+                        DB::raw('COUNT(ct.id) as cash_out_count'),
+                        DB::raw('COALESCE(SUM(ct.amount), 0) as total_cash_out')
+                    )
+                    ->groupBy('cr.id', 'cr.opened_at', 'cr.closed_at', 'cr.status', 'u.name')
+                    ->orderByDesc('cr.id')
+                    ->limit(100)
+                    ->get();
+            } catch (\Throwable $e) {
+                // Keep empty collections on connection glitch
+            }
+        }
+
+        return view('laporan.kas_keluar', compact('stores', 'selectedStoreId', 'cashiers', 'shifts'));
+    }
+
+    /**
+     * AJAX endpoint to fetch shifts & cashiers when store filter changes
+     */
+    public function getKasKeluarShifts(Request $request)
+    {
+        $storeId = (int) ($request->store_id ?: 166);
+
+        try {
+            $liveDb = $this->getLiveDbConnection();
+
+            $shifts = $liveDb->table('cash_registers as cr')
+                ->leftJoin('users as u', 'cr.user_id', '=', 'u.id')
+                ->leftJoin('cash_transactions as ct', function ($join) {
+                    $join->on('ct.cash_register_id', '=', 'cr.id')
+                        ->where('ct.transaction_type', '=', 'cash_out');
+                })
+                ->where('cr.store_id', $storeId)
+                ->select(
+                    'cr.id',
+                    'cr.opened_at',
+                    'cr.closed_at',
+                    'cr.status',
+                    'u.name as cashier_name',
+                    DB::raw('COUNT(ct.id) as cash_out_count'),
+                    DB::raw('COALESCE(SUM(ct.amount), 0) as total_cash_out')
+                )
+                ->groupBy('cr.id', 'cr.opened_at', 'cr.closed_at', 'cr.status', 'u.name')
+                ->orderByDesc('cr.id')
+                ->limit(100)
+                ->get();
+
+            $cashiers = $liveDb->table('users as u')
+                ->joinSub(
+                    $liveDb->table('cash_transactions')
+                        ->select('user_id')
+                        ->where('store_id', $storeId)
+                        ->where('transaction_type', 'cash_out')
+                        ->union(
+                            $liveDb->table('cash_registers')
+                                ->select('user_id')
+                                ->where('store_id', $storeId)
+                        ),
+                    'act',
+                    'act.user_id',
+                    '=',
+                    'u.id'
+                )
+                ->select('u.id', 'u.name')
+                ->distinct()
+                ->orderBy('u.name')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'shifts' => $shifts,
+                'cashiers' => $cashiers,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * AJAX endpoint to render Laporan Kas Keluar table
+     */
+    public function getKasKeluarData(Request $request)
+    {
+        $storeId = (int) ($request->store_id ?: 166);
+        $shiftId = $request->shift_id;
+        $userId = $request->user_id;
+        $search = $request->search;
+
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($request->mulai, $request->akhir);
+
+        try {
+            $liveDb = $this->getLiveDbConnection();
+
+            $store = $liveDb->table('stores')->where('id', $storeId)->first();
+            $storeName = $store ? $store->name : "Store #{$storeId}";
+
+            $query = $liveDb->table('cash_transactions as ct')
+                ->leftJoin('users as u', 'ct.user_id', '=', 'u.id')
+                ->leftJoin('cash_registers as cr', 'ct.cash_register_id', '=', 'cr.id')
+                ->leftJoin('users as cru', 'cr.user_id', '=', 'cru.id')
+                ->where('ct.store_id', $storeId)
+                ->where('ct.transaction_type', 'cash_out')
+                ->whereBetween('ct.transaction_date', [$startDateTime, $endDateTime]);
+
+            if (!empty($shiftId)) {
+                $query->where('ct.cash_register_id', $shiftId);
+            }
+
+            if (!empty($userId)) {
+                $query->where('ct.user_id', $userId);
+            }
+
+            if (!empty($search)) {
+                $query->where('ct.notes', 'like', "%{$search}%");
+            }
+
+            $transactions = $query->select(
+                'ct.id',
+                'ct.transaction_date',
+                'ct.amount',
+                'ct.notes',
+                'ct.bukti_bayar',
+                'ct.payment_method',
+                'ct.user_id',
+                'u.name as cashier_name',
+                'ct.cash_register_id',
+                'cr.opened_at as shift_opened_at',
+                'cr.closed_at as shift_closed_at',
+                'cr.status as shift_status',
+                'cru.name as shift_opened_by'
+            )
+            ->orderByDesc('ct.transaction_date')
+            ->orderByDesc('ct.id')
+            ->get();
+
+            // Calculate metrics
+            $totalNominal = $transactions->sum('amount');
+            $totalTransaksi = $transactions->count();
+            $rataRata = $totalTransaksi > 0 ? ($totalNominal / $totalTransaksi) : 0;
+            $maxNominal = $transactions->max('amount') ?? 0;
+
+            // Grouping by Cashier
+            $byCashier = $transactions->groupBy(function ($item) {
+                return $item->cashier_name ?: 'Tidak Diketahui';
+            })->map(function ($items, $name) use ($totalNominal) {
+                $sum = $items->sum('amount');
+                return (object)[
+                    'name' => $name,
+                    'count' => $items->count(),
+                    'total' => $sum,
+                    'percentage' => $totalNominal > 0 ? round(($sum / $totalNominal) * 100, 1) : 0,
+                ];
+            })->sortByDesc('total');
+
+            // Grouping by Shift
+            $byShift = $transactions->groupBy('cash_register_id')->map(function ($items, $regId) {
+                $first = $items->first();
+                return (object)[
+                    'shift_id' => $regId ?: '-',
+                    'shift_cashier' => $first->shift_opened_by ?: ($first->cashier_name ?: '-'),
+                    'shift_opened_at' => $first->shift_opened_at,
+                    'shift_closed_at' => $first->shift_closed_at,
+                    'shift_status' => $first->shift_status,
+                    'count' => $items->count(),
+                    'total' => $items->sum('amount'),
+                ];
+            })->sortByDesc('total');
+
+            return view('laporan.kas_keluar_table', compact(
+                'transactions',
+                'storeId',
+                'storeName',
+                'startDateTime',
+                'endDateTime',
+                'shiftId',
+                'userId',
+                'search',
+                'totalNominal',
+                'totalTransaksi',
+                'rataRata',
+                'maxNominal',
+                'byCashier',
+                'byShift'
+            ));
+        } catch (\Throwable $e) {
+            return '<div class="alert alert-danger p-3"><i class="bi bi-exclamation-triangle"></i> Gagal membaca data live: ' . e($e->getMessage()) . '</div>';
+        }
+    }
+
+    /**
+     * Export Excel Laporan Kas Keluar
+     */
+    public function exportKasKeluar(Request $request)
+    {
+        $storeId = (int) ($request->store_id ?: 166);
+        $shiftId = $request->shift_id;
+        $userId = $request->user_id;
+        $search = $request->search;
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($request->mulai, $request->akhir);
+
+        $liveDb = $this->getLiveDbConnection();
+        $store = $liveDb->table('stores')->where('id', $storeId)->first();
+        $storeName = $store ? $store->name : "Store_{$storeId}";
+
+        $safeStore = str_replace(' ', '_', preg_replace('/[^a-zA-Z0-9_]/', '', $storeName));
+        $safeMulai = Carbon::parse($startDateTime)->format('Ymd_Hi');
+        $safeAkhir = Carbon::parse($endDateTime)->format('Ymd_Hi');
+
+        return Excel::download(
+            new \App\Exports\KasKeluarExport($storeId, $startDateTime, $endDateTime, $shiftId, $userId, $search, $storeName),
+            "Laporan_Kas_Keluar_{$safeStore}_{$safeMulai}_to_{$safeAkhir}.xlsx"
+        );
+    }
+
+    /**
+     * Cetak / Print View Laporan Kas Keluar
+     */
+    public function cetakKasKeluar(Request $request)
+    {
+        $storeId = (int) ($request->store_id ?: 166);
+        $shiftId = $request->shift_id;
+        $userId = $request->user_id;
+        $search = $request->search;
+        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($request->mulai, $request->akhir);
+
+        $liveDb = $this->getLiveDbConnection();
+        $store = $liveDb->table('stores')->where('id', $storeId)->first();
+        $storeName = $store ? $store->name : "Store #{$storeId}";
+
+        $query = $liveDb->table('cash_transactions as ct')
+            ->leftJoin('users as u', 'ct.user_id', '=', 'u.id')
+            ->leftJoin('cash_registers as cr', 'ct.cash_register_id', '=', 'cr.id')
+            ->leftJoin('users as cru', 'cr.user_id', '=', 'cru.id')
+            ->where('ct.store_id', $storeId)
+            ->where('ct.transaction_type', 'cash_out')
+            ->whereBetween('ct.transaction_date', [$startDateTime, $endDateTime]);
+
+        if (!empty($shiftId)) {
+            $query->where('ct.cash_register_id', $shiftId);
+        }
+        if (!empty($userId)) {
+            $query->where('ct.user_id', $userId);
+        }
+        if (!empty($search)) {
+            $query->where('ct.notes', 'like', "%{$search}%");
+        }
+
+        $transactions = $query->select(
+            'ct.id',
+            'ct.transaction_date',
+            'ct.amount',
+            'ct.notes',
+            'ct.user_id',
+            'u.name as cashier_name',
+            'ct.cash_register_id',
+            'cr.opened_at as shift_opened_at',
+            'cr.closed_at as shift_closed_at',
+            'cr.status as shift_status',
+            'cru.name as shift_opened_by'
+        )
+        ->orderBy('ct.transaction_date', 'asc')
+        ->get();
+
+        $totalNominal = $transactions->sum('amount');
+        $totalTransaksi = $transactions->count();
+
+        return view('laporan.cetak_kas_keluar', compact(
+            'transactions',
+            'storeName',
+            'startDateTime',
+            'endDateTime',
+            'totalNominal',
+            'totalTransaksi',
+            'shiftId',
+            'userId',
+            'search'
+        ));
+    }
 }
