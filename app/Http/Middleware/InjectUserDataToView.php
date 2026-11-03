@@ -95,7 +95,7 @@ class InjectUserDataToView
                 if (!$hasKasKeluar) {
                     $kasKeluarMenu = MenuList::where('routename', 'laporan.kas_keluar')->first() ?: (object)[
                         'id' => 9992,
-                        'nama' => 'Kas Keluar (Live)',
+                        'nama' => 'Kas Keluar',
                         'routename' => 'laporan.kas_keluar',
                         'icon' => 'arrow_right',
                         'id_parent' => $laporanMenu->id,

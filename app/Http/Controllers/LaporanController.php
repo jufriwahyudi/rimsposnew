@@ -1448,23 +1448,67 @@ class LaporanController extends Controller
     }
 
     /**
-     * Laporan Kas Keluar Store (Read Live DB)
+     * Get authorized stores based on user role (SUPERADMIN vs Admin Store)
      */
-    public function kasKeluar(Request $request)
+    protected function getAuthorizedStores()
     {
-        try {
-            $liveDb = $this->getLiveDbConnection();
+        $user = auth()->user();
+        $selectedRole = session('selected_role');
+        $role = $selectedRole ? \App\Models\RoleMaster::find($selectedRole) : null;
+        $isSuperAdmin = ($role && strtoupper($role->role_type) === 'SUPERADMIN')
+            || ($user && strtoupper($user->role ?? '') === 'SUPERADMIN')
+            || session('role_name') === 'SUPERADMIN';
+
+        $liveDb = $this->getLiveDbConnection();
+
+        if ($isSuperAdmin) {
             $stores = $liveDb->table('stores')
                 ->select('id', 'name', 'code', 'city')
                 ->whereNull('deleted_at')
                 ->orderBy('name')
                 ->get();
-        } catch (\Throwable $e) {
-            $stores = collect();
+            return [$isSuperAdmin, $stores];
         }
 
-        // Default: store_id param or session store_id or 166 (Panglima Kupi Aceh)
-        $selectedStoreId = (int) ($request->store_id ?: (session('store_id') ?: 166));
+        // For non-superadmin: restrict to user's assigned stores
+        $assignedStoreIds = $user ? $user->stores()->pluck('stores.id')->toArray() : [];
+        if (session('store_id')) {
+            $assignedStoreIds = array_unique(array_merge($assignedStoreIds, [(int)session('store_id')]));
+        }
+
+        $stores = $liveDb->table('stores')
+            ->select('id', 'name', 'code', 'city')
+            ->whereIn('id', $assignedStoreIds)
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get();
+
+        return [$isSuperAdmin, $stores];
+    }
+
+    /**
+     * Laporan Kas Keluar Store (Read Live DB)
+     */
+    public function kasKeluar(Request $request)
+    {
+        try {
+            [$isSuperAdmin, $stores] = $this->getAuthorizedStores();
+        } catch (\Throwable $e) {
+            $stores = collect();
+            $isSuperAdmin = false;
+        }
+
+        if ($isSuperAdmin) {
+            $defaultStoreId = 166;
+            if (!$stores->contains('id', $defaultStoreId) && $stores->isNotEmpty()) {
+                $defaultStoreId = $stores->first()->id;
+            }
+            $selectedStoreId = (int) ($request->store_id ?: (session('store_id') ?: $defaultStoreId));
+        } else {
+            $allowedIds = $stores->pluck('id')->toArray();
+            $requestedId = (int) ($request->store_id ?: session('store_id'));
+            $selectedStoreId = in_array($requestedId, $allowedIds) ? $requestedId : ($allowedIds[0] ?? (int)session('store_id'));
+        }
 
         $cashiers = collect();
         $shifts = collect();
@@ -1521,7 +1565,7 @@ class LaporanController extends Controller
             }
         }
 
-        return view('laporan.kas_keluar', compact('stores', 'selectedStoreId', 'cashiers', 'shifts'));
+        return view('laporan.kas_keluar', compact('stores', 'selectedStoreId', 'cashiers', 'shifts', 'isSuperAdmin'));
     }
 
     /**
@@ -1529,9 +1573,16 @@ class LaporanController extends Controller
      */
     public function getKasKeluarShifts(Request $request)
     {
-        $storeId = (int) ($request->store_id ?: 166);
-
         try {
+            [$isSuperAdmin, $stores] = $this->getAuthorizedStores();
+            $allowedIds = $stores->pluck('id')->toArray();
+
+            if (!$isSuperAdmin && !in_array((int)$request->store_id, $allowedIds)) {
+                $storeId = $allowedIds[0] ?? (int)session('store_id');
+            } else {
+                $storeId = (int) ($request->store_id ?: ($isSuperAdmin ? 166 : session('store_id')));
+            }
+
             $liveDb = $this->getLiveDbConnection();
 
             $shifts = $liveDb->table('cash_registers as cr')
@@ -1594,14 +1645,22 @@ class LaporanController extends Controller
      */
     public function getKasKeluarData(Request $request)
     {
-        $storeId = (int) ($request->store_id ?: 166);
-        $shiftId = $request->shift_id;
-        $userId = $request->user_id;
-        $search = $request->search;
-
-        [$startDateTime, $endDateTime] = $this->parseDateTimeRange($request->mulai, $request->akhir);
-
         try {
+            [$isSuperAdmin, $stores] = $this->getAuthorizedStores();
+            $allowedIds = $stores->pluck('id')->toArray();
+
+            if (!$isSuperAdmin && !in_array((int)$request->store_id, $allowedIds)) {
+                $storeId = $allowedIds[0] ?? (int)session('store_id');
+            } else {
+                $storeId = (int) ($request->store_id ?: ($isSuperAdmin ? 166 : session('store_id')));
+            }
+
+            $shiftId = $request->shift_id;
+            $userId = $request->user_id;
+            $search = $request->search;
+
+            [$startDateTime, $endDateTime] = $this->parseDateTimeRange($request->mulai, $request->akhir);
+
             $liveDb = $this->getLiveDbConnection();
 
             $store = $liveDb->table('stores')->where('id', $storeId)->first();
@@ -1696,7 +1755,7 @@ class LaporanController extends Controller
                 'byShift'
             ));
         } catch (\Throwable $e) {
-            return '<div class="alert alert-danger p-3"><i class="bi bi-exclamation-triangle"></i> Gagal membaca data live: ' . e($e->getMessage()) . '</div>';
+            return '<div class="alert alert-danger p-3"><i class="bi bi-exclamation-triangle"></i> Gagal memuat data: ' . e($e->getMessage()) . '</div>';
         }
     }
 
@@ -1705,7 +1764,15 @@ class LaporanController extends Controller
      */
     public function exportKasKeluar(Request $request)
     {
-        $storeId = (int) ($request->store_id ?: 166);
+        [$isSuperAdmin, $stores] = $this->getAuthorizedStores();
+        $allowedIds = $stores->pluck('id')->toArray();
+
+        if (!$isSuperAdmin && !in_array((int)$request->store_id, $allowedIds)) {
+            $storeId = $allowedIds[0] ?? (int)session('store_id');
+        } else {
+            $storeId = (int) ($request->store_id ?: ($isSuperAdmin ? 166 : session('store_id')));
+        }
+
         $shiftId = $request->shift_id;
         $userId = $request->user_id;
         $search = $request->search;
@@ -1730,7 +1797,15 @@ class LaporanController extends Controller
      */
     public function cetakKasKeluar(Request $request)
     {
-        $storeId = (int) ($request->store_id ?: 166);
+        [$isSuperAdmin, $stores] = $this->getAuthorizedStores();
+        $allowedIds = $stores->pluck('id')->toArray();
+
+        if (!$isSuperAdmin && !in_array((int)$request->store_id, $allowedIds)) {
+            $storeId = $allowedIds[0] ?? (int)session('store_id');
+        } else {
+            $storeId = (int) ($request->store_id ?: ($isSuperAdmin ? 166 : session('store_id')));
+        }
+
         $shiftId = $request->shift_id;
         $userId = $request->user_id;
         $search = $request->search;

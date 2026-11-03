@@ -34,14 +34,7 @@
                             </div>
                             <div>
                                 <h5 class="fw-bold mb-0 text-dark">Laporan Kas Keluar</h5>
-                                <div class="d-flex align-items-center gap-2 mt-1">
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
-                                        <i class="bi bi-arrow-up-right-circle me-1"></i> Cash Register (POS)
-                                    </span>
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                        <i class="bi bi-database-check me-1"></i> Live DB (Read-Only)
-                                    </span>
-                                </div>
+                                <small class="text-muted">Rekapitulasi pengeluaran kas dari shift kasir</small>
                             </div>
                         </div>
                     </div>
@@ -53,15 +46,20 @@
                                 {{-- Filter Toko --}}
                                 <div class="col-md-3 col-sm-6">
                                     <label class="form-label fw-semibold text-secondary small mb-1">
-                                        <i class="bi bi-shop me-1"></i> Pilih Toko / Store
+                                        <i class="bi bi-shop me-1"></i> Toko / Store
                                     </label>
-                                    <select name="store_id" id="storeFilter" class="form-select select2">
-                                        @foreach ($stores as $st)
-                                            <option value="{{ $st->id }}" {{ $st->id == $selectedStoreId ? 'selected' : '' }}>
-                                                {{ $st->name }} {{ $st->id == 166 ? '⭐ (Contoh Kasir Aktif)' : '' }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                    @if ($isSuperAdmin || $stores->count() > 1)
+                                        <select name="store_id" id="storeFilter" class="form-select select2">
+                                            @foreach ($stores as $st)
+                                                <option value="{{ $st->id }}" {{ $st->id == $selectedStoreId ? 'selected' : '' }}>
+                                                    {{ $st->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    @else
+                                        <input type="hidden" name="store_id" id="storeFilter" value="{{ $selectedStoreId }}">
+                                        <input type="text" class="form-control bg-light" value="{{ $stores->first()->name ?? session('store_name', 'Toko') }}" readonly>
+                                    @endif
                                 </div>
 
                                 {{-- Filter Periode Tanggal & Jam --}}
@@ -136,7 +134,7 @@
                             <div class="spinner-border text-danger" role="status">
                                 <span class="visually-hidden">Loading...</span>
                             </div>
-                            <p class="text-muted mt-2">Menghubungkan ke Live Database & memuat data...</p>
+                            <p class="text-muted mt-2">Memuat data laporan...</p>
                         </div>
                     </div>
                 </div>
@@ -287,7 +285,7 @@
 
             function loadData(params) {
                 $('#dataContainer').html(
-                    '<div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="text-muted mt-2">Memuat data dari Live Database...</p></div>'
+                    '<div class="text-center py-5"><div class="spinner-border text-danger" role="status"></div><p class="text-muted mt-2">Memuat data laporan...</p></div>'
                 );
 
                 $.ajax({
