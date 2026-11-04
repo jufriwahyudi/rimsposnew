@@ -73,7 +73,7 @@
 
             <div class="text-end mt-3">
                 @if ($stockAdjustment->status !== 'POSTED')
-                    <form action="{{ route('stock-adjustments.post', $stockAdjustment) }}" method="POST">
+                    <form action="{{ route('stock-adjustments.post', $stockAdjustment) }}" method="POST" onsubmit="let b = this.querySelector('button'); if(b.dataset.submitting === 'true') return false; b.dataset.submitting = 'true'; b.classList.add('disabled'); b.innerHTML = '<span class=\'spinner-border spinner-border-sm me-1\'></span> Memposting...'; setTimeout(() => b.disabled = true, 10);">
                         @csrf
                         <button class="btn btn-primary" {{ $hasZeroCost ? 'disabled' : '' }}>
                             Posting Adjustment

@@ -159,7 +159,7 @@
                             <div class="card border-0 shadow-sm rounded-4">
                                 <div class="card-body">
                                     <h6 class="fw-bold mb-3">Penyesuaian Stok</h6>
-                                    <form action="{{ route('produk.variants.adjust-stock', ['product' => $product->id, 'variant' => $variant->id]) }}" method="POST">
+                                    <form id="adjustStockForm" action="{{ route('produk.variants.adjust-stock', ['product' => $product->id, 'variant' => $variant->id]) }}" method="POST">
                                         @csrf
                                         <div class="row g-3">
                                             <div class="col-md-6">
@@ -202,7 +202,7 @@
                                                     placeholder="Alasan penyesuaian stok...">{{ old('notes') }}</textarea>
                                             </div>
                                             <div class="col-12">
-                                                <button type="submit" class="btn btn-primary">
+                                                <button type="submit" id="btnSubmitAdjustment" class="btn btn-primary">
                                                     <i class="bi bi-check-circle"></i> Simpan & Posting Penyesuaian
                                                 </button>
                                             </div>
@@ -318,6 +318,45 @@
             adjustmentType.addEventListener('change', toggleCostField);
             // Jalankan saat load untuk handle old() state
             toggleCostField();
+
+            // Prevent double submit on Penyesuaian Stok form
+            const adjustStockForm = document.getElementById('adjustStockForm');
+            const btnSubmitAdjustment = document.getElementById('btnSubmitAdjustment');
+            let isAdjustSubmitting = false;
+
+            if (adjustStockForm) {
+                adjustStockForm.addEventListener('submit', function(e) {
+                    if (isAdjustSubmitting) {
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    if (!adjustStockForm.checkValidity()) {
+                        return;
+                    }
+
+                    isAdjustSubmitting = true;
+
+                    if (btnSubmitAdjustment) {
+                        btnSubmitAdjustment.classList.add('disabled');
+                        btnSubmitAdjustment.style.pointerEvents = 'none';
+                        btnSubmitAdjustment.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Memposting Penyesuaian...';
+                        setTimeout(() => {
+                            btnSubmitAdjustment.disabled = true;
+                        }, 10);
+                    }
+                });
+            }
+
+            window.addEventListener('pageshow', function(event) {
+                if (event.persisted && btnSubmitAdjustment) {
+                    isAdjustSubmitting = false;
+                    btnSubmitAdjustment.classList.remove('disabled');
+                    btnSubmitAdjustment.style.pointerEvents = '';
+                    btnSubmitAdjustment.disabled = false;
+                    btnSubmitAdjustment.innerHTML = '<i class="bi bi-check-circle"></i> Simpan & Posting Penyesuaian';
+                }
+            });
         });
     </script>
     <script>

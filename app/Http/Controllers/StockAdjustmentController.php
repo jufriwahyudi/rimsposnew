@@ -53,6 +53,10 @@ class StockAdjustmentController extends Controller
 
     public function post(StockAdjustment $stockAdjustment, StockAdjustmentPostingService $service)
     {
+        if ($stockAdjustment->status === 'POSTED') {
+            return back()->with('info', 'Stock Adjustment sudah pernah diposting.');
+        }
+
         // VALIDASI
         $invalidItems = $stockAdjustment->items()
             ->where('cost', '<=', 0)
