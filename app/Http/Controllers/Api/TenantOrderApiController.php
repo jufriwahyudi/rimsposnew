@@ -463,8 +463,28 @@ class TenantOrderApiController extends Controller
 
         $from = $request->input('from', Carbon::today()->format('Y-m-d'));
         $to = $request->input('to', Carbon::today()->format('Y-m-d'));
-        $startRange = $from . ' 00:00:00';
-        $endRange = $to . ' 23:59:59';
+        $fromTime = $request->input('from_time');
+        $toTime = $request->input('to_time');
+
+        // Parse startRange with time precision
+        if ($fromTime) {
+            $fTime = strlen(trim($fromTime)) === 5 ? trim($fromTime) . ':00' : trim($fromTime);
+            $startRange = Carbon::parse($from . ' ' . $fTime)->format('Y-m-d H:i:s');
+        } elseif (str_contains($from, ' ') || str_contains($from, 'T')) {
+            $startRange = Carbon::parse($from)->format('Y-m-d H:i:s');
+        } else {
+            $startRange = $from . ' 00:00:00';
+        }
+
+        // Parse endRange with time precision
+        if ($toTime) {
+            $tTime = strlen(trim($toTime)) === 5 ? trim($toTime) . ':59' : trim($toTime);
+            $endRange = Carbon::parse($to . ' ' . $tTime)->format('Y-m-d H:i:s');
+        } elseif (str_contains($to, ' ') || str_contains($to, 'T')) {
+            $endRange = Carbon::parse($to)->format('Y-m-d H:i:s');
+        } else {
+            $endRange = $to . ' 23:59:59';
+        }
         $search = trim($request->input('search', ''));
         $paymentStatus = $request->input('payment_status', 'all');
         $storeId = $request->input('store_id');
@@ -615,6 +635,10 @@ class TenantOrderApiController extends Controller
             'summary' => [
                 'from'             => $from,
                 'to'               => $to,
+                'from_time'        => $fromTime,
+                'to_time'          => $toTime,
+                'start_range'      => $startRange,
+                'end_range'        => $endRange,
                 'total_orders'     => $totalOrders,
                 'total_portions'   => $totalPortions,
                 'gross_sales'      => (int) $grossSales,

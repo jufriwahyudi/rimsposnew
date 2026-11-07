@@ -702,6 +702,7 @@ class PosController extends Controller
                 'image_url' => $v->image_url,
                 'category_id' => $v->product?->category_id,
                 'category_name' => $v->product?->category?->name ?? 'Tanpa Kategori',
+                'category_sort_order' => (int) ($v->product?->category?->sort_order ?? 999),
                 'tenant_id' => $v->product?->tenant_id,
                 'tenant_name' => $v->product?->tenant?->nama_tenant ?? 'Umum',
             ];
@@ -862,6 +863,7 @@ class PosController extends Controller
                 'image_url' => $v->image_url,
                 'category_id' => $v->product?->category_id,
                 'category_name' => $v->product?->category?->name ?? 'Tanpa Kategori',
+                'category_sort_order' => (int) ($v->product?->category?->sort_order ?? 999),
                 'tenant_id' => $v->product?->tenant_id,
                 'tenant_name' => $v->product?->tenant?->nama_tenant ?? 'Umum',
             ];
@@ -5217,6 +5219,7 @@ class PosController extends Controller
                 'image_url' => $v->image_url,
                 'category_id' => $v->product?->category_id,
                 'category_name' => $v->product?->category?->name ?? 'Tanpa Kategori',
+                'category_sort_order' => (int) ($v->product?->category?->sort_order ?? 999),
                 'tenant_id' => $v->product?->tenant_id,
                 'tenant_name' => $v->product?->tenant?->nama_tenant ?? 'Umum',
                 'product_type' => $v->product?->product_type ?? 'SINGLE',
