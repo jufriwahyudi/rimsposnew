@@ -39,7 +39,12 @@
                         <tr class="{{ $item->cost <= 0 ? 'table-danger' : '' }}">
                             <td>{{ $item->productVariant->product->nama_produk }}</td>
                             <td>{{ $item->productVariant->variant_label }}</td>
-                            <td class="text-center">{{ $item->qty }}</td>
+                            <td class="text-center text-nowrap">
+                                {{ $item->qty }}
+                                @if (!empty($item->productVariant->product->base_unit))
+                                    <small class="text-muted ms-1">{{ $item->productVariant->product->base_unit }}</small>
+                                @endif
+                            </td>
                             <td class="text-end">
                                 @if ($item->cost > 0)
                                     {{ number_format($item->cost, 0) }}

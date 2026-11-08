@@ -110,10 +110,12 @@ class StockOpnameController extends Controller
 
     public function edit(StockOpname $stockOpname)
     {
-        $stockOpname->load('items.productVariant.product');
-        $stockOpname->load('items.productVariant.variantAttributes.value');
-        $stockOpname->load('period');
-        // dd(json_encode($stockOpname->take(10), JSON_PRETTY_PRINT));
+        $stockOpname->load([
+            'items.productVariant.product.units' => fn($q) => $q->where('is_active', true)->orderByDesc('multiplier'),
+            'items.productVariant.units' => fn($q) => $q->where('is_active', true)->orderByDesc('multiplier'),
+            'items.productVariant.variantAttributes.value',
+            'period',
+        ]);
         return view('stock-opnames.edit', compact('stockOpname'));
     }
 

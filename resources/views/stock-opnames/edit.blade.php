@@ -71,15 +71,58 @@
                                         <td class="fw-semibold">{{ $item->productVariant->sku }}</td>
                                         <td>{{ $item->productVariant->product->nama_produk }}</td>
                                         <td>{{ $item->productVariant->variant_label }}</td>
-                                        <td class="text-center system-qty">{{ round($item->system_qty) }}</td>
+                                        <td class="text-center text-nowrap">
+                                            <span class="system-qty fw-semibold">{{ round($item->system_qty) }}</span>
+                                            @if (!empty($item->productVariant->product->base_unit))
+                                                <small class="text-muted ms-1">{{ $item->productVariant->product->base_unit }}</small>
+                                            @endif
+                                        </td>
                                         <td class="text-center">
+                                            @php
+                                                $baseUnitName = $item->productVariant->product->base_unit ?: 'Pcs';
+                                                $variantUnits = $item->productVariant->units && $item->productVariant->units->isNotEmpty()
+                                                    ? $item->productVariant->units
+                                                    : ($item->productVariant->product->units ?? collect());
+                                                $calcUnits = $variantUnits
+                                                    ->where('is_active', true)
+                                                    ->sortByDesc('multiplier')
+                                                    ->map(fn($u) => [
+                                                        'name' => $u->name,
+                                                        'multiplier' => (int) $u->multiplier,
+                                                    ])
+                                                    ->values()
+                                                    ->toArray();
+                                                // Pastikan satuan terkecil (multiplier = 1) selalu ada di urutan paling bawah
+                                                $hasBase = collect($calcUnits)->contains(fn($u) => $u['multiplier'] === 1);
+                                                if (!$hasBase) {
+                                                    $calcUnits[] = [
+                                                        'name' => $baseUnitName,
+                                                        'multiplier' => 1,
+                                                    ];
+                                                }
+                                            @endphp
                                             <div class="input-group input-group-sm">
+                                                @if (!in_array($stockOpname->status, ['APPROVED', 'CANCELLED']))
+                                                    <button type="button"
+                                                        class="btn {{ count($calcUnits) > 1 ? 'btn-outline-primary' : 'btn-outline-secondary' }}"
+                                                        title="Kalkulator Pintar Multi-Satuan"
+                                                        data-item-id="{{ $item->id }}"
+                                                        data-sku="{{ $item->productVariant->sku }}"
+                                                        data-product-name="{{ $item->productVariant->product->nama_produk }} ({{ $item->productVariant->variant_label }})"
+                                                        data-base-unit="{{ $baseUnitName }}"
+                                                        data-units='@json($calcUnits)'
+                                                        onclick="openUnitCalculator(this)">
+                                                        <i class="bi bi-calculator"></i>
+                                                    </button>
+                                                @endif
                                                 <input type="number" min="0"
                                                     name="items[{{ $item->id }}][physical_qty]"
                                                     value="{{ round($item->physical_qty) }}"
                                                     class="form-control text-center physical-input">
                                                 @if (!in_array($stockOpname->status, ['APPROVED', 'CANCELLED']))
-                                                    <button class="btn btn-outline-secondary"
+                                                    <button type="button" class="btn btn-outline-secondary"
+                                                        id="button-addon{{ $item->id }}"
+                                                        title="Simpan Fisik"
                                                         onclick="savePhysicalQty('{{ $item->id }}')">
                                                         <i class="bi bi-save"></i>
                                                     </button>
@@ -136,6 +179,60 @@
         </div>
         <div class="toast-body">
             Data berhasil disimpan
+        </div>
+    </div>
+
+    {{-- Modal Kalkulator Pintar Multi-Satuan --}}
+    <div class="modal fade" id="unitCalculatorModal" tabindex="-1" aria-labelledby="unitCalculatorModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header bg-light rounded-top-4">
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0" id="unitCalculatorModalLabel">
+                            <i class="bi bi-calculator text-primary me-1"></i> Kalkulator Stok Multi-Satuan
+                        </h6>
+                        <small class="text-muted" id="calcProductTitle"></small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <small class="text-muted">Masukkan jumlah fisik per satuan yang dihitung:</small>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                onclick="breakdownCurrentPhysical()" title="Pecah angka fisik saat ini ke satuan">
+                                <i class="bi bi-diagram-3"></i> Pecah Fisik Saat Ini
+                            </button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="resetUnitCalculator()">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                    <div id="calcUnitFieldsContainer"></div>
+                    <div class="alert alert-primary bg-opacity-10 border-primary border-opacity-25 rounded-3 mt-3 mb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="small text-muted">Total Konversi Satuan Terkecil:</div>
+                                <div class="small text-secondary" id="calcBreakdownFormula">-</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="fs-4 fw-bold text-primary" id="calcTotalBaseQty">0</span>
+                                <span class="fw-semibold text-primary" id="calcBaseUnitLabel"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyUnitCalculator(false)">
+                        Isi ke Kolom Fisik
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="applyUnitCalculator(true)">
+                        <i class="bi bi-check2-circle me-1"></i> Terapkan & Simpan
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
@@ -229,6 +326,148 @@
                     console.error('Error:', error);
                     Swal.fire('Terjadi kesalahan saat menyimpan.');
                 });
+        }
+
+        let currentCalcState = {
+            itemId: null,
+            baseUnit: 'Pcs',
+            units: []
+        };
+
+        function openUnitCalculator(btn) {
+            const itemId = btn.dataset.itemId;
+            const sku = btn.dataset.sku || '';
+            const productName = btn.dataset.productName || '';
+            const baseUnit = btn.dataset.baseUnit || 'Pcs';
+            let units = [];
+            try {
+                units = JSON.parse(btn.dataset.units || '[]');
+            } catch (e) {
+                units = [{
+                    name: baseUnit,
+                    multiplier: 1
+                }];
+            }
+
+            currentCalcState = {
+                itemId,
+                baseUnit,
+                units
+            };
+
+            document.getElementById('calcProductTitle').textContent = `${sku} — ${productName}`;
+            document.getElementById('calcBaseUnitLabel').textContent = baseUnit;
+
+            const container = document.getElementById('calcUnitFieldsContainer');
+            container.innerHTML = '';
+
+            units.forEach((unit, idx) => {
+                const isBase = parseInt(unit.multiplier) === 1;
+                const helperText = isBase
+                    ? `Satuan Terkecil (1 ${unit.name})`
+                    : `1 ${unit.name} = ${unit.multiplier} ${baseUnit}`;
+
+                const row = document.createElement('div');
+                row.className = 'row align-items-center mb-2';
+                row.innerHTML = `
+                    <div class="col-6">
+                        <label class="form-label mb-0 fw-semibold">${unit.name}</label>
+                        <div class="text-muted" style="font-size: 0.75rem;">${helperText}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="input-group input-group-sm">
+                            <input type="number" min="0" step="1"
+                                class="form-control text-center calc-unit-input"
+                                data-unit-name="${unit.name}"
+                                data-multiplier="${unit.multiplier}"
+                                placeholder="0"
+                                oninput="recalcUnitModalTotal()"
+                                onkeydown="if(event.key === 'Enter'){ event.preventDefault(); applyUnitCalculator(true); }">
+                            <span class="input-group-text">${unit.name}</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+
+            recalcUnitModalTotal();
+
+            const modalEl = document.getElementById('unitCalculatorModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+
+            setTimeout(() => {
+                const firstInput = container.querySelector('.calc-unit-input');
+                if (firstInput) firstInput.focus();
+            }, 250);
+        }
+
+        function recalcUnitModalTotal() {
+            let total = 0;
+            const parts = [];
+            document.querySelectorAll('#calcUnitFieldsContainer .calc-unit-input').forEach(input => {
+                const qty = parseInt(input.value) || 0;
+                const mult = parseInt(input.dataset.multiplier) || 1;
+                const uName = input.dataset.unitName || '';
+                if (qty > 0) {
+                    const sub = qty * mult;
+                    total += sub;
+                    parts.push(`${qty} ${uName} (${sub})`);
+                }
+            });
+
+            document.getElementById('calcTotalBaseQty').textContent = total;
+            document.getElementById('calcBreakdownFormula').textContent = parts.length > 0
+                ? parts.join(' + ')
+                : 'Belum ada angka diinput';
+        }
+
+        function resetUnitCalculator() {
+            document.querySelectorAll('#calcUnitFieldsContainer .calc-unit-input').forEach(input => {
+                input.value = '';
+            });
+            recalcUnitModalTotal();
+            const firstInput = document.querySelector('#calcUnitFieldsContainer .calc-unit-input');
+            if (firstInput) firstInput.focus();
+        }
+
+        function breakdownCurrentPhysical() {
+            if (!currentCalcState.itemId) return;
+            const physInput = document.querySelector(`input[name="items[${currentCalcState.itemId}][physical_qty]"]`);
+            let remaining = parseInt(physInput ? physInput.value : 0) || 0;
+
+            document.querySelectorAll('#calcUnitFieldsContainer .calc-unit-input').forEach(input => {
+                const mult = parseInt(input.dataset.multiplier) || 1;
+                if (mult > 0 && remaining >= mult) {
+                    const count = Math.floor(remaining / mult);
+                    input.value = count > 0 ? count : '';
+                    remaining = remaining % mult;
+                } else {
+                    input.value = '';
+                }
+            });
+            recalcUnitModalTotal();
+        }
+
+        function applyUnitCalculator(autoSave = false) {
+            if (!currentCalcState.itemId) return;
+            const total = parseInt(document.getElementById('calcTotalBaseQty').textContent) || 0;
+            const physInput = document.querySelector(`input[name="items[${currentCalcState.itemId}][physical_qty]"]`);
+
+            if (physInput) {
+                physInput.value = total;
+                physInput.dispatchEvent(new Event('input', {
+                    bubbles: true
+                }));
+            }
+
+            const modalEl = document.getElementById('unitCalculatorModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            if (autoSave) {
+                savePhysicalQty(currentCalcState.itemId);
+            }
         }
     </script>
 @endpush
