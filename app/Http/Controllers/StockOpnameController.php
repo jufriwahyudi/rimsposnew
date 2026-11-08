@@ -216,48 +216,52 @@ class StockOpnameController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        if (!$lastBatch) {
-            $batch = StockBatch::create([
-                'product_variant_id' => $opnameItem->product_variant_id,
-                'posisi'             => $posisi,
-                'tanggal_masuk'      => $adjustment->effective_date,
-                'qty_awal'           => $qty,
-                'qty_sisa'           => $qty,
-                'harga_beli'         => $opnameItem->harga_beli, // atau nullable
-                'sumber'             => 'opname',
-            ]);
-            $lastBatch = $batch;
-            StockMovement::create([
-                'product_variant_id' => $opnameItem->product_variant_id,
-                'stock_batch_id'     => $batch->id,
-                'posisi'             => $posisi,
-                'tanggal'            => $adjustment->effective_date,
-                'tipe'               => 'adjust',
-                'direction'          => 'in',
-                'qty'                => $qty,
-                'ref_type'           => 'StockAdjustment', // atau nullable
-                'ref_id'             => $adjustment->id,
-            ]);
+        $inputCost = (float) ($opnameItem->harga_beli ?? 0);
+        if ($inputCost > 0) {
+            $cost = $inputCost;
+        } elseif ($lastBatch && $lastBatch->harga_beli > 0) {
+            $cost = (float) $lastBatch->harga_beli;
+        } else {
+            $variant = \App\Models\ProductVariant::find($opnameItem->product_variant_id);
+            $cost = $variant && $variant->cost_price_manual > 0 ? (float) $variant->cost_price_manual : 0;
         }
+
+        // Gunakan batch terakhir jika harga beli sama; jika berbeda atau belum ada batch, biarkan null agar dibuat batch baru saat POSTED
+        $targetBatchId = ($lastBatch && abs((float) $lastBatch->harga_beli - $cost) < 0.01)
+            ? $lastBatch->id
+            : null;
 
         StockAdjustmentItem::create([
             'stock_adjustment_id' => $adjustment->id,
-            'stock_batch_id'      => $lastBatch->id,
+            'stock_batch_id'      => $targetBatchId,
             'product_variant_id'  => $opnameItem->product_variant_id,
             'qty'                 => $qty,
-            'cost'                => $lastBatch->harga_beli,
-            'total_value'         => $qty * $lastBatch->harga_beli,
+            'cost'                => $cost,
+            'total_value'         => $qty * $cost,
         ]);
     }
 
     protected function handleNegativeAdjustment($adjustment, $opnameItem, $qty, $posisi)
     {
-        // dd($opnameItem);
-        $batches = StockBatch::where('product_variant_id', $opnameItem->product_variant_id)
+        $variant = \App\Models\ProductVariant::find($opnameItem->product_variant_id);
+        $store = $variant ? \App\Models\Store::find($variant->store_id) : null;
+        $useFEFO = (bool) ($store && ($store->addon_fefo || $store->business_type === 'pharmacy'));
+
+        $query = StockBatch::where('product_variant_id', $opnameItem->product_variant_id)
             ->where('posisi', $posisi)
-            ->where('qty_sisa', '>', 0)
-            ->orderBy('created_at') // FIFO
-            ->get();
+            ->where('qty_sisa', '>', 0);
+
+        if ($useFEFO) {
+            $batches = $query->orderByRaw('CASE WHEN expired_date IS NOT NULL THEN 0 ELSE 1 END')
+                ->orderBy('expired_date', 'asc')
+                ->orderBy('tanggal_masuk', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+        } else {
+            $batches = $query->orderBy('tanggal_masuk', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+        }
 
         foreach ($batches as $batch) {
 
@@ -266,17 +270,6 @@ class StockOpnameController extends Controller
             }
 
             $takeQty = min($batch->qty_sisa, $qty);
-            StockMovement::create([
-                'product_variant_id' => $opnameItem->product_variant_id,
-                'stock_batch_id'     => $batch->id,
-                'posisi'             => $posisi,
-                'tanggal'            => $adjustment->effective_date,
-                'tipe'               => 'adjust',
-                'direction'          => 'out',
-                'qty'                => $takeQty,
-                'ref_type'           => 'StockAdjustment', // atau nullable
-                'ref_id'             => $adjustment->id,
-            ]);
 
             StockAdjustmentItem::create([
                 'stock_adjustment_id' => $adjustment->id,
