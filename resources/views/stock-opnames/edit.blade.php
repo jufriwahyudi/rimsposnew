@@ -89,7 +89,7 @@
                                         <td class="text-center">
                                             <input type="number" class="form-control form-control-sm text-center"
                                                 name="items[{{ $item->id }}][harga_beli]"
-                                                value="{{ $item->harga_beli ?? 0 }}" step="100" min="0">
+                                                value="{{ $item->harga_beli ?? 0 }}" step="any" min="0">
                                         </td>
                                         <td class="text-center difference-qty">{{ round($item->difference_qty) }}</td>
                                         <td class="text-center status-text">

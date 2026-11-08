@@ -42,6 +42,11 @@ class StockOpnameController extends Controller
 
 
 
+                // Ambil harga_beli terakhir per varian dari stock_batches untuk posisi terkait
+                $latestBatchCosts = DB::table('stock_batches as sb')
+                    ->join(DB::raw('(SELECT product_variant_id, MAX(id) as max_id FROM stock_batches WHERE posisi = ' . DB::getPdo()->quote($request->posisi) . ' AND harga_beli > 0 GROUP BY product_variant_id) as latest'), 'sb.id', '=', 'latest.max_id')
+                    ->pluck('sb.harga_beli', 'sb.product_variant_id');
+
                 /**
                  * Hitung stok sistem per VARIANT
                  * berdasarkan stock_movements
@@ -55,6 +60,7 @@ class StockOpnameController extends Controller
                     ->where('pv.store_id', session('store_id'))
                     ->select(
                         'pv.id as product_variant_id',
+                        'pv.cost_price_manual',
                         DB::raw("
                             COALESCE(
                                 SUM(
@@ -68,21 +74,25 @@ class StockOpnameController extends Controller
                         ")
                     )
                     ->where('pv.is_active', 'Y')
-                    ->groupBy('pv.id')
+                    ->groupBy('pv.id', 'pv.cost_price_manual')
                     ->get();
 
                 $items = [];
 
                 foreach ($stocks as $stock) {
+                    $defaultCost = $latestBatchCosts[$stock->product_variant_id]
+                        ?? ($stock->cost_price_manual > 0 ? $stock->cost_price_manual : 0);
+
                     $items[] = [
-                        'stock_opname_id'   => $opname->id,
+                        'stock_opname_id'    => $opname->id,
                         'product_variant_id' => $stock->product_variant_id,
-                        'system_qty'        => $stock->system_qty,
-                        'physical_qty'      => $stock->system_qty, // default
-                        'difference_qty'    => 0,
-                        'status'            => 'MATCH',
-                        'created_at'        => now(),
-                        'updated_at'        => now(),
+                        'system_qty'         => $stock->system_qty,
+                        'physical_qty'       => $stock->system_qty, // default
+                        'difference_qty'     => 0,
+                        'harga_beli'         => $defaultCost,
+                        'status'             => 'MATCH',
+                        'created_at'         => now(),
+                        'updated_at'         => now(),
                     ];
                 }
 
