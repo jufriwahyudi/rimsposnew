@@ -48,8 +48,8 @@ class DiscountController extends Controller
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
             'code'                => 'nullable|string|max:50',
-            'discount_type'       => 'required|in:percentage,nominal',
-            'discount_value'      => 'required|numeric|min:0',
+            'discount_type'       => 'required|in:percentage,nominal,cost_price',
+            'discount_value'      => 'nullable|numeric|min:0',
             'min_purchase_amount' => 'nullable|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
             'target_type'         => 'required|in:all,member_only',
@@ -65,6 +65,9 @@ class DiscountController extends Controller
         $validated['store_id'] = $storeId;
         $validated['is_active'] = $request->boolean('is_active', true);
         $validated['min_purchase_amount'] = $validated['min_purchase_amount'] ?? 0;
+        $validated['discount_value'] = $validated['discount_type'] === 'cost_price'
+            ? 0
+            : ($validated['discount_value'] ?? 0);
 
         if ($validated['discount_type'] === 'percentage') {
             if ($validated['discount_value'] > 100) {
@@ -116,8 +119,8 @@ class DiscountController extends Controller
         $validated = $request->validate([
             'name'                => 'required|string|max:150',
             'code'                => 'nullable|string|max:50',
-            'discount_type'       => 'required|in:percentage,nominal',
-            'discount_value'      => 'required|numeric|min:0',
+            'discount_type'       => 'required|in:percentage,nominal,cost_price',
+            'discount_value'      => 'nullable|numeric|min:0',
             'min_purchase_amount' => 'nullable|numeric|min:0',
             'max_discount_amount' => 'nullable|numeric|min:0',
             'target_type'         => 'required|in:all,member_only',
@@ -132,6 +135,9 @@ class DiscountController extends Controller
 
         $validated['is_active'] = $request->boolean('is_active', true);
         $validated['min_purchase_amount'] = $validated['min_purchase_amount'] ?? 0;
+        $validated['discount_value'] = $validated['discount_type'] === 'cost_price'
+            ? 0
+            : ($validated['discount_value'] ?? 0);
 
         if ($validated['discount_type'] === 'percentage') {
             if ($validated['discount_value'] > 100) {

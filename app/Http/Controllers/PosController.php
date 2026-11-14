@@ -628,6 +628,56 @@ class PosController extends Controller
     }
 
     /**
+     * Resolve harga modal & daftar batch aktif (urut FIFO/FEFO store) untuk POS.
+     */
+    private function resolveVariantCostData($variant, bool $hasFEFO): array
+    {
+        $productType = $variant->product?->product_type ?? 'SINGLE';
+        if ($productType === 'SERVICE' || ! $variant->track_stock) {
+            return [
+                'cost_price' => $variant->cost_price_manual !== null ? (float) $variant->cost_price_manual : null,
+                'cost_batches' => [],
+            ];
+        }
+
+        $query = StockBatch::where('product_variant_id', $variant->id)
+            ->where('posisi', 'store')
+            ->where('qty_sisa', '>', 0);
+
+        if ($hasFEFO) {
+            $today = now()->toDateString();
+            $query->where(function ($q) use ($today) {
+                $q->whereNull('expired_date')->orWhere('expired_date', '>=', $today);
+            })
+                ->orderByRaw('CASE WHEN expired_date IS NOT NULL THEN 0 ELSE 1 END')
+                ->orderBy('expired_date', 'asc');
+        }
+
+        $batches = $query->orderBy('tanggal_masuk', 'asc')
+            ->orderBy('id', 'asc')
+            ->get(['batch_number', 'tanggal_masuk', 'expired_date', 'qty_sisa', 'harga_beli']);
+
+        $costBatches = $batches->map(function ($b) {
+            return [
+                'batch_number' => $b->batch_number,
+                'tanggal_masuk' => $b->tanggal_masuk ? $b->tanggal_masuk->toDateString() : null,
+                'expired_date' => $b->expired_date ? $b->expired_date->toDateString() : null,
+                'qty' => (int) $b->qty_sisa,
+                'cost' => (float) $b->harga_beli,
+            ];
+        })->values()->toArray();
+
+        $costPrice = ! empty($costBatches)
+            ? $costBatches[0]['cost']
+            : ($variant->cost_price_manual !== null ? (float) $variant->cost_price_manual : null);
+
+        return [
+            'cost_price' => $costPrice,
+            'cost_batches' => $costBatches,
+        ];
+    }
+
+    /**
      * Endpoint pencarian produk (SKU / barcode / nama)
      * Service nanti diinject
      */
@@ -679,6 +729,8 @@ class PosController extends Controller
                 }
             }
 
+            $costData = $this->resolveVariantCostData($v, $hasFEFO);
+
             return [
                 'id' => $v->id,
                 'product_id' => $v->product_id,
@@ -693,6 +745,8 @@ class PosController extends Controller
                 'default_commission_type' => $v->product?->default_commission_type ?? 'none',
                 'default_commission_rate' => (float) ($v->product?->default_commission_rate ?? 0),
                 'price' => (float) $v->harga_jual,
+                'cost_price' => $costData['cost_price'],
+                'cost_batches' => $costData['cost_batches'],
                 'stok' => $isService ? 999999 : (int) $v->effective_stock,
                 'track_stock' => $isService ? false : (bool) $v->track_stock,
                 'is_available' => (bool) ($v->is_available ?? true),
@@ -844,9 +898,13 @@ class PosController extends Controller
             ->limit(10)
             ->get();
 
-        $suggestions = $variants->map(function ($v) {
+        $store = Store::find($storeId);
+        $hasFEFO = $store && ($store->addon_fefo || $store->business_type === 'pharmacy');
+
+        $suggestions = $variants->map(function ($v) use ($hasFEFO) {
             $productType = $v->product?->product_type ?? 'SINGLE';
             $isService = $productType === 'SERVICE';
+            $costData = $this->resolveVariantCostData($v, $hasFEFO);
 
             return [
                 'id' => $v->id,
@@ -858,6 +916,8 @@ class PosController extends Controller
                 'default_commission_type' => $v->product?->default_commission_type ?? 'none',
                 'default_commission_rate' => (float) ($v->product?->default_commission_rate ?? 0),
                 'price' => (float) $v->harga_jual,
+                'cost_price' => $costData['cost_price'],
+                'cost_batches' => $costData['cost_batches'],
                 'stok' => $isService ? 999999 : (int) $v->stok_store,
                 'track_stock' => $isService ? false : (bool) $v->track_stock,
                 'image_url' => $v->image_url,

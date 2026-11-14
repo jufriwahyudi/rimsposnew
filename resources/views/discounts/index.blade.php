@@ -105,6 +105,9 @@
                                                 @if($d->max_discount_amount > 0)
                                                     <div class="text-muted small mt-1">Maks. Rp {{ number_format($d->max_discount_amount, 0, ',', '.') }}</div>
                                                 @endif
+                                            @elseif($d->discount_type === 'cost_price')
+                                                <span class="badge bg-info text-dark fs-6">Harga Modal</span>
+                                                <div class="text-muted small mt-1">Sesuai batch FIFO</div>
                                             @else
                                                 <span class="badge bg-success fs-6">Rp {{ number_format($d->discount_value, 0, ',', '.') }}</span>
                                             @endif
@@ -211,9 +214,10 @@
                                 <select class="form-select" id="discount_type" name="discount_type" required onchange="toggleDiscountType()">
                                     <option value="percentage">Persentase (%)</option>
                                     <option value="nominal">Potongan Nominal (Rp)</option>
+                                    <option value="cost_price">Harga Modal (Sesuai Batch)</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4" id="col-discount-value">
                                 <label class="form-label fw-bold" id="label-discount-value">Nilai Diskon (%) <span class="text-danger">*</span></label>
                                 <input type="number" step="any" class="form-control" id="discount_value" name="discount_value" required min="0" placeholder="10">
                             </div>
@@ -318,10 +322,19 @@
     function toggleDiscountType() {
         const type = $('#discount_type').val();
         if (type === 'percentage') {
+            $('#col-discount-value').show();
+            $('#discount_value').prop('required', true);
             $('#label-discount-value').html('Nilai Diskon (%) <span class="text-danger">*</span>');
             $('#discount_value').attr('placeholder', '10');
             $('#col-max-discount').show();
+        } else if (type === 'cost_price') {
+            $('#col-discount-value').hide();
+            $('#discount_value').prop('required', false).val('0');
+            $('#col-max-discount').hide();
+            $('#max_discount_amount').val('');
         } else {
+            $('#col-discount-value').show();
+            $('#discount_value').prop('required', true);
             $('#label-discount-value').html('Nilai Potongan (Rp) <span class="text-danger">*</span>');
             $('#discount_value').attr('placeholder', '15000');
             $('#col-max-discount').hide();
