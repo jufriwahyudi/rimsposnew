@@ -367,7 +367,7 @@
 
     function openEditModal(id) {
         $.ajax({
-            url: `{{ url('discounts') }}/${id}/edit`,
+            url: `{{ route('discounts.index') }}/${id}/edit`,
             type: 'GET',
             dataType: 'json',
             success: function(d) {
@@ -405,7 +405,7 @@
         e.preventDefault();
         const id = $('#discount_id').val();
         const isEdit = !!id;
-        const url = isEdit ? `{{ url('discounts') }}/${id}` : `{{ route('discounts.store') }}`;
+        const url = isEdit ? `{{ route('discounts.index') }}/${id}` : `{{ route('discounts.store') }}`;
 
         const data = {
             _token: '{{ csrf_token() }}',
@@ -477,7 +477,7 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
-                    url: `{{ url('discounts') }}/${id}`,
+                    url: `{{ route('discounts.index') }}/${id}`,
                     type: 'POST',
                     data: {
                         _token: '{{ csrf_token() }}',
