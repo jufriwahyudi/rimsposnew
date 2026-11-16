@@ -187,12 +187,25 @@
                             <th>Subtotal</th>
                             <td class="text-end">{{ number_format($sale->subtotal) }}</td>
                         </tr>
+                        @if ($sale->discount_name || $sale->trans_discount > 0)
                         <tr>
-                            <th>Diskon Item/Trans</th>
+                            <th>Promo{{ $sale->discount_name ? ' (' . $sale->discount_name . ')' : '' }}</th>
                             <td class="text-end text-danger">
-                                -{{ number_format($sale->discount_total) }}
+                                -{{ number_format($sale->trans_discount > 0 ? $sale->trans_discount : $sale->discount_total) }}
                             </td>
                         </tr>
+                        @endif
+                        @php
+                            $itemDiscountSum = $sale->items->sum('discount_amount');
+                        @endphp
+                        @if ($itemDiscountSum > 0 || (!$sale->discount_name && $sale->trans_discount <= 0))
+                        <tr>
+                            <th>Diskon Item</th>
+                            <td class="text-end text-danger">
+                                -{{ number_format($itemDiscountSum > 0 ? $itemDiscountSum : $sale->discount_total) }}
+                            </td>
+                        </tr>
+                        @endif
                         @if ($sale->voucher_code)
                         <tr>
                             <th>Voucher ({{ $sale->voucher_code }})</th>
