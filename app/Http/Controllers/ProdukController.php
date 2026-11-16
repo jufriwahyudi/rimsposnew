@@ -130,7 +130,7 @@ class ProdukController extends Controller
         $query = Product::query()
             ->select('products.*')
             ->with('category')
-            ->withCount('variants')
+            ->withCount(['variants' => fn($q) => $q->where('is_active', 'Y')])
             ->withStockWarehouse()
             ->withStockStore();
 

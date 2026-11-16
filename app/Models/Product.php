@@ -103,6 +103,7 @@ class Product extends Model
             'batches as stock_warehouse' => fn($b) =>
             $b->where('posisi', 'warehouse')
                 ->where('qty_sisa', '>', '0')
+                ->whereHas('variant', fn($v) => $v->where('is_active', 'Y'))
         ], 'qty_sisa');
     }
 
@@ -112,6 +113,7 @@ class Product extends Model
             'batches as stock_store' => fn($b) =>
             $b->where('posisi', 'store')
                 ->where('qty_sisa', '>', '0')
+                ->whereHas('variant', fn($v) => $v->where('is_active', 'Y'))
         ], 'qty_sisa');
     }
 
