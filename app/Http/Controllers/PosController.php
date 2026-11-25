@@ -3032,18 +3032,27 @@ class PosController extends Controller
             'payment_status_filter' => $paymentStatusFilter,
         ]);
 
+        $user = auth()->user();
+        $user->loadMissing('roles.roles');
+        $isAdmin = $user->roles->contains(function ($ru) {
+            return $ru->roles && $ru->roles->role_type === 'ADMIN';
+        });
+
         $paginated = Sale::with('payments')
             ->withCount('items')
             ->where('store_id', $storeId)
-            ->where('user_id', auth()->id())
+            ->when(! $isAdmin, function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
             ->whereNull('ref_sale_id')
             ->whereBetween('sale_date', [$from, $to])
             ->when($customerSearch !== '', function ($q) use ($customerSearch) {
-                // Cari di nama pelanggan atau nomor telepon atau no_invoice
+                // Cari di nama pelanggan, nomor telepon, no_invoice, atau nomor/nama meja
                 $q->where(function ($q2) use ($customerSearch) {
                     $q2->where('customer_name', 'LIKE', "%{$customerSearch}%")
                         ->orWhere('customer_phone', 'LIKE', "%{$customerSearch}%")
-                        ->orWhere('invoice_number', 'LIKE', "%{$customerSearch}%");
+                        ->orWhere('invoice_number', 'LIKE', "%{$customerSearch}%")
+                        ->orWhere('table_number', 'LIKE', "%{$customerSearch}%");
                 });
             })
             ->when($paymentStatusFilter, function ($q) use ($paymentStatusFilter) {
