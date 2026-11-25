@@ -37,14 +37,18 @@
                     <div class="card-body">
                         <form id="searchForm" method="POST">
                             @csrf
-                            <div class="row">
-                                <div class="col-md-12 col-sm-12">
-                                    <div class="input-group">
-                                        <input type="text" name="datefilter" id="datefilter" class="form-control"
-                                            placeholder="Pilih tanggal">
-                                        <button class="btn btn-primary" type="button" id="searchBtn"><i
-                                                class="fa fa-search"></i> </button>
-                                    </div>
+                            <div class="row g-2">
+                                <div class="col-md-6 col-sm-12">
+                                    <input type="text" name="datefilter" id="datefilter" class="form-control"
+                                        placeholder="Pilih tanggal">
+                                </div>
+                                <div class="col-md-4 col-sm-12">
+                                    <input type="text" name="table_number" id="table_number" class="form-control"
+                                        placeholder="Filter Nama / No. Meja (opsional)">
+                                </div>
+                                <div class="col-md-2 col-sm-12 d-grid">
+                                    <button class="btn btn-primary" type="button" id="searchBtn"><i
+                                            class="fa fa-search"></i> Cari</button>
                                 </div>
                             </div>
                         </form>
@@ -108,6 +112,7 @@
                         _token: $('input[name="_token"]').val(),
                         mulai: mulai,
                         akhir: akhir,
+                        table_number: $('#table_number').val().trim(),
                         id_divisi: ''
                     },
                     success: function(response) {
@@ -118,6 +123,13 @@
                         alert('Terjadi kesalahan: ' + xhr.statusText);
                     }
                 });
+            });
+
+            $('#table_number').on('keypress', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#searchBtn').click();
+                }
             });
         });
     </script>

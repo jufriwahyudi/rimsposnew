@@ -28,21 +28,27 @@ class LaporanPenjualanExport implements
     protected $rowCount = 0;
     protected $mulai;
     protected $akhir;
+    protected $tableNumber;
 
-    public function __construct($mulai, $akhir)
+    public function __construct($mulai, $akhir, $tableNumber = null)
     {
         $this->mulai = $mulai;
         $this->akhir = $akhir;
+        $this->tableNumber = trim((string) $tableNumber);
     }
 
     public function headings(): array
     {
         $store = \App\Models\Store::find(session('store_id'));
         $isFnB = $store && $store->business_type === 'fnb';
+        $periodeLabel = 'Periode: ' . $this->mulai . ' s/d ' . $this->akhir;
+        if ($this->tableNumber !== '') {
+            $periodeLabel .= ' | Filter Meja: ' . $this->tableNumber;
+        }
 
         return [
             ['Laporan Penjualan'],
-            ['Periode: ' . $this->mulai . ' s/d ' . $this->akhir],
+            [$periodeLabel],
             [],
             [
                 'No',
@@ -64,15 +70,19 @@ class LaporanPenjualanExport implements
 
     public function array(): array
     {
-        $sales = Sale::with(['items' => function ($query) {
+        $query = Sale::with(['items' => function ($query) {
             $query->with(['batches', 'variant.product', 'fnbDetail'])
                 ->whereIn('status', ['sold', 'exchanged_in']);
         }, 'cashier'])
             ->whereNull('ref_sale_id')
             ->whereDoesntHave('refunds')
-            ->whereBetween('sale_date', [$this->mulai . " 00:00:00", $this->akhir . " 23:59:59"])
-            ->orderBy('sale_date', 'asc')
-            ->get();
+            ->whereBetween('sale_date', [$this->mulai . " 00:00:00", $this->akhir . " 23:59:59"]);
+
+        if ($this->tableNumber !== '') {
+            $query->where('table_number', 'like', '%' . $this->tableNumber . '%');
+        }
+
+        $sales = $query->orderBy('sale_date', 'asc')->get();
 
         $store = \App\Models\Store::find(session('store_id'));
         $isFnB = $store && $store->business_type === 'fnb';

@@ -389,6 +389,7 @@ Route::middleware(['auth', 'store.selected', 'injectUserData'])->group(function 
     Route::get('/laporan/penjualan', [LaporanController::class, 'penjualan'])->name('laporan.penjualan');
     Route::post('/laporan/penjualan/data', [LaporanController::class, 'getpenjualan'])->name('laporanpenjualan.getpenjualan');
     Route::get('/laporan/penjualan/export', [LaporanController::class, 'exportPenjualan'])->name('laporanpenjualan.export');
+    Route::get('/laporan/penjualan/cetak-bill', [LaporanController::class, 'cetakBillPenjualan'])->name('laporanpenjualan.cetak_bill');
 
     Route::get('/laporan/penukaran-poin', [LaporanController::class, 'penukaranPoin'])->name('laporan.penukaran-poin');
     Route::post('/laporan/penukaran-poin/data', [LaporanController::class, 'getPenukaranPoin'])->name('laporan.penukaran-poin.data');

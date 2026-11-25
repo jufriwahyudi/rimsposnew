@@ -41,6 +41,7 @@ class LaporanController extends Controller
         $id_divisi = $request->id_divisi;
         $mulai = $request->mulai;
         $akhir = $request->akhir;
+        $tableNumber = trim((string) $request->input('table_number', ''));
 
         $query = Sale::with([
             'items' => function ($query) {
@@ -52,6 +53,10 @@ class LaporanController extends Controller
             ->whereNull('ref_sale_id')
             ->whereDoesntHave('refunds')
             ->whereBetween('sale_date', [$mulai . " 00:00:00", $akhir . " 23:59:59"]);
+
+        if ($tableNumber !== '') {
+            $query->where('table_number', 'like', '%' . $tableNumber . '%');
+        }
 
         $sales = $query->orderBy('sale_date', 'asc')->get();
         // dd(json_encode($sales, JSON_PRETTY_PRINT));
@@ -134,22 +139,66 @@ class LaporanController extends Controller
 
         // Jika request dari AJAX, return partial view (hanya tabel)
         if ($request->ajax()) {
-            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'isFnB', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
+            return view('laporan.datapenjualan_table', compact('rows', 'mulai', 'akhir', 'id_divisi', 'isFnB', 'tableNumber', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
         }
 
         // Jika request normal, return full page
-        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'isFnB', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
+        return view('laporan.datapenjualan', compact('rows', 'mulai', 'akhir', 'id_divisi', 'isFnB', 'tableNumber', 'totalSubtotal', 'totalDiskon', 'totalPenjualan', 'totalModal', 'totalLabaRugi', 'totalTip'));
     }
 
     public function exportPenjualan(Request $request)
     {
         $mulai = $request->mulai;
         $akhir = $request->akhir;
+        $tableNumber = trim((string) $request->input('table_number', ''));
+
+        $suffix = $tableNumber !== '' ? '_meja_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $tableNumber) : '';
 
         return Excel::download(
-            new LaporanPenjualanExport($mulai, $akhir),
-            'laporan_penjualan_' . $mulai . '_' . $akhir . '.xlsx'
+            new LaporanPenjualanExport($mulai, $akhir, $tableNumber),
+            'laporan_penjualan_' . $mulai . '_' . $akhir . $suffix . '.xlsx'
         );
+    }
+
+    public function cetakBillPenjualan(Request $request)
+    {
+        $mulai = $request->input('mulai', date('Y-m-d'));
+        $akhir = $request->input('akhir', date('Y-m-d'));
+        $tableNumber = trim((string) $request->input('table_number', ''));
+
+        $query = Sale::with([
+            'items' => function ($query) {
+                $query->with(['variant.product', 'fnbDetail'])
+                    ->whereIn('status', ['sold', 'exchanged_in']);
+            },
+            'cashier'
+        ])
+            ->whereNull('ref_sale_id')
+            ->whereDoesntHave('refunds')
+            ->whereBetween('sale_date', [$mulai . ' 00:00:00', $akhir . ' 23:59:59']);
+
+        if ($tableNumber !== '') {
+            $query->where('table_number', 'like', '%' . $tableNumber . '%');
+        }
+
+        $sales = $query->orderBy('sale_date', 'asc')->get();
+
+        $cashMethods = CashTransaction::where('transaction_type', 'sale')
+            ->whereIn('ref_id', $sales->pluck('id'))
+            ->pluck('payment_method', 'ref_id');
+
+        $store = Store::find(session('store_id'));
+        $storeName = $store?->name ?? session('store_name', 'RIMSPOS');
+
+        return view('laporan.cetak_bill_penjualan', compact(
+            'sales',
+            'cashMethods',
+            'store',
+            'storeName',
+            'mulai',
+            'akhir',
+            'tableNumber'
+        ));
     }
 
     public function penjualanNSE()

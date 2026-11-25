@@ -1,13 +1,24 @@
 <div class="card rounded-4 p-2">
-    <div class="card-header mb-3 d-flex justify-content-between align-items-center">
+    <div class="card-header mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <h5 class="fw-bold mb-0" style="color: #7c3aed">Data Penjualan</h5>
-            <small class="text-muted">Tanggal: {{ $mulai }} - {{ $akhir }}</small>
+            <small class="text-muted">
+                Tanggal: {{ $mulai }} - {{ $akhir }}
+                @if (!empty($tableNumber))
+                    | <span class="badge bg-primary">Meja: {{ $tableNumber }}</span>
+                @endif
+            </small>
         </div>
-        <a href="{{ route('laporanpenjualan.export', ['mulai' => $mulai, 'akhir' => $akhir]) }}"
-            class="btn btn-success btn-sm">
-            <i class="fa fa-file-excel"></i> Export Excel
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ route('laporanpenjualan.cetak_bill', ['mulai' => $mulai, 'akhir' => $akhir, 'table_number' => $tableNumber ?? '']) }}"
+                target="_blank" class="btn btn-primary btn-sm">
+                <i class="fa fa-print"></i> Cetak Bill
+            </a>
+            <a href="{{ route('laporanpenjualan.export', ['mulai' => $mulai, 'akhir' => $akhir, 'table_number' => $tableNumber ?? '']) }}"
+                class="btn btn-success btn-sm">
+                <i class="fa fa-file-excel"></i> Export Excel
+            </a>
+        </div>
     </div>
     <div class="card-body">
         <div class="table-responsive">
